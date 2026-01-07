@@ -1,0 +1,32 @@
+<Project>
+  <PropertyGroup>
+    <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- EF Core -->
+    <PackageVersion Include="Microsoft.EntityFrameworkCore" Version="9.0.11" />
+    <PackageVersion Include="Microsoft.EntityFrameworkCore.SqlServer" Version="9.0.11" />
+    <PackageVersion Include="Microsoft.EntityFrameworkCore.Tools" Version="9.0.11" />
+    <PackageVersion Include="Microsoft.EntityFrameworkCore.Design" Version="9.0.11" />
+
+    <!-- ASP.NET Core -->
+    <PackageVersion Include="Microsoft.AspNetCore.OpenApi" Version="9.0.11" />
+
+    <!-- MediatR (CQRS) -->
+    <PackageVersion Include="MediatR" Version="12.4.1" />
+
+    <!-- Logging -->
+    <PackageVersion Include="Microsoft.Extensions.Logging.Abstractions" Version="9.0.0" />
+
+    <!-- Validation -->
+    <PackageVersion Include="FluentValidation" Version="11.11.0" />
+    <PackageVersion Include="FluentValidation.DependencyInjectionExtensions" Version="11.11.0" />
+
+    <!-- Testing -->
+    <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="17.12.0" />
+    <PackageVersion Include="xunit" Version="2.9.3" />
+    <PackageVersion Include="xunit.runner.visualstudio" Version="3.0.1" />
+    <PackageVersion Include="FluentAssertions" Version="8.0.1" />
+  </ItemGroup>
+</Project>
