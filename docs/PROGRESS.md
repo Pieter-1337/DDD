@@ -5,8 +5,8 @@
 | Phase | Status | Started | Completed |
 |-------|--------|---------|-----------|
 | Phase 1: DDD Fundamentals | Complete | 2026-01-05 | 2026-01-05 |
-| Phase 2: EF Core Persistence | In Progress | 2026-01-05 | - |
-| Phase 3: CQRS Pattern | Not Started | - | - |
+| Phase 2: EF Core Persistence | Complete | 2026-01-05 | 2026-01-07 |
+| Phase 3: CQRS Pattern | In Progress | 2026-01-07 | - |
 | Phase 4: Event-Driven | Not Started | - | - |
 | Phase 5: Integration | Not Started | - | - |
 
@@ -30,38 +30,44 @@
 - [x] PatientStatus enum
 - [x] Domain events (PatientCreated, PatientSuspended)
 - [x] Entity base class with event support
-- [x] IPatientRepository interface
+- [x] Generic repository interface
 
 ### Key Decisions Made
 
 1. **Using Guid directly** - No PatientId wrapper, pragmatic choice
 2. **Primitives for simple values** - Email as string, not value object
 3. **Complex values get IDs** - If it needs its own table, make it an entity
-4. **Generic repository base** - Will implement IRepository<T> and IUnitOfWork
+4. **Generic repository base** - `IRepository<T>` and `IUnitOfWork.RepositoryFor<T>()`
 
 ---
 
-## Phase 2: EF Core Persistence
+## Phase 2: EF Core Persistence ✓
 
-### Concepts to Learn
+### Concepts Learned
 
-- [ ] EF Core DbContext setup
-- [ ] Fluent API entity configuration
-- [ ] Repository implementation with EF Core
-- [ ] Unit of Work pattern
-- [ ] Database migrations
-- [ ] Domain event dispatching
+- [x] EF Core DbContext setup
+- [x] Fluent API entity configuration
+- [x] Repository implementation with EF Core
+- [x] Unit of Work pattern
+- [x] Database migrations
+- [x] Domain event dispatching
 
-### Implementation Progress
+### Implementation Complete
 
-- [ ] Add EF Core packages to Infrastructure
-- [ ] Create SchedulingDbContext
-- [ ] Create PatientConfiguration (Fluent API)
-- [ ] Implement PatientRepository
-- [ ] Implement UnitOfWork
-- [ ] Create database migrations
-- [ ] Add domain event dispatcher
-- [ ] Test with API endpoint
+- [x] Add EF Core packages to Infrastructure
+- [x] Create SchedulingDbContext
+- [x] Create PatientConfiguration (Fluent API)
+- [x] Implement generic Repository<TContext, TEntity>
+- [x] Implement UnitOfWork<TContext> with RepositoryFor<T>()
+- [x] Create database migrations
+- [x] Add domain event dispatcher
+- [x] Test with API endpoint
+
+### Key Decisions Made
+
+1. **BuildingBlocks split** - Separated into `BuildingBlocks.Domain` (pure abstractions) and `BuildingBlocks.Infrastructure` (EF Core implementations)
+2. **Generic repository** - `UnitOfWork.RepositoryFor<T>()` instead of entity-specific repositories
+3. **Event dispatching after save** - Events fire only after successful database commit
 
 ### Docs Available
 
@@ -74,7 +80,36 @@
 
 ## Phase 3: CQRS Pattern
 
-*Not started*
+### Concepts to Learn
+
+- [ ] Commands and Command Handlers (write side)
+- [ ] Queries and Query Handlers (read side)
+- [ ] DTOs for query responses
+- [ ] Command validation with FluentValidation
+- [ ] MediatR pipeline behaviors
+
+### Implementation Progress
+
+- [ ] Create Command/Query folder structure
+- [ ] Implement CreatePatientCommand and handler
+- [ ] Implement SuspendPatientCommand and handler
+- [ ] Implement GetPatientByIdQuery and handler
+- [ ] Implement GetAllPatientsQuery and handler
+- [ ] Add PatientDto and PatientListDto
+- [ ] Create command validators
+- [ ] Implement ValidationBehavior
+- [ ] Implement LoggingBehavior
+- [ ] Implement PerformanceBehavior
+- [ ] Update controller to use MediatR
+- [ ] Add exception handling middleware
+
+### Docs Available
+
+- `phase-3-cqrs/01-cqrs-introduction.md` - What is CQRS and why
+- `phase-3-cqrs/02-commands-and-handlers.md` - Write side implementation
+- `phase-3-cqrs/03-queries-and-handlers.md` - Read side implementation
+- `phase-3-cqrs/04-validation.md` - FluentValidation integration
+- `phase-3-cqrs/05-pipeline-behaviors.md` - MediatR pipeline behaviors
 
 ---
 
@@ -82,8 +117,25 @@
 
 *Not started*
 
+### Planned Topics
+
+- Domain Events vs Integration Events
+- RabbitMQ setup with Docker
+- MassTransit for .NET integration
+- Event publishing and subscribing
+- Saga patterns
+- Idempotent message handlers
+
 ---
 
 ## Phase 5: Integration
 
 *Not started*
+
+### Planned Topics
+
+- Multiple bounded contexts
+- Event-driven communication
+- CQRS in each service
+- API Gateway pattern
+- Health checks and observability
