@@ -14,7 +14,39 @@ UpdateContactInfoCommand  // Intent: Update patient's contact information
 
 ## What You Need To Do
 
-### Step 1: Create the Commands folder structure
+### Step 1: Create SuccessOrFailureDto Base Class
+
+Location: `BuildingBlocks.Application/SuccessOrFailureDto.cs`
+
+```csharp
+namespace BuildingBlocks.Application;
+
+public class SuccessOrFailureDto
+{
+    public bool Success { get; set; }
+    public string Message { get; set; }
+
+    /// <summary>
+    /// Update this dto with values of another dto.
+    /// Useful for combining results from multiple operations.
+    /// </summary>
+    public void Update(SuccessOrFailureDto dto)
+    {
+        Success = Success && dto.Success;
+        Message = string.IsNullOrWhiteSpace(Message)
+            ? dto.Message
+            : string.Join("\r\n", Message, dto.Message);
+    }
+}
+```
+
+**Key points:**
+- Base class for all command responses
+- `Success` - indicates if operation succeeded
+- `Message` - human-readable result message
+- `Update()` - combines multiple results (ANDs success, concatenates messages)
+
+### Step 2: Create the Commands folder structure
 
 Location: `Core/Scheduling/Scheduling.Application/Patients/Commands/`
 
@@ -35,85 +67,89 @@ Scheduling.Application/
 
 **Note:** Each command gets its own folder with command + handler together.
 
-### Step 2: Create Request DTO
+### Step 3: Create Request DTO, Command, and Response
 
-Location: `Core/Scheduling/Scheduling.Application/Patients/Commands/CreatePatient/CreatePatientRequest.cs`
-
-```csharp
-namespace Scheduling.Application.Patients.Commands.CreatePatient;
-
-public class CreatePatientRequest
-{
-    public string? FirstName { get; init; }
-    public string? LastName { get; init; }
-    public string? Email { get; init; }
-    public DateTime? DateOfBirth { get; init; }
-    public string? PhoneNumber { get; init; }
-}
-```
-
-**Key points:**
-- `class` type (not record) for flexible validation
-- All properties nullable for custom FluentValidation messages
-- `init` setters for immutability after creation
-
-### Step 3: Create CreatePatientCommand
-
-Location: `Core/Scheduling/Scheduling.Application/Patients/Commands/CreatePatient/CreatePatientCommand.cs`
-
-```csharp
-using MediatR;
-
-namespace Scheduling.Application.Patients.Commands.CreatePatient;
-
-public record CreatePatientCommand(CreatePatientRequest Request) : IRequest<Guid>;
-```
-
-**Key points:**
-- `record` type - commands are immutable
-- Wraps the request DTO
-- `IRequest<Guid>` - returns the new Patient's ID
-
-### Step 4: Create CreatePatientCommandHandler
-
-Location: `Core/Scheduling/Scheduling.Application/Patients/Commands/CreatePatient/CreatePatientCommandHandler.cs`
+Location: `Core/Scheduling/Scheduling.Application/Patients/Commands/CreatePatientCommand.cs`
 
 ```csharp
 using BuildingBlocks.Application;
 using MediatR;
+using Scheduling.Application.Patients.Dtos;
+
+namespace Scheduling.Application.Patients.Commands;
+
+// Command - immutable record wrapping the request
+public record CreatePatientCommand(CreatePatientRequest Patient) : IRequest<CreatePatientCommandResponse>;
+
+// Request DTO - input from API
+public class CreatePatientRequest
+{
+    public string FirstName { get; set; }
+    public string LastName { get; set; }
+    public string Email { get; set; }
+    public DateTime DateOfBirth { get; set; }
+    public string? PhoneNumber { get; set; }
+}
+
+// Response DTO - inherits from SuccessOrFailureDto
+public class CreatePatientCommandResponse : SuccessOrFailureDto
+{
+    public PatientDto PatientDto { get; set; }
+}
+```
+
+**Key points:**
+- `CreatePatientRequest` - input DTO from API
+- `CreatePatientCommand` - immutable record wrapping the request
+- `CreatePatientCommandResponse` - inherits `SuccessOrFailureDto`, adds entity-specific data
+- Response includes `Success`, `Message`, and the created `PatientDto`
+
+### Step 4: Create CreatePatientCommandHandler
+
+Location: `Core/Scheduling/Scheduling.Application/Patients/Commands/CreatePatientCommandHandler.cs`
+
+```csharp
+using BuildingBlocks.Application;
+using MediatR;
+using Scheduling.Application.Patients.Dtos;
 using Scheduling.Domain.Patients;
 
-namespace Scheduling.Application.Patients.Commands.CreatePatient;
+namespace Scheduling.Application.Patients.Commands;
 
-public class CreatePatientCommandHandler : IRequestHandler<CreatePatientCommand, Guid>
+internal class CreatePatientCommandHandler : IRequestHandler<CreatePatientCommand, CreatePatientCommandResponse>
 {
-    private readonly IUnitOfWork _unitOfWork;
+    private readonly IUnitOfWork _uow;
 
     public CreatePatientCommandHandler(IUnitOfWork unitOfWork)
     {
-        _unitOfWork = unitOfWork;
+        _uow = unitOfWork;
     }
 
-    public async Task<Guid> Handle(CreatePatientCommand command, CancellationToken cancellationToken)
+    public async Task<CreatePatientCommandResponse> Handle(CreatePatientCommand cmd, CancellationToken cancellationToken)
     {
-        var req = command.Request;
+        var dto = cmd.Patient;
 
-        // Validation already passed - safe to use properties
         // Patient.Create() adds PatientCreatedEvent internally
         var patient = Patient.Create(
-            req.FirstName!,
-            req.LastName!,
-            req.Email!,
-            req.DateOfBirth!.Value,
-            req.PhoneNumber);
+            dto.FirstName,
+            dto.LastName,
+            dto.Email,
+            dto.DateOfBirth,
+            dto.PhoneNumber);
 
         // Add to repository
-        _unitOfWork.RepositoryFor<Patient>().Add(patient);
+        _uow.RepositoryFor<Patient>().Add(patient);
 
         // Save changes - events auto-dispatched after save
-        await _unitOfWork.SaveChangesAsync(cancellationToken);
+        await _uow.SaveChangesAsync(cancellationToken);
 
-        return patient.Id;
+        // Return response with success info and created entity
+        return new CreatePatientCommandResponse
+        {
+            Success = true,
+            Message = "Patient successfully saved",
+            PatientDto = PatientDto.FromEntity(patient)
+        };
     }
 }
 ```
@@ -121,10 +157,9 @@ public class CreatePatientCommandHandler : IRequestHandler<CreatePatientCommand,
 **Key points:**
 - Implements `IRequestHandler<TRequest, TResponse>`
 - Injects `IUnitOfWork` only (no IMediator needed)
-- Accesses request via `command.Request`
-- FluentValidation guarantees data is valid by this point
+- Returns `CreatePatientCommandResponse` inheriting from `SuccessOrFailureDto`
+- Response includes success status, message, and the created entity DTO
 - Entity adds events internally, auto-dispatched after save
-- Returns the created ID
 
 ### Step 5: Create SuspendPatientCommand
 
@@ -276,10 +311,13 @@ public static class ServiceCollectionExtensions
 Location: `WebApi/Controllers/PatientsController.cs`
 
 ```csharp
-using MediatR;
 using Microsoft.AspNetCore.Mvc;
-using Scheduling.Application.Patients.Commands.CreatePatient;
-using Scheduling.Application.Patients.Commands.SuspendPatient;
+using BuildingBlocks.Application;
+using Scheduling.Domain.Patients;
+using MediatR;
+using Scheduling.Application.Patients.Commands;
+using Scheduling.Application.Patients.Dtos;
+using Scheduling.Application.Patients.Queries;
 
 namespace WebApi.Controllers;
 
@@ -287,35 +325,99 @@ namespace WebApi.Controllers;
 [ApiController]
 public class PatientsController : ControllerBase
 {
+    private readonly IUnitOfWork _uow;
     private readonly IMediator _mediator;
 
-    public PatientsController(IMediator mediator)
+    public PatientsController(IUnitOfWork uow, IMediator mediator)
     {
+        _uow = uow;
         _mediator = mediator;
     }
 
-    [HttpPost]
-    [ProducesResponseType<Guid>(StatusCodes.Status200OK)]
-    [ProducesResponseType(StatusCodes.Status400BadRequest)]
-    public async Task<ActionResult<Guid>> Create(CreatePatientRequest request)
+    [HttpGet("{patientId}")]
+    [ProducesResponseType<PatientDto>(StatusCodes.Status200OK)]
+    public async Task<IActionResult> GetPatientAsync(Guid patientId)
     {
-        var command = new CreatePatientCommand(request);
-        var patientId = await _mediator.Send(command);
-        return Ok(patientId);
+        var response = await _mediator.Send(new GetPatientQuery { Id = patientId });
+        return Ok(response);
     }
 
-    [HttpPost("{id:guid}/suspend")]
-    [ProducesResponseType(StatusCodes.Status200OK)]
-    [ProducesResponseType(StatusCodes.Status404NotFound)]
-    public async Task<ActionResult> Suspend(Guid id)
+    [HttpPost("")]
+    [ProducesResponseType<CreatePatientCommandResponse>(StatusCodes.Status201Created)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> CreatePatientAsync(CreatePatientRequest request)
     {
-        await _mediator.Send(new SuspendPatientCommand(id));
-        return Ok();
+        var response = await _mediator.Send(new CreatePatientCommand(request));
+        return CreatedAtAction(nameof(GetPatientAsync), new { patientId = response.PatientDto.Id }, response);
     }
 }
 ```
 
-**Note:** Controller receives the request DTO, wraps it in a command, and dispatches to MediatR.
+**Key points:**
+- Controller injects both `IUnitOfWork` and `IMediator`
+- Controller receives request DTO, wraps in command, dispatches to MediatR
+- Returns `CreatePatientCommandResponse` with `Success`, `Message`, and `PatientDto`
+- Uses `CreatedAtAction` for proper REST semantics
+- Query endpoints use `GetPatientQuery` dispatched through MediatR
+
+---
+
+## Command Response Pattern
+
+### SuccessOrFailureDto Base Class
+
+All command responses inherit from `SuccessOrFailureDto`:
+
+```csharp
+public class CreatePatientCommandResponse : SuccessOrFailureDto
+{
+    public PatientDto PatientDto { get; set; }
+}
+
+public class SuspendPatientCommandResponse : SuccessOrFailureDto
+{
+    // No additional data needed
+}
+```
+
+### Combining Multiple Results
+
+Use the `Update()` method when a handler performs multiple operations:
+
+```csharp
+public async Task<BatchOperationResponse> Handle(BatchOperationCommand cmd, CancellationToken ct)
+{
+    var response = new BatchOperationResponse { Success = true };
+
+    foreach (var item in cmd.Items)
+    {
+        var result = await ProcessItem(item);
+        response.Update(result);  // ANDs success, concatenates messages
+    }
+
+    return response;
+}
+```
+
+**How `Update()` works:**
+- `Success = Success && dto.Success` - All must succeed for overall success
+- `Message` - Concatenates with newline separator
+
+### JSON Response Example
+
+```json
+{
+    "success": true,
+    "message": "Patient successfully saved",
+    "patientDto": {
+        "id": "5affa374-ca0c-43c2-8266-078c20ae50ce",
+        "firstName": "Celine",
+        "lastName": "Van Walleghem",
+        "email": "vanwallehemceline@gmail.com",
+        "status": "Active"
+    }
+}
+```
 
 ---
 
@@ -456,9 +558,11 @@ public class CreatePatientCommandHandlerTests
 
 ## Verification Checklist
 
-- [ ] `CreatePatientRequest` DTO class created (nullable properties)
+- [ ] `SuccessOrFailureDto` base class exists in `BuildingBlocks.Application`
+- [ ] `CreatePatientRequest` DTO class created
 - [ ] `CreatePatientCommand` record wraps the request DTO
-- [ ] `CreatePatientCommandHandler` implements `IRequestHandler`
+- [ ] `CreatePatientCommandResponse` inherits from `SuccessOrFailureDto`
+- [ ] `CreatePatientCommandHandler` implements `IRequestHandler` and returns response
 - [ ] `SuspendPatientCommand` record created
 - [ ] `SuspendPatientCommandHandler` implements `IRequestHandler`
 - [ ] `PatientNotFoundException` exception created
