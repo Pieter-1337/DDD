@@ -21,15 +21,15 @@ For now, we'll keep it simple with primitive types. Later you can refactor if ne
 
 ---
 
-## Why Aggregates Have Rules
+## Why Aggregates Encapsulate Behavior
 
-The aggregate protects its invariants (things that must always be true):
+The aggregate encapsulates **behavior** and **state transitions**:
 
-- Patient must have a name
-- Email must be valid format
-- Patient can't be deleted if they have upcoming appointments (future)
+- How a patient gets suspended
+- How contact info gets updated
+- State changes that have business meaning
 
-All changes go through methods that enforce these rules.
+**Note:** Input validation (required fields, email format) is handled by FluentValidation in the Application layer. The domain focuses on behavior, not gatekeeping.
 
 ---
 
@@ -91,22 +91,8 @@ public class Patient
         DateTime dateOfBirth,
         string? phoneNumber = null)
     {
-        // Validation - enforce invariants
-        if (string.IsNullOrWhiteSpace(firstName))
-            throw new ArgumentException("First name is required", nameof(firstName));
-
-        if (string.IsNullOrWhiteSpace(lastName))
-            throw new ArgumentException("Last name is required", nameof(lastName));
-
-        if (string.IsNullOrWhiteSpace(email))
-            throw new ArgumentException("Email is required", nameof(email));
-
-        if (!email.Contains('@'))
-            throw new ArgumentException("Invalid email format", nameof(email));
-
-        if (dateOfBirth > DateTime.UtcNow)
-            throw new ArgumentException("Date of birth cannot be in the future", nameof(dateOfBirth));
-
+        // No validation here - FluentValidation handles input validation
+        // Domain focuses on constructing a valid object
         return new Patient
         {
             Id = Guid.NewGuid(),
@@ -119,15 +105,9 @@ public class Patient
         };
     }
 
-    // Behavior methods - how the entity changes
+    // Behavior methods - how the entity changes state
     public void UpdateContactInfo(string email, string? phoneNumber)
     {
-        if (string.IsNullOrWhiteSpace(email))
-            throw new ArgumentException("Email is required", nameof(email));
-
-        if (!email.Contains('@'))
-            throw new ArgumentException("Invalid email format", nameof(email));
-
         Email = email.Trim().ToLowerInvariant();
         PhoneNumber = phoneNumber?.Trim();
     }
@@ -170,14 +150,14 @@ Nobody outside can do `patient.Email = "whatever"`. They must use `UpdateContact
 ```csharp
 public static Patient Create(...) { }
 ```
-The only way to create a valid Patient. Constructor is private.
+The only way to create a Patient. Constructor is private.
 
 **Behavior methods:**
 ```csharp
 public void Suspend() { }
 public void UpdateContactInfo(...) { }
 ```
-All changes go through methods that enforce business rules.
+All state changes go through methods that encapsulate the behavior. These methods handle state transitions, not input validation.
 
 **EF Core constructor:**
 ```csharp
@@ -202,7 +182,7 @@ namespace Scheduling.Domain.Tests.Patients;
 public class PatientTests
 {
     [Fact]
-    public void Create_WithValidData_ShouldCreatePatient()
+    public void Create_ShouldCreatePatientWithCorrectValues()
     {
         // Arrange
         var firstName = "John";
@@ -222,28 +202,6 @@ public class PatientTests
     }
 
     [Fact]
-    public void Create_WithEmptyFirstName_ShouldThrow()
-    {
-        // Arrange & Act
-        var act = () => Patient.Create("", "Doe", "test@example.com", DateTime.UtcNow.AddYears(-30));
-
-        // Assert
-        act.Should().Throw<ArgumentException>()
-            .WithParameterName("firstName");
-    }
-
-    [Fact]
-    public void Create_WithInvalidEmail_ShouldThrow()
-    {
-        // Arrange & Act
-        var act = () => Patient.Create("John", "Doe", "invalid-email", DateTime.UtcNow.AddYears(-30));
-
-        // Assert
-        act.Should().Throw<ArgumentException>()
-            .WithParameterName("email");
-    }
-
-    [Fact]
     public void Suspend_ShouldChangeStatusToSuspended()
     {
         // Arrange
@@ -257,7 +215,21 @@ public class PatientTests
     }
 
     [Fact]
-    public void UpdateContactInfo_WithValidEmail_ShouldUpdateEmail()
+    public void Suspend_WhenAlreadySuspended_ShouldRemainSuspended()
+    {
+        // Arrange
+        var patient = Patient.Create("John", "Doe", "test@example.com", DateTime.UtcNow.AddYears(-30));
+        patient.Suspend();
+
+        // Act
+        patient.Suspend(); // Call again
+
+        // Assert
+        patient.Status.Should().Be(PatientStatus.Suspended);
+    }
+
+    [Fact]
+    public void UpdateContactInfo_ShouldUpdateEmail()
     {
         // Arrange
         var patient = Patient.Create("John", "Doe", "old@example.com", DateTime.UtcNow.AddYears(-30));
@@ -268,8 +240,24 @@ public class PatientTests
         // Assert
         patient.Email.Should().Be("new@example.com");
     }
+
+    [Fact]
+    public void Activate_WhenSuspended_ShouldChangeStatusToActive()
+    {
+        // Arrange
+        var patient = Patient.Create("John", "Doe", "test@example.com", DateTime.UtcNow.AddYears(-30));
+        patient.Suspend();
+
+        // Act
+        patient.Activate();
+
+        // Assert
+        patient.Status.Should().Be(PatientStatus.Active);
+    }
 }
 ```
+
+**Note:** Tests focus on **behavior** (state transitions), not input validation. Input validation is tested in FluentValidation validator tests.
 
 ### Step 6: Add FluentAssertions to test project
 
@@ -292,10 +280,10 @@ All tests should pass.
 ## Verification Checklist
 
 - [ ] `Patient.cs` has private setters
-- [ ] `Patient.Create()` validates all inputs
+- [ ] `Patient.Create()` factory method exists
 - [ ] No public constructor (only private + factory method)
 - [ ] Behavior methods (`Suspend`, `Activate`, etc.) exist
-- [ ] Tests pass
+- [ ] Behavior tests pass
 - [ ] Solution builds
 
 ---
@@ -303,19 +291,25 @@ All tests should pass.
 ## What You Learned
 
 1. **Encapsulation** - Private setters, changes through methods only
-2. **Factory method** - Ensures valid objects are created
-3. **Invariant enforcement** - Validation in the domain, not scattered elsewhere
-4. **Behavior in the entity** - Not in external services
+2. **Factory method** - Controlled way to create entities
+3. **Behavior in the entity** - State transitions encapsulated, not in external services
+4. **Separation of concerns** - Domain handles behavior, FluentValidation handles input validation
 
 ---
 
 ## Note on Validation
 
-We're using simple `ArgumentException` for now. Later you could:
-- Use a Result pattern instead of exceptions
-- Create domain-specific exceptions (`InvalidEmailException`)
-- Rely more on command validators for input validation
+**Input validation** (required fields, email format, etc.) is handled by **FluentValidation** in the Application layer. This gives you:
+- Custom error messages
+- Async validation (external API calls)
+- Reusable validators
 
-For learning, exceptions are fine. The key concept is: **the entity protects itself**.
+**Domain behavior** (state transitions) stays in the entity:
+- `Suspend()`, `Activate()`, `Deactivate()`
+- Business rules like "can't suspend an already suspended patient"
+
+This separation keeps the domain focused on **behavior**, not gatekeeping.
+
+**Business preconditions** (e.g., "patient must exist", "patient can't already be suspended") are checked in validators before calling domain methods.
 
 → Next: [04-domain-events.md](./04-domain-events.md) - Raising events when things happen

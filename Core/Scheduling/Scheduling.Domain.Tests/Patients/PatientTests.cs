@@ -7,7 +7,7 @@ namespace Scheduling.Domain.Tests.Patients;
 public class PatientTests
 {
     [Fact]
-    public void Create_WithValidData_ShouldCreatePatient()
+    public void Create_ShouldCreatePatientWithCorrectValues()
     {
         // Arrange
         var firstName = "John";
@@ -27,28 +27,6 @@ public class PatientTests
     }
 
     [Fact]
-    public void Create_WithEmptyFirstName_ShouldThrow()
-    {
-        // Arrange & Act
-        var act = () => Patient.Create("", "Doe", "test@example.com", DateTime.UtcNow.AddYears(-30));
-
-        // Assert
-        act.Should().Throw<ArgumentException>()
-            .WithParameterName("firstName");
-    }
-
-    [Fact]
-    public void Create_WithInvalidEmail_ShouldThrow()
-    {
-        // Arrange & Act
-        var act = () => Patient.Create("John", "Doe", "invalid-email", DateTime.UtcNow.AddYears(-30));
-
-        // Assert
-        act.Should().Throw<ArgumentException>()
-            .WithParameterName("email");
-    }
-
-    [Fact]
     public void Suspend_ShouldChangeStatusToSuspended()
     {
         // Arrange
@@ -62,7 +40,21 @@ public class PatientTests
     }
 
     [Fact]
-    public void UpdateContactInfo_WithValidEmail_ShouldUpdateEmail()
+    public void Suspend_WhenAlreadySuspended_ShouldRemainSuspended()
+    {
+        // Arrange
+        var patient = Patient.Create("John", "Doe", "test@example.com", DateTime.UtcNow.AddYears(-30));
+        patient.Suspend();
+
+        // Act
+        patient.Suspend(); // Call again
+
+        // Assert
+        patient.Status.Should().Be(PatientStatus.Suspended);
+    }
+
+    [Fact]
+    public void UpdateContactInfo_ShouldUpdateEmail()
     {
         // Arrange
         var patient = Patient.Create("John", "Doe", "old@example.com", DateTime.UtcNow.AddYears(-30));
@@ -72,5 +64,19 @@ public class PatientTests
 
         // Assert
         patient.Email.Should().Be("new@example.com");
+    }
+
+    [Fact]
+    public void Activate_WhenSuspended_ShouldChangeStatusToActive()
+    {
+        // Arrange
+        var patient = Patient.Create("John", "Doe", "test@example.com", DateTime.UtcNow.AddYears(-30));
+        patient.Suspend();
+
+        // Act
+        patient.Activate();
+
+        // Assert
+        patient.Status.Should().Be(PatientStatus.Active);
     }
 }

@@ -35,7 +35,29 @@ Scheduling.Application/
 
 **Note:** Each command gets its own folder with command + handler together.
 
-### Step 2: Create CreatePatientCommand
+### Step 2: Create Request DTO
+
+Location: `Core/Scheduling/Scheduling.Application/Patients/Commands/CreatePatient/CreatePatientRequest.cs`
+
+```csharp
+namespace Scheduling.Application.Patients.Commands.CreatePatient;
+
+public class CreatePatientRequest
+{
+    public string? FirstName { get; init; }
+    public string? LastName { get; init; }
+    public string? Email { get; init; }
+    public DateTime? DateOfBirth { get; init; }
+    public string? PhoneNumber { get; init; }
+}
+```
+
+**Key points:**
+- `class` type (not record) for flexible validation
+- All properties nullable for custom FluentValidation messages
+- `init` setters for immutability after creation
+
+### Step 3: Create CreatePatientCommand
 
 Location: `Core/Scheduling/Scheduling.Application/Patients/Commands/CreatePatient/CreatePatientCommand.cs`
 
@@ -44,21 +66,15 @@ using MediatR;
 
 namespace Scheduling.Application.Patients.Commands.CreatePatient;
 
-public record CreatePatientCommand(
-    string FirstName,
-    string LastName,
-    string Email,
-    DateTime DateOfBirth,
-    string? PhoneNumber
-) : IRequest<Guid>;
+public record CreatePatientCommand(CreatePatientRequest Request) : IRequest<Guid>;
 ```
 
 **Key points:**
-- `record` type for immutability
+- `record` type - commands are immutable
+- Wraps the request DTO
 - `IRequest<Guid>` - returns the new Patient's ID
-- Properties match what the domain needs
 
-### Step 3: Create CreatePatientCommandHandler
+### Step 4: Create CreatePatientCommandHandler
 
 Location: `Core/Scheduling/Scheduling.Application/Patients/Commands/CreatePatient/CreatePatientCommandHandler.cs`
 
@@ -83,13 +99,15 @@ public class CreatePatientCommandHandler : IRequestHandler<CreatePatientCommand,
 
     public async Task<Guid> Handle(CreatePatientCommand command, CancellationToken cancellationToken)
     {
-        // Create via domain factory method (validates)
+        var req = command.Request;
+
+        // Validation already passed - safe to use properties
         var patient = Patient.Create(
-            command.FirstName,
-            command.LastName,
-            command.Email,
-            command.DateOfBirth,
-            command.PhoneNumber);
+            req.FirstName!,
+            req.LastName!,
+            req.Email!,
+            req.DateOfBirth!.Value,
+            req.PhoneNumber);
 
         // Add to repository
         _unitOfWork.RepositoryFor<Patient>().Add(patient);
@@ -100,9 +118,9 @@ public class CreatePatientCommandHandler : IRequestHandler<CreatePatientCommand,
         // Publish event explicitly after successful save
         await _mediator.Publish(new PatientCreatedEvent(
             patient.Id,
-            patient.FirstName!,
-            patient.LastName!,
-            patient.Email!), cancellationToken);
+            patient.FirstName,
+            patient.LastName,
+            patient.Email), cancellationToken);
 
         return patient.Id;
     }
@@ -112,11 +130,12 @@ public class CreatePatientCommandHandler : IRequestHandler<CreatePatientCommand,
 **Key points:**
 - Implements `IRequestHandler<TRequest, TResponse>`
 - Injects both `IUnitOfWork` and `IMediator`
-- Calls domain factory method - domain validates
+- Accesses request via `command.Request`
+- FluentValidation guarantees data is valid by this point
 - Publishes event explicitly after successful save
 - Returns the created ID
 
-### Step 4: Create SuspendPatientCommand
+### Step 5: Create SuspendPatientCommand
 
 Location: `Core/Scheduling/Scheduling.Application/Patients/Commands/SuspendPatient/SuspendPatientCommand.cs`
 
@@ -130,7 +149,7 @@ public record SuspendPatientCommand(Guid PatientId) : IRequest;
 
 **Note:** `IRequest` without generic = returns `Unit` (void).
 
-### Step 5: Create SuspendPatientCommandHandler
+### Step 6: Create SuspendPatientCommandHandler
 
 Location: `Core/Scheduling/Scheduling.Application/Patients/Commands/SuspendPatient/SuspendPatientCommandHandler.cs`
 
@@ -178,7 +197,7 @@ public class SuspendPatientCommandHandler : IRequestHandler<SuspendPatientComman
 }
 ```
 
-### Step 6: Create Application Exception
+### Step 7: Create Application Exception
 
 Location: `Core/Scheduling/Scheduling.Application/Exceptions/PatientNotFoundException.cs`
 
@@ -197,7 +216,7 @@ public class PatientNotFoundException : Exception
 }
 ```
 
-### Step 7: Create UpdateContactInfoCommand
+### Step 8: Create UpdateContactInfoCommand
 
 Location: `Core/Scheduling/Scheduling.Application/Patients/Commands/UpdateContactInfo/UpdateContactInfoCommand.cs`
 
@@ -213,7 +232,7 @@ public record UpdateContactInfoCommand(
 ) : IRequest;
 ```
 
-### Step 8: Create UpdateContactInfoCommandHandler
+### Step 9: Create UpdateContactInfoCommandHandler
 
 Location: `Core/Scheduling/Scheduling.Application/Patients/Commands/UpdateContactInfo/UpdateContactInfoCommandHandler.cs`
 
@@ -250,7 +269,7 @@ public class UpdateContactInfoCommandHandler : IRequestHandler<UpdateContactInfo
 }
 ```
 
-### Step 9: Ensure MediatR is registered
+### Step 10: Ensure MediatR is registered
 
 Location: `Core/Scheduling/Scheduling.Application/ServiceCollectionExtensions.cs`
 
@@ -271,7 +290,7 @@ public static class ServiceCollectionExtensions
 }
 ```
 
-### Step 10: Update the Controller
+### Step 11: Update the Controller
 
 Location: `WebApi/Controllers/PatientsController.cs`
 
@@ -297,8 +316,9 @@ public class PatientsController : ControllerBase
     [HttpPost]
     [ProducesResponseType<Guid>(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
-    public async Task<ActionResult<Guid>> Create(CreatePatientCommand command)
+    public async Task<ActionResult<Guid>> Create(CreatePatientRequest request)
     {
+        var command = new CreatePatientCommand(request);
         var patientId = await _mediator.Send(command);
         return Ok(patientId);
     }
@@ -314,7 +334,7 @@ public class PatientsController : ControllerBase
 }
 ```
 
-**Note:** Controller is thin - just dispatches to MediatR.
+**Note:** Controller receives the request DTO, wraps it in a command, and dispatches to MediatR.
 
 ---
 
@@ -388,24 +408,24 @@ public class CreatePatientCommandHandler : IRequestHandler<CreatePatientCommand,
 }
 ```
 
-### 4. Let Domain Validate
+### 4. FluentValidation Validates, Domain Behaves
 
 ```csharp
-// GOOD - domain validates
+// GOOD - FluentValidation handles all input validation
+// Handler trusts data is valid by the time it runs
 public async Task<Guid> Handle(CreatePatientCommand cmd, CancellationToken ct)
 {
-    var patient = Patient.Create(cmd.FirstName, ...);  // Domain throws if invalid
+    var req = cmd.Request;
+    var patient = Patient.Create(req.FirstName!, req.Email!, ...);  // Data guaranteed valid
     ...
 }
 
-// BAD - handler validates domain rules
-public async Task<Guid> Handle(CreatePatientCommand cmd, CancellationToken ct)
+// GOOD - Domain focuses on behavior
+public void Suspend()
 {
-    if (string.IsNullOrEmpty(cmd.FirstName))
-        throw new ValidationException("First name required");  // Domain rule in handler!
-
-    var patient = new Patient { FirstName = cmd.FirstName };  // Bypasses domain
-    ...
+    if (Status == PatientStatus.Suspended)
+        return; // Idempotent state transition
+    Status = PatientStatus.Suspended;
 }
 ```
 
@@ -455,16 +475,17 @@ public class CreatePatientCommandHandlerTests
 
 ## Verification Checklist
 
-- [ ] `CreatePatientCommand` record created
+- [ ] `CreatePatientRequest` DTO class created (nullable properties)
+- [ ] `CreatePatientCommand` record wraps the request DTO
 - [ ] `CreatePatientCommandHandler` implements `IRequestHandler`
 - [ ] `SuspendPatientCommand` record created
 - [ ] `SuspendPatientCommandHandler` implements `IRequestHandler`
 - [ ] `PatientNotFoundException` exception created
 - [ ] MediatR registered in DI
-- [ ] Controller uses `IMediator.Send()`
+- [ ] Controller receives request DTO, wraps in command
 - [ ] Handlers inject both `IUnitOfWork` and `IMediator`
 - [ ] Events published explicitly after `SaveChangesAsync()`
-- [ ] Domain validates (not handlers)
+- [ ] FluentValidation validates (not domain)
 
 ---
 
@@ -478,7 +499,8 @@ Core/Scheduling/
     ├── Patients/
     │   ├── Commands/
     │   │   ├── CreatePatient/
-    │   │   │   ├── CreatePatientCommand.cs
+    │   │   │   ├── CreatePatientRequest.cs      ← Request DTO (class, nullable)
+    │   │   │   ├── CreatePatientCommand.cs      ← Command wraps request
     │   │   │   └── CreatePatientCommandHandler.cs
     │   │   ├── SuspendPatient/
     │   │   │   ├── SuspendPatientCommand.cs
@@ -486,7 +508,7 @@ Core/Scheduling/
     │   │   └── UpdateContactInfo/
     │   │       ├── UpdateContactInfoCommand.cs
     │   │       └── UpdateContactInfoCommandHandler.cs
-    │   ├── Events/                        ← Events live in Application
+    │   ├── Events/                              ← Events live in Application
     │   │   ├── PatientCreatedEvent.cs
     │   │   └── PatientSuspendedEvent.cs
     │   └── EventHandlers/

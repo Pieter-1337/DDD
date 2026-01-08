@@ -6,31 +6,38 @@ Commands carry user input. Before passing to handlers, we should validate:
 
 1. **Format validation** - Is the email format correct?
 2. **Required fields** - Is the first name provided?
-3. **Business constraints** - Is the date in the past?
+3. **Business preconditions** - Does the patient exist? Is the date valid?
 
 ---
 
 ## Where Does Validation Live?
 
+**All validation lives in FluentValidation.** The domain focuses on behavior only.
+
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                      Validation Layers                       │
+│                      Responsibility Split                    │
 ├─────────────────────────────────────────────────────────────┤
-│  Controller    │  Basic model binding                        │
-│  Validator     │  Input format, required fields    ← HERE    │
-│  Domain        │  Business rules, invariants                 │
+│  FluentValidation  │  ALL validation (input + preconditions) │
+│  Domain            │  Behavior and state transitions only    │
 └─────────────────────────────────────────────────────────────┘
 ```
 
-**FluentValidation** handles input validation. **Domain** handles business rules.
+**Business preconditions** vs **Business rules**:
 
 ```csharp
-// FluentValidation (input validation)
-RuleFor(x => x.Email).NotEmpty().EmailAddress();  // Format check
+// FluentValidation - preconditions (CAN we do this?)
+RuleFor(x => x.Email).NotEmpty().EmailAddress();
+RuleFor(x => x.PatientId).MustAsync(PatientExists);
+RuleFor(x => x.PatientId).MustAsync(PatientNotAlreadySuspended);
 
-// Domain (business rules)
-if (dateOfBirth > DateTime.UtcNow)
-    throw new ArgumentException("Date of birth cannot be in the future");
+// Domain - rules (HOW do we do this?)
+public void Suspend()
+{
+    if (Status == PatientStatus.Suspended)
+        return; // Idempotent
+    Status = PatientStatus.Suspended;
+}
 ```
 
 ---
@@ -373,17 +380,24 @@ app.Run();
 
 ## Validation Guidelines
 
-### 1. Validate Input, Not Business Rules
+### 1. All Validation in FluentValidation
 
 ```csharp
-// GOOD - input validation
-RuleFor(x => x.Email).EmailAddress();  // Format check
+// Input validation
+RuleFor(x => x.Email).NotEmpty().EmailAddress();
 
-// BAD - business rule in validator
+// Business preconditions - also in validator!
 RuleFor(x => x.Email)
     .MustAsync(async (email, ct) => !await _repo.EmailExistsAsync(email))
-    .WithMessage("Email already in use");  // This is a domain concern!
+    .WithMessage("Email already in use");
+
+// Existence checks
+RuleFor(x => x.PatientId)
+    .MustAsync(async (id, ct) => await _repo.ExistsAsync(id, ct))
+    .WithMessage("Patient not found");
 ```
+
+This keeps ALL validation with custom messages in one place.
 
 ### 2. Keep Validators Focused
 
@@ -414,20 +428,22 @@ RuleFor(x => x.Email)
     .EmailAddress();  // Default: "'Email' is not a valid email address"
 ```
 
-### 4. Async Validation When Needed
+### 4. Async Validation for External Checks
 
 ```csharp
-// For checks that require database access
+// Database checks
 RuleFor(x => x.Email)
     .MustAsync(async (email, ct) =>
-    {
-        // Check uniqueness - but consider if this belongs here
-        return !await _context.Patients.AnyAsync(p => p.Email == email, ct);
-    })
+        !await _context.Patients.AnyAsync(p => p.Email == email, ct))
     .WithMessage("Email is already registered");
+
+// External API validation (e.g., VAT number)
+RuleFor(x => x.VatNumber)
+    .MustAsync(async (vat, ct) => await _vatService.IsValidAsync(vat, ct))
+    .WithMessage("VAT number is not valid");
 ```
 
-**Note:** Be careful with async validation - it can cause performance issues.
+Async validation is the right place for any checks that need external data or services.
 
 ---
 
