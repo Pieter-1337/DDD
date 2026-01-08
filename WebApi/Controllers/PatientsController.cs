@@ -1,9 +1,10 @@
 ﻿using Microsoft.AspNetCore.Mvc;
-using BuildingBlocks.Domain.Interfaces;
+using BuildingBlocks.Application;
 using Scheduling.Domain.Patients;
 using MediatR;
 using Scheduling.Application.Patients.Commands;
 using Scheduling.Application.Patients.Dtos;
+using Scheduling.Application.Patients.Queries;
 
 namespace WebApi.Controllers
 {
@@ -19,14 +20,22 @@ namespace WebApi.Controllers
             _mediator = mediator;
         }
 
-        [HttpPost("create")]
-        [ProducesResponseType<bool>(StatusCodes.Status200OK)]
-        [ProducesResponseType<bool>(StatusCodes.Status400BadRequest)]
-        public async Task<Patient> Create(PatientDto dto)
+        [HttpGet("{patientId}")]
+        [ProducesResponseType<PatientDto>(StatusCodes.Status200OK)]
+        public async Task<IActionResult> GetPatientAsync(Guid patientId)
         {
-            var result = await _mediator.Send(new CreatePatientCommand(dto));
+            var response = await _mediator.Send(new GetPatientQuery { Id = patientId });
 
-            return result;
+            return Ok(response);
+        }
+
+        [HttpPost("")]
+        [ProducesResponseType<bool>(StatusCodes.Status201Created)]
+        [ProducesResponseType<bool>(StatusCodes.Status400BadRequest)]
+        public async Task<IActionResult> CreatePatientAsync(CreatePatientRequest request)
+        {
+            var response = await _mediator.Send(new CreatePatientCommand(request));
+            return CreatedAtAction(nameof(GetPatientAsync), new { patientId = response.PatientDto }, response);
         }
     }
 }

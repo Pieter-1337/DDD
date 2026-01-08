@@ -1,6 +1,6 @@
 using BuildingBlocks.Domain.Events;
 
-namespace Scheduling.Application.Patients.Events;
+namespace Scheduling.Domain.Patients.Events;
 
 public record PatientSuspendedEvent(Guid PatientId) : IDomainEvent
 {

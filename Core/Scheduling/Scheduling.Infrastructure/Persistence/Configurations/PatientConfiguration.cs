@@ -9,7 +9,8 @@ namespace Scheduling.Infrastructure.Persistence.Configurations
         public void Configure(EntityTypeBuilder<Patient> builder)
         {
             builder.ToTable("Patients");
-            builder.HasKey(p =>  p.Id);
+            builder.HasKey(p => p.Id);
+            builder.Ignore(p => p.DomainEvents);
 
             #region Validation remove this here later, should be enfored on command when we get to CQRS
             builder.Property(p => p.FirstName)

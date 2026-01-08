@@ -1,88 +1,151 @@
-# Domain Event Publishing
+# Domain Event Dispatching
 
 ## Overview
 
-Domain events are published **explicitly** by command handlers after a successful save. This gives full control over when events fire.
+Domain events are collected by entities and **automatically dispatched** by the UnitOfWork after a successful save.
 
 ```csharp
-// In command handler
-await _unitOfWork.SaveChangesAsync(ct);                    // 1. Save first
-await _mediator.Publish(new PatientCreatedEvent(...), ct); // 2. Then publish
+// Entity collects events in behavior
+patient.Suspend();  // Adds PatientSuspendedEvent internally
+
+// UnitOfWork auto-dispatches after save
+await _unitOfWork.SaveChangesAsync(ct);  // Events dispatched here
 ```
 
 ---
 
-## Why Explicit Publishing?
+## Why Auto-Dispatch?
 
-### Alternative: Automatic Dispatching
-
-Some implementations automatically dispatch events after `SaveChanges()`:
+### Alternative: Explicit Publishing
 
 ```csharp
-// UnitOfWork with automatic dispatch
-public async Task<int> SaveChangesAsync(CancellationToken ct)
-{
-    var result = await _context.SaveChangesAsync(ct);
-    await DispatchDomainEvents();  // Automatic - hidden magic
-    return result;
-}
+// Handler has to remember to publish
+patient.Suspend();
+await _unitOfWork.SaveChangesAsync(ct);
+await _mediator.Publish(new PatientSuspendedEvent(patient.Id), ct);  // Can forget!
 ```
 
-**Problems with automatic:**
-- Hidden behavior - not obvious when events fire
-- Less control - can't skip events in certain cases
-- Harder to debug
+**Problems with explicit:**
+- Can forget to publish events
+- Event not tied to behavior
+- Duplicate code across handlers
 
-### Our Approach: Explicit Publishing
+### Our Approach: Entity Collects, Auto-Dispatch
 
 ```csharp
-// Handler has full control
-public async Task<Guid> Handle(CreatePatientCommand cmd, CancellationToken ct)
+// Entity - event tied to behavior
+public void Suspend()
 {
-    var patient = Patient.Create(...);
-    _unitOfWork.RepositoryFor<Patient>().Add(patient);
-    await _unitOfWork.SaveChangesAsync(ct);
+    if (Status == PatientStatus.Suspended)
+        return;
 
-    // Explicit - you see exactly what happens
-    await _mediator.Publish(new PatientCreatedEvent(
-        patient.Id, patient.FirstName!, patient.LastName!, patient.Email!), ct);
+    Status = PatientStatus.Suspended;
+    AddDomainEvent(new PatientSuspendedEvent(Id));  // Can't forget!
+}
 
-    return patient.Id;
+// Handler - clean, no event publishing needed
+public async Task Handle(SuspendPatientCommand cmd, CancellationToken ct)
+{
+    var patient = await _repo.GetByIdAsync(cmd.PatientId, ct);
+    patient.Suspend();
+    await _unitOfWork.SaveChangesAsync(ct);  // Events auto-dispatched
 }
 ```
 
 **Benefits:**
-- Clear intent - events are visible in the code
-- Full control - decide when/if to publish
-- No magic - easier to debug and understand
-- Flexible - can conditionally skip events
+- Events tied to behavior - can't forget them
+- Handler stays clean
+- Automatic dispatch ensures consistency
+- Can still publish additional events explicitly if needed
 
 ---
 
 ## What You Need To Do
 
-### Step 1: Ensure MediatR is registered
+### Step 1: UnitOfWork with Auto-Dispatch
 
-Location: `Core/Scheduling/Scheduling.Application/ServiceCollectionExtensions.cs`
+Location: `BuildingBlocks/BuildingBlocks.Infrastructure/UnitOfWork.cs`
 
 ```csharp
-using Microsoft.Extensions.DependencyInjection;
+using BuildingBlocks.Application;
+using BuildingBlocks.Domain.Events;
+using BuildingBlocks.Domain.Interfaces;
+using MediatR;
+using Microsoft.EntityFrameworkCore;
 
-namespace Scheduling.Application;
+namespace BuildingBlocks.Infrastructure;
 
-public static class ServiceCollectionExtensions
+public class UnitOfWork<TContext> : IUnitOfWork where TContext : DbContext
 {
-    public static IServiceCollection AddSchedulingApplication(this IServiceCollection services)
-    {
-        services.AddMediatR(cfg =>
-            cfg.RegisterServicesFromAssembly(typeof(ServiceCollectionExtensions).Assembly));
+    private readonly TContext _context;
+    private readonly IMediator _mediator;
 
-        return services;
+    public UnitOfWork(TContext context, IMediator mediator)
+    {
+        _context = context;
+        _mediator = mediator;
+    }
+
+    public async Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
+    {
+        var result = await _context.SaveChangesAsync(cancellationToken);
+        await DispatchDomainEventsAsync(cancellationToken);
+        return result;
+    }
+
+    public IRepository<T> RepositoryFor<T>() where T : class, IEntityBase
+    {
+        return new Repository<TContext, T>(_context);
+    }
+
+    private async Task DispatchDomainEventsAsync(CancellationToken cancellationToken)
+    {
+        var entitiesWithEvents = _context.ChangeTracker
+            .Entries<IHasDomainEvents>()
+            .Where(e => e.Entity.DomainEvents.Any())
+            .Select(e => e.Entity)
+            .ToList();
+
+        var domainEvents = entitiesWithEvents
+            .SelectMany(e => e.DomainEvents)
+            .ToList();
+
+        // Clear events before dispatching to avoid re-dispatching
+        foreach (var entity in entitiesWithEvents)
+        {
+            entity.ClearDomainEvents();
+        }
+
+        foreach (var domainEvent in domainEvents)
+        {
+            await _mediator.Publish(domainEvent, cancellationToken);
+        }
     }
 }
 ```
 
-### Step 2: Wire up in Program.cs
+**Key points:**
+- Injects `IMediator` for publishing
+- After `SaveChangesAsync`, collects all entities with events
+- Clears events before dispatching (prevents re-dispatch if handler saves)
+- Publishes each event via MediatR
+
+### Step 2: Ignore DomainEvents in EF Configuration
+
+Location: `Core/Scheduling/Scheduling.Infrastructure/Persistence/Configurations/PatientConfiguration.cs`
+
+```csharp
+public void Configure(EntityTypeBuilder<Patient> builder)
+{
+    builder.ToTable("Patients");
+    builder.HasKey(p => p.Id);
+    builder.Ignore(p => p.DomainEvents);  // Don't persist events
+
+    // ... rest of configuration
+}
+```
+
+### Step 3: Wire up in Program.cs
 
 Location: `WebApi/Program.cs`
 
@@ -98,7 +161,7 @@ builder.Services.AddOpenApi();
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection")
     ?? throw new InvalidOperationException("Connection string 'DefaultConnection' not found.");
 
-// Add Infrastructure (DbContext, UnitOfWork)
+// Add Infrastructure (DbContext, UnitOfWork with IMediator)
 builder.Services.AddSchedulingInfrastructure(connectionString);
 
 // Add Application (MediatR handlers)
@@ -108,14 +171,14 @@ var app = builder.Build();
 // ...
 ```
 
-### Step 3: Create event handlers
+### Step 4: Create event handlers
 
 Location: `Core/Scheduling/Scheduling.Application/Patients/EventHandlers/PatientCreatedEventHandler.cs`
 
 ```csharp
 using MediatR;
 using Microsoft.Extensions.Logging;
-using Scheduling.Application.Patients.Events;
+using Scheduling.Domain.Patients.Events;
 
 namespace Scheduling.Application.Patients.EventHandlers;
 
@@ -140,40 +203,6 @@ public class PatientCreatedEventHandler : INotificationHandler<PatientCreatedEve
         // In real app: send welcome email, notify admin, etc.
 
         return Task.CompletedTask;
-    }
-}
-```
-
-### Step 4: Publish events in command handlers (Phase 3)
-
-```csharp
-public class CreatePatientCommandHandler : IRequestHandler<CreatePatientCommand, Guid>
-{
-    private readonly IUnitOfWork _unitOfWork;
-    private readonly IMediator _mediator;
-
-    public CreatePatientCommandHandler(IUnitOfWork unitOfWork, IMediator mediator)
-    {
-        _unitOfWork = unitOfWork;
-        _mediator = mediator;
-    }
-
-    public async Task<Guid> Handle(CreatePatientCommand cmd, CancellationToken ct)
-    {
-        var patient = Patient.Create(
-            cmd.FirstName, cmd.LastName, cmd.Email, cmd.DateOfBirth, cmd.PhoneNumber);
-
-        _unitOfWork.RepositoryFor<Patient>().Add(patient);
-        await _unitOfWork.SaveChangesAsync(ct);
-
-        // Publish event after successful save
-        await _mediator.Publish(new PatientCreatedEvent(
-            patient.Id,
-            patient.FirstName!,
-            patient.LastName!,
-            patient.Email!), ct);
-
-        return patient.Id;
     }
 }
 ```
@@ -203,52 +232,76 @@ public class SendWelcomeEmailHandler : INotificationHandler<PatientCreatedEvent>
         await _emailService.SendWelcomeEmail(e.Email);
     }
 }
-
-// Handler 3: Analytics
-public class TrackPatientCreatedHandler : INotificationHandler<PatientCreatedEvent>
-{
-    public Task Handle(PatientCreatedEvent e, CancellationToken ct)
-    {
-        _analytics.Track("PatientCreated", e.PatientId);
-        return Task.CompletedTask;
-    }
-}
 ```
 
-All handlers run when the event is published.
+All handlers run when the event is dispatched.
+
+---
+
+## Explicit Events for Composite Scenarios
+
+You can still publish events explicitly for scenarios not tied to single behavior:
+
+```csharp
+public async Task Handle(ProcessPatientAccountCommand cmd, CancellationToken ct)
+{
+    var patient = await _repo.GetByIdAsync(cmd.PatientId, ct);
+
+    patient.Suspend();           // Adds PatientSuspendedEvent
+    patient.UpdateNotes("...");  // No event
+
+    await _unitOfWork.SaveChangesAsync(ct);  // Auto-dispatches PatientSuspendedEvent
+
+    // Additional composite event
+    await _mediator.Publish(new PatientAccountProcessedEvent(patient.Id), ct);
+}
+```
 
 ---
 
 ## Folder Structure
 
 ```
+BuildingBlocks/
+├── BuildingBlocks.Domain/
+│   ├── Entity.cs                          ← Has event collection
+│   ├── Interfaces/
+│   │   └── IEntityBase.cs
+│   └── Events/
+│       ├── IDomainEvent.cs
+│       └── IHasDomainEvents.cs
+│
+BuildingBlocks.Application/
+├── IRepository.cs                         ← Repository interface
+└── IUnitOfWork.cs                         ← Unit of Work interface
+│
+BuildingBlocks/
+└── BuildingBlocks.Infrastructure/
+    ├── Repository.cs
+    └── UnitOfWork.cs                      ← Auto-dispatches events
+
 Core/Scheduling/
-├── Scheduling.Application/
-│   ├── ServiceCollectionExtensions.cs
+├── Scheduling.Domain/
 │   └── Patients/
-│       ├── Commands/                      ← Publish events here
-│       │   └── CreatePatient/
-│       │       └── CreatePatientCommandHandler.cs
-│       ├── Events/                        ← Event definitions
-│       │   ├── PatientCreatedEvent.cs
-│       │   └── PatientSuspendedEvent.cs
-│       └── EventHandlers/                 ← Handle events here
-│           └── PatientCreatedEventHandler.cs
-└── Scheduling.Domain/
+│       ├── Patient.cs                     ← Uses AddDomainEvent()
+│       └── Events/
+│           ├── PatientCreatedEvent.cs
+│           └── PatientSuspendedEvent.cs
+└── Scheduling.Application/
     └── Patients/
-        ├── Patient.cs
-        └── PatientStatus.cs
+        └── EventHandlers/
+            └── PatientCreatedEventHandler.cs
 ```
 
 ---
 
 ## Verification Checklist
 
-- [ ] MediatR registered in Application layer
+- [ ] UnitOfWork injects IMediator
+- [ ] UnitOfWork dispatches events after SaveChangesAsync
+- [ ] EF configuration ignores DomainEvents property
 - [ ] Event handlers implement `INotificationHandler<TEvent>`
-- [ ] Command handlers inject `IMediator`
-- [ ] Events published after `SaveChangesAsync()` succeeds
-- [ ] Event handlers receive events when published
+- [ ] Events are dispatched when published
 
 ---
 
@@ -258,12 +311,12 @@ You now have:
 - EF Core DbContext with proper configuration
 - Generic Repository and UnitOfWork
 - Database migrations
-- Event handlers ready for explicit publishing
+- **Auto-dispatch of domain events after save**
 
 **Next: Phase 3 - CQRS Pattern**
 
 We'll implement:
-- Commands and Command Handlers (with event publishing)
+- Commands and Command Handlers
 - Queries and Query Handlers
 - MediatR pipeline behaviors
 - Validation with FluentValidation

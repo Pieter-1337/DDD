@@ -1,4 +1,5 @@
 using BuildingBlocks.Domain;
+using Scheduling.Domain.Patients.Events;
 
 namespace Scheduling.Domain.Patients;
 
@@ -20,7 +21,7 @@ public class Patient : Entity
         DateTime dateOfBirth,
         string? phoneNumber = null)
     {
-        return new Patient
+        var patient = new Patient
         {
             Id = Guid.NewGuid(),
             FirstName = firstName.Trim(),
@@ -30,9 +31,17 @@ public class Patient : Entity
             DateOfBirth = dateOfBirth,
             Status = PatientStatus.Active
         };
+
+        patient.AddDomainEvent(new PatientCreatedEvent(
+            patient.Id,
+            patient.FirstName,
+            patient.LastName,
+            patient.Email));
+
+        return patient;
     }
 
-    public void UpdateContactInfo(string email, string phoneNumber)
+    public void UpdateContactInfo(string email, string? phoneNumber)
     {
         Email = email.Trim().ToLowerInvariant();
         PhoneNumber = phoneNumber?.Trim();
@@ -44,6 +53,7 @@ public class Patient : Entity
             return;
 
         Status = PatientStatus.Suspended;
+        AddDomainEvent(new PatientSuspendedEvent(Id));
     }
 
     public void Activate()

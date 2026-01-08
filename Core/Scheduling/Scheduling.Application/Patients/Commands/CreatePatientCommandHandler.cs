@@ -1,31 +1,33 @@
-﻿using BuildingBlocks.Domain.Interfaces;
+using BuildingBlocks.Application;
 using MediatR;
-using Scheduling.Application.Patients.Events;
+using Scheduling.Application.Patients.Dtos;
 using Scheduling.Domain.Patients;
 
-namespace Scheduling.Application.Patients.Commands
+namespace Scheduling.Application.Patients.Commands;
+
+internal class CreatePatientCommandHandler : IRequestHandler<CreatePatientCommand, CreatePatientCommandResponse>
 {
-    public class CreatePatientCommandHandler : IRequestHandler<CreatePatientCommand, Patient>
+    private readonly IUnitOfWork _uow;
+
+    public CreatePatientCommandHandler(IUnitOfWork unitOfWork)
     {
-        private readonly IUnitOfWork _uow;
-        private readonly IMediator _mediator;
-        public CreatePatientCommandHandler(IUnitOfWork unitOfWork, IMediator mediator)
-        {
-            _uow = unitOfWork;
-            _mediator = mediator;
-        }
+        _uow = unitOfWork;
+    }
 
-        public async Task<Patient> Handle(CreatePatientCommand cmd, CancellationToken cancellationToken)
-        {
-            var dto = cmd.Patient;
-            var patient = Patient.Create(dto.FirstName, dto.LastName, dto.Email, dto.DateOfBirth, dto.PhoneNumber);
+    public async Task<CreatePatientCommandResponse> Handle(CreatePatientCommand cmd, CancellationToken cancellationToken)
+    {
+        var dto = cmd.Patient;
+        var patient = Patient.Create(dto.FirstName, dto.LastName, dto.Email, dto.DateOfBirth, dto.PhoneNumber);
+        _uow.RepositoryFor<Patient>().Add(patient);
 
-            _uow.RepositoryFor<Patient>().Add(patient);
+        // SaveChanges auto-dispatches domain events that were set in the behaviours inssued from the entity
+        await _uow.SaveChangesAsync(cancellationToken);
 
-            await _uow.SaveChangesAsync(cancellationToken);
-            await _mediator.Publish(new PatientCreatedEvent(patient.Id, patient.FirstName!, patient.LastName!, patient.Email!), cancellationToken);
-
-            return patient;
-        }
+        return new CreatePatientCommandResponse 
+        { 
+            Success = true, 
+            Message = "Patient succesfully saved", 
+            PatientDto = PatientDto.FromEntity(patient) 
+        };
     }
 }

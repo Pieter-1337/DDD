@@ -12,7 +12,8 @@
       "Bash(dotnet ef database update:*)",
       "Bash(dir:*)",
       "Bash(ls:*)",
-      "Bash(dotnet sln:*)"
+      "Bash(dotnet sln:*)",
+      "WebSearch"
     ]
   }
 }

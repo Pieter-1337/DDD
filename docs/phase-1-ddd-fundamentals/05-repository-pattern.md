@@ -72,19 +72,62 @@ public class CreatePatientHandler
 
 The repository infrastructure lives in the shared `BuildingBlocks` projects and uses a **generic repository pattern** with **Unit of Work**.
 
-### Step 1: Generic repository interface (already exists in BuildingBlocks.Domain)
+### Step 1: IEntityBase interface (in BuildingBlocks.Domain)
 
-Location: `BuildingBlocks/BuildingBlocks.Domain/Interfaces/IRepository.cs`
+Location: `BuildingBlocks/BuildingBlocks.Domain/Interfaces/IEntityBase.cs`
+
+```csharp
+namespace BuildingBlocks.Domain.Interfaces;
+
+public interface IEntityBase
+{
+    Guid Id { get; set; }
+}
+```
+
+**Note:** This stays in Domain as it's a marker interface for entities.
+
+### Step 2: IEntityDto interface (in BuildingBlocks.Application)
+
+Location: `BuildingBlocks.Application/IEntityDto.cs`
 
 ```csharp
 using System.Linq.Expressions;
 
-namespace BuildingBlocks.Domain.Interfaces;
+namespace BuildingBlocks.Application;
 
-public interface IRepository<TEntity>
+public interface IEntityDto<TEntity, TDto> where TDto : IEntityDto<TEntity, TDto>
+{
+    static abstract Expression<Func<TEntity, TDto>> Projection { get; }
+    static abstract TDto FromEntity(TEntity entity);
+}
+```
+
+**Key points:**
+- Uses C# 11 static abstract interface members
+- `Projection` - Expression for EF Core to translate to SQL (efficient)
+- `FromEntity` - For in-memory mapping when entity is already loaded
+
+### Step 3: Generic repository interface (in BuildingBlocks.Application)
+
+Location: `BuildingBlocks.Application/IRepository.cs`
+
+```csharp
+using System.Linq.Expressions;
+using BuildingBlocks.Domain.Interfaces;
+
+namespace BuildingBlocks.Application;
+
+public interface IRepository<TEntity> where TEntity : class, IEntityBase
 {
     IQueryable<TEntity> GetAll(Expression<Func<TEntity, bool>>? filter = null);
     Task<TEntity?> FirstOrDefaultAsync(Expression<Func<TEntity, bool>> filter, CancellationToken ct = default);
+
+    Task<TDto?> FirstOrDefaultAsDtoAsync<TDto>(
+        Expression<Func<TEntity, bool>> filter,
+        CancellationToken ct = default)
+        where TDto : class, IEntityDto<TEntity, TDto>;
+
     Task<TEntity?> GetByIdAsync(Guid id, CancellationToken ct = default);
     Task<bool> ExistsAsync(Guid id, CancellationToken ct = default);
     void Add(TEntity entity);
@@ -94,12 +137,14 @@ public interface IRepository<TEntity>
 
 **Note:** This is a generic interface that works with any entity type. No entity-specific interfaces needed.
 
-### Step 2: Unit of Work interface (already exists in BuildingBlocks.Domain)
+### Step 4: Unit of Work interface (in BuildingBlocks.Application)
 
-Location: `BuildingBlocks/BuildingBlocks.Domain/Interfaces/IUnitOfWork.cs`
+Location: `BuildingBlocks.Application/IUnitOfWork.cs`
 
 ```csharp
-namespace BuildingBlocks.Domain.Interfaces;
+using BuildingBlocks.Domain.Interfaces;
+
+namespace BuildingBlocks.Application;
 
 public interface IUnitOfWork
 {
@@ -112,34 +157,29 @@ public interface IUnitOfWork
 - `RepositoryFor<T>()` - Get a repository for any entity type dynamically
 - `SaveChangesAsync()` - Commits all changes and dispatches domain events
 
-### Step 3: Understand the design decisions
+### Step 5: Why interfaces are in Application layer?
 
-**Why generic repository instead of entity-specific?**
+**Architecture:**
+```
+Domain:       IEntityBase, Entity, Events (pure business logic)
+                  ↑
+Application:  IRepository, IUnitOfWork, IEntityDto (use case contracts)
+                  ↑
+Infrastructure: Repository, UnitOfWork (implementations)
+```
 
-Using `IUnitOfWork.RepositoryFor<Patient>()` instead of `IPatientRepository` means:
-- No need to create/register a repository interface per entity
-- Consistent API across all entities
-- Less boilerplate code
-- Easy to add new entities without DI changes
+**Reasons:**
+- `IRepository` needs `IEntityDto` for DTO projections
+- `IEntityDto` is an Application layer concern (DTOs live there)
+- Domain can't reference Application (would be circular)
+- This is a valid Clean Architecture interpretation
 
-**Why no `Update()` method?**
-
-EF Core tracks changes automatically. When you modify an entity that's tracked, EF knows to update it on `SaveChanges()`. No explicit `Update()` call needed.
-
-**Why `void Add()` instead of `Task AddAsync()`?**
-
-EF Core's `DbSet.Add()` is synchronous - it just marks the entity for insertion. The actual database operation happens during `SaveChangesAsync()`.
-
-**Why `CancellationToken`?**
-
-Allows cancelling long-running database operations. Good practice for async methods.
-
-### Step 4: Using repositories in handlers
+### Step 6: Using repositories in handlers
 
 Example usage in an Application layer handler:
 
 ```csharp
-using BuildingBlocks.Domain.Interfaces;
+using BuildingBlocks.Application;
 using Scheduling.Domain.Patients;
 
 public class CreatePatientHandler
@@ -168,21 +208,18 @@ public class CreatePatientHandler
 }
 ```
 
-### Step 5: Querying with filters
+### Step 7: Querying with DTO projection
 
-The repository supports flexible queries via `GetAll()` and `FirstOrDefaultAsync()`:
+The repository supports efficient DTO projection via `FirstOrDefaultAsDtoAsync`:
 
 ```csharp
-// Get by email
-var patient = await _unitOfWork
+// Efficient - only selects columns needed for DTO
+var patientDto = await _unitOfWork
     .RepositoryFor<Patient>()
-    .FirstOrDefaultAsync(p => p.Email == email, ct);
-
-// Get all active patients
-var activePatients = _unitOfWork
-    .RepositoryFor<Patient>()
-    .GetAll(p => p.Status == PatientStatus.Active);
+    .FirstOrDefaultAsDtoAsync<PatientDto>(p => p.Id == id, ct);
 ```
+
+This uses the `Projection` expression from the DTO, which EF Core translates to SQL.
 
 ---
 
@@ -202,17 +239,18 @@ _unitOfWork.RepositoryFor<MedicalRecord>()  // Part of Patient aggregate
 
 Child entities are accessed through their aggregate root.
 
-### Repository Returns Domain Objects
+### Repository Returns Domain Objects (or DTOs)
 
-Repositories work with domain entities. Mapping to DTOs happens in the Application layer (handlers, queries).
+Repositories work with domain entities or project to DTOs. The `IEntityDto` constraint ensures type-safe projections.
 
 ---
 
 ## Verification Checklist
 
-- [ ] `IRepository<TEntity>` interface exists in `BuildingBlocks/BuildingBlocks.Domain/Interfaces/`
-- [ ] `IUnitOfWork` interface exists with `RepositoryFor<T>()` method
-- [ ] `IEntityBase` interface exists for entity identity
+- [ ] `IEntityBase` interface exists in `BuildingBlocks/BuildingBlocks.Domain/Interfaces/`
+- [ ] `IEntityDto<TEntity, TDto>` interface exists in `BuildingBlocks.Application/`
+- [ ] `IRepository<TEntity>` interface exists in `BuildingBlocks.Application/`
+- [ ] `IUnitOfWork` interface exists in `BuildingBlocks.Application/`
 - [ ] Application layer can use `IUnitOfWork` to access repositories
 
 ---
@@ -227,28 +265,17 @@ BuildingBlocks/
 │   │   ├── IDomainEvent.cs
 │   │   └── IHasDomainEvents.cs
 │   └── Interfaces/
-│       ├── IEntityBase.cs
-│       ├── IRepository.cs
-│       └── IUnitOfWork.cs
+│       └── IEntityBase.cs                 ← Only marker interface stays here
+│
+BuildingBlocks.Application/                ← Application layer contracts
+├── IEntityDto.cs                          ← DTO projection interface
+├── IRepository.cs                         ← Repository interface
+└── IUnitOfWork.cs                         ← Unit of Work interface
+
+BuildingBlocks/
 └── BuildingBlocks.Infrastructure/         ← Infrastructure implementations
     ├── Repository.cs
-    ├── UnitOfWork.cs
-    └── Events/
-        ├── IDomainEventDispatcher.cs
-        └── DomainEventDispatcher.cs
-Core/
-└── Scheduling/
-    ├── Scheduling.Domain/
-    │   └── Patients/
-    │       ├── Patient.cs
-    │       ├── PatientStatus.cs
-    │       └── Events/
-    │           ├── PatientCreatedEvent.cs
-    │           └── PatientSuspendedEvent.cs
-    ├── Scheduling.Application/
-    │   └── ServiceCollectionExtensions.cs
-    └── Scheduling.Infrastructure/
-        └── ServiceCollectionExtensions.cs
+    └── UnitOfWork.cs
 ```
 
 ---
@@ -257,8 +284,9 @@ Core/
 
 1. **Generic repository** - One interface works for all entities
 2. **Unit of Work pattern** - Coordinates repositories and saves changes
-3. **One repository per aggregate root** - Access child entities through the root
-4. **EF Core change tracking** - No explicit `Update()` needed
+3. **DTO projections** - `IEntityDto` enables efficient SQL queries
+4. **Clean Architecture** - Interfaces in Application, implementations in Infrastructure
+5. **One repository per aggregate root** - Access child entities through the root
 
 ---
 

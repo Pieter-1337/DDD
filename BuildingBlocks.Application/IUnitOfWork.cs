@@ -1,4 +1,6 @@
-namespace BuildingBlocks.Domain.Interfaces;
+using BuildingBlocks.Domain;
+
+namespace BuildingBlocks.Application;
 
 public interface IUnitOfWork
 {

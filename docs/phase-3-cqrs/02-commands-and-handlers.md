@@ -79,9 +79,8 @@ public record CreatePatientCommand(CreatePatientRequest Request) : IRequest<Guid
 Location: `Core/Scheduling/Scheduling.Application/Patients/Commands/CreatePatient/CreatePatientCommandHandler.cs`
 
 ```csharp
-using BuildingBlocks.Domain.Interfaces;
+using BuildingBlocks.Application;
 using MediatR;
-using Scheduling.Application.Patients.Events;
 using Scheduling.Domain.Patients;
 
 namespace Scheduling.Application.Patients.Commands.CreatePatient;
@@ -89,12 +88,10 @@ namespace Scheduling.Application.Patients.Commands.CreatePatient;
 public class CreatePatientCommandHandler : IRequestHandler<CreatePatientCommand, Guid>
 {
     private readonly IUnitOfWork _unitOfWork;
-    private readonly IMediator _mediator;
 
-    public CreatePatientCommandHandler(IUnitOfWork unitOfWork, IMediator mediator)
+    public CreatePatientCommandHandler(IUnitOfWork unitOfWork)
     {
         _unitOfWork = unitOfWork;
-        _mediator = mediator;
     }
 
     public async Task<Guid> Handle(CreatePatientCommand command, CancellationToken cancellationToken)
@@ -102,6 +99,7 @@ public class CreatePatientCommandHandler : IRequestHandler<CreatePatientCommand,
         var req = command.Request;
 
         // Validation already passed - safe to use properties
+        // Patient.Create() adds PatientCreatedEvent internally
         var patient = Patient.Create(
             req.FirstName!,
             req.LastName!,
@@ -112,15 +110,8 @@ public class CreatePatientCommandHandler : IRequestHandler<CreatePatientCommand,
         // Add to repository
         _unitOfWork.RepositoryFor<Patient>().Add(patient);
 
-        // Save changes
+        // Save changes - events auto-dispatched after save
         await _unitOfWork.SaveChangesAsync(cancellationToken);
-
-        // Publish event explicitly after successful save
-        await _mediator.Publish(new PatientCreatedEvent(
-            patient.Id,
-            patient.FirstName,
-            patient.LastName,
-            patient.Email), cancellationToken);
 
         return patient.Id;
     }
@@ -129,10 +120,10 @@ public class CreatePatientCommandHandler : IRequestHandler<CreatePatientCommand,
 
 **Key points:**
 - Implements `IRequestHandler<TRequest, TResponse>`
-- Injects both `IUnitOfWork` and `IMediator`
+- Injects `IUnitOfWork` only (no IMediator needed)
 - Accesses request via `command.Request`
 - FluentValidation guarantees data is valid by this point
-- Publishes event explicitly after successful save
+- Entity adds events internally, auto-dispatched after save
 - Returns the created ID
 
 ### Step 5: Create SuspendPatientCommand
@@ -154,10 +145,9 @@ public record SuspendPatientCommand(Guid PatientId) : IRequest;
 Location: `Core/Scheduling/Scheduling.Application/Patients/Commands/SuspendPatient/SuspendPatientCommandHandler.cs`
 
 ```csharp
-using BuildingBlocks.Domain.Interfaces;
+using BuildingBlocks.Application;
 using MediatR;
 using Scheduling.Application.Exceptions;
-using Scheduling.Application.Patients.Events;
 using Scheduling.Domain.Patients;
 
 namespace Scheduling.Application.Patients.Commands.SuspendPatient;
@@ -165,12 +155,10 @@ namespace Scheduling.Application.Patients.Commands.SuspendPatient;
 public class SuspendPatientCommandHandler : IRequestHandler<SuspendPatientCommand>
 {
     private readonly IUnitOfWork _unitOfWork;
-    private readonly IMediator _mediator;
 
-    public SuspendPatientCommandHandler(IUnitOfWork unitOfWork, IMediator mediator)
+    public SuspendPatientCommandHandler(IUnitOfWork unitOfWork)
     {
         _unitOfWork = unitOfWork;
-        _mediator = mediator;
     }
 
     public async Task Handle(SuspendPatientCommand command, CancellationToken cancellationToken)
@@ -181,18 +169,11 @@ public class SuspendPatientCommandHandler : IRequestHandler<SuspendPatientComman
         if (patient is null)
             throw new PatientNotFoundException(command.PatientId);
 
-        // Check if already suspended (no event needed)
-        if (patient.Status == PatientStatus.Suspended)
-            return;
-
-        // Call domain method
+        // Call domain method - adds PatientSuspendedEvent internally
         patient.Suspend();
 
-        // Save changes
+        // Save changes - events auto-dispatched after save
         await _unitOfWork.SaveChangesAsync(cancellationToken);
-
-        // Publish event explicitly
-        await _mediator.Publish(new PatientSuspendedEvent(patient.Id), cancellationToken);
     }
 }
 ```
@@ -237,7 +218,7 @@ public record UpdateContactInfoCommand(
 Location: `Core/Scheduling/Scheduling.Application/Patients/Commands/UpdateContactInfo/UpdateContactInfoCommandHandler.cs`
 
 ```csharp
-using BuildingBlocks.Domain.Interfaces;
+using BuildingBlocks.Application;
 using MediatR;
 using Scheduling.Application.Exceptions;
 using Scheduling.Domain.Patients;
@@ -483,8 +464,8 @@ public class CreatePatientCommandHandlerTests
 - [ ] `PatientNotFoundException` exception created
 - [ ] MediatR registered in DI
 - [ ] Controller receives request DTO, wraps in command
-- [ ] Handlers inject both `IUnitOfWork` and `IMediator`
-- [ ] Events published explicitly after `SaveChangesAsync()`
+- [ ] Handlers inject `IUnitOfWork` (events auto-dispatched)
+- [ ] Entity adds events in behavior methods
 - [ ] FluentValidation validates (not domain)
 
 ---
@@ -493,6 +474,13 @@ public class CreatePatientCommandHandlerTests
 
 ```
 Core/Scheduling/
+├── Scheduling.Domain/
+│   └── Patients/
+│       ├── Patient.cs                           ← Uses AddDomainEvent()
+│       ├── PatientStatus.cs
+│       └── Events/                              ← Events in Domain layer
+│           ├── PatientCreatedEvent.cs
+│           └── PatientSuspendedEvent.cs
 └── Scheduling.Application/
     ├── Exceptions/
     │   └── PatientNotFoundException.cs
@@ -508,9 +496,6 @@ Core/Scheduling/
     │   │   └── UpdateContactInfo/
     │   │       ├── UpdateContactInfoCommand.cs
     │   │       └── UpdateContactInfoCommandHandler.cs
-    │   ├── Events/                              ← Events live in Application
-    │   │   ├── PatientCreatedEvent.cs
-    │   │   └── PatientSuspendedEvent.cs
     │   └── EventHandlers/
     │       └── PatientCreatedEventHandler.cs
     └── ServiceCollectionExtensions.cs

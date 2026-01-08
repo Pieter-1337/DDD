@@ -289,7 +289,57 @@ Patients/
 
 **Why organize by aggregate?** All Patient-related code lives together. If Patient ever becomes its own microservice, it's easy to extract.
 
-### Step 11: Build and verify
+### Step 11: Configure WebApi Project
+
+Location: `WebApi/Program.cs`
+
+```csharp
+using System.Text.Json.Serialization;
+using Scheduling.Application;
+using Scheduling.Infrastructure;
+
+var builder = WebApplication.CreateBuilder(args);
+
+// Add controllers with JSON configuration
+builder.Services.AddControllers()
+    .AddJsonOptions(options =>
+    {
+        // Serialize enums as strings (e.g., "Active" instead of 0)
+        options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter());
+    });
+
+builder.Services.AddOpenApi();
+
+// Get connection string
+var connectionString = builder.Configuration.GetConnectionString("DefaultConnection")
+    ?? throw new InvalidOperationException("Connection string 'DefaultConnection' not found.");
+
+// Add Infrastructure (DbContext, UnitOfWork)
+builder.Services.AddSchedulingInfrastructure(connectionString);
+
+// Add Application (MediatR handlers, validators)
+builder.Services.AddSchedulingApplication();
+
+var app = builder.Build();
+
+if (app.Environment.IsDevelopment())
+{
+    app.MapOpenApi();
+}
+
+app.UseHttpsRedirection();
+app.UseAuthorization();
+app.MapControllers();
+
+app.Run();
+```
+
+**Key configuration:**
+- `JsonStringEnumConverter` - Serializes enums as readable strings in JSON responses
+- `AddSchedulingInfrastructure` - Registers DbContext and UnitOfWork
+- `AddSchedulingApplication` - Registers MediatR handlers
+
+### Step 12: Build and verify
 
 ```bash
 dotnet build AGFA.sln
@@ -309,6 +359,7 @@ After completing the steps, verify:
 - [ ] `Scheduling.Application.csproj` references `Scheduling.Domain` and has MediatR
 - [ ] `Scheduling.Infrastructure.csproj` references Domain, Application, and `BuildingBlocks.Infrastructure`
 - [ ] `Directory.Packages.props` exists at solution root
+- [ ] `WebApi/Program.cs` has `JsonStringEnumConverter` configured
 - [ ] Solution builds successfully
 
 ---
