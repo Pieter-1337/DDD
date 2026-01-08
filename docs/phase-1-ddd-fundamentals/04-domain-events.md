@@ -18,50 +18,88 @@ They're named in **past tense** because they represent facts that already occurr
 
 Without events:
 ```csharp
-public void Suspend()
+public async Task<Guid> Handle(CreatePatientCommand cmd, CancellationToken ct)
 {
-    Status = PatientStatus.Suspended;
-    _emailService.SendSuspensionEmail(Email);      // Domain depends on infrastructure!
-    _appointmentService.CancelUpcoming(Id);         // Tight coupling!
+    var patient = Patient.Create(...);
+    _unitOfWork.RepositoryFor<Patient>().Add(patient);
+    await _unitOfWork.SaveChangesAsync(ct);
+
+    // Side effects mixed with main logic
+    await _emailService.SendWelcomeEmail(patient.Email);  // What if this fails?
+    await _analyticsService.Track("PatientCreated");       // Tight coupling!
+
+    return patient.Id;
 }
 ```
 
 **Problems:**
-- Domain layer depends on email service, appointment service
-- Hard to test
-- Hard to add new reactions (logging, analytics, etc.)
+- Handler does too much
+- Hard to add new reactions without modifying handler
+- What if email fails after patient is saved?
 
 With events:
 ```csharp
-public void Suspend()
+// Handler - focused on main operation
+public async Task<Guid> Handle(CreatePatientCommand cmd, CancellationToken ct)
 {
-    Status = PatientStatus.Suspended;
-    AddDomainEvent(new PatientSuspendedEvent(Id));  // Just record what happened
+    var patient = Patient.Create(...);
+    _unitOfWork.RepositoryFor<Patient>().Add(patient);
+    await _unitOfWork.SaveChangesAsync(ct);
+
+    // Publish event - others can react
+    await _mediator.Publish(new PatientCreatedEvent(patient.Id, patient.Email!), ct);
+
+    return patient.Id;
 }
 
-// Somewhere else (Application layer):
-public class PatientSuspendedEventHandler
+// Separate handler for side effects
+public class SendWelcomeEmailHandler : INotificationHandler<PatientCreatedEvent>
 {
-    public async Task Handle(PatientSuspendedEvent e)
+    public async Task Handle(PatientCreatedEvent e, CancellationToken ct)
     {
-        await _emailService.SendSuspensionEmail(e.PatientId);
-        await _appointmentService.CancelUpcoming(e.PatientId);
+        await _emailService.SendWelcomeEmail(e.Email);
+    }
+}
+
+// Another handler - analytics
+public class TrackPatientCreatedHandler : INotificationHandler<PatientCreatedEvent>
+{
+    public Task Handle(PatientCreatedEvent e, CancellationToken ct)
+    {
+        _analytics.Track("PatientCreated", e.PatientId);
+        return Task.CompletedTask;
     }
 }
 ```
 
 **Benefits:**
-- Domain stays pure (no infrastructure dependencies)
-- Easy to add new handlers without changing domain
-- Easy to test domain in isolation
+- Handler stays focused on main operation
+- Easy to add new reactions without changing handler
+- Each handler can be tested independently
+
+---
+
+## Our Approach: Explicit Publishing
+
+We use **explicit event publishing** in command handlers rather than automatic dispatching. This gives full control over when and if events are published.
+
+```csharp
+// Handler explicitly publishes after successful save
+await _unitOfWork.SaveChangesAsync(ct);
+await _mediator.Publish(new PatientCreatedEvent(...), ct);
+```
+
+**Why explicit?**
+- Full control - you decide when to publish
+- Clear intent - events are visible in the handler
+- No magic - easier to debug and reason about
+- Flexible - can choose not to publish in certain cases
 
 ---
 
 ## What You Need To Do
 
-The domain event infrastructure lives in the shared `BuildingBlocks` projects. Domain entities inherit from the shared `Entity` base class in `BuildingBlocks.Domain` which provides event support.
-
-### Step 1: Base event interface (already exists in BuildingBlocks.Domain)
+### Step 1: Base event interface
 
 Location: `BuildingBlocks/BuildingBlocks.Domain/Events/IDomainEvent.cs`
 
@@ -76,64 +114,16 @@ public interface IDomainEvent : INotification
 }
 ```
 
-**Note:** `IDomainEvent` extends MediatR's `INotification` so events can be published via MediatR.
+**Note:** `IDomainEvent` extends MediatR's `INotification` so events can be published via `_mediator.Publish()`.
 
-### Step 2: Interface for entities with events (already exists in BuildingBlocks.Domain)
+### Step 2: Create PatientCreatedEvent
 
-Location: `BuildingBlocks/BuildingBlocks.Domain/Events/IHasDomainEvents.cs`
-
-```csharp
-namespace BuildingBlocks.Domain.Events;
-
-public interface IHasDomainEvents
-{
-    IReadOnlyList<IDomainEvent> DomainEvents { get; }
-    void ClearDomainEvents();
-}
-```
-
-### Step 3: Base entity with event support (already exists in BuildingBlocks.Domain)
-
-Location: `BuildingBlocks/BuildingBlocks.Domain/Entity.cs`
-
-```csharp
-using BuildingBlocks.Domain.Events;
-using BuildingBlocks.Domain.Interfaces;
-
-namespace BuildingBlocks.Domain;
-
-public abstract class Entity : IEntityBase, IHasDomainEvents
-{
-    private readonly List<IDomainEvent> _domainEvents = [];
-
-    public Guid Id { get; set; }
-    public IReadOnlyList<IDomainEvent> DomainEvents => _domainEvents.AsReadOnly();
-
-    protected void AddDomainEvent(IDomainEvent domainEvent)
-    {
-        _domainEvents.Add(domainEvent);
-    }
-
-    public void ClearDomainEvents()
-    {
-        _domainEvents.Clear();
-    }
-}
-```
-
-**Key points:**
-- Implements `IEntityBase` (provides `Id`) and `IHasDomainEvents`
-- Domain entities inherit from this class
-- Events are collected via `AddDomainEvent()` and cleared after dispatching
-
-### Step 4: Create PatientCreatedEvent
-
-Location: `Core/Scheduling/Scheduling.Domain/Patients/Events/PatientCreatedEvent.cs`
+Location: `Core/Scheduling/Scheduling.Application/Patients/Events/PatientCreatedEvent.cs`
 
 ```csharp
 using BuildingBlocks.Domain.Events;
 
-namespace Scheduling.Domain.Patients.Events;
+namespace Scheduling.Application.Patients.Events;
 
 public record PatientCreatedEvent(
     Guid PatientId,
@@ -146,14 +136,14 @@ public record PatientCreatedEvent(
 }
 ```
 
-### Step 5: Create PatientSuspendedEvent
+### Step 3: Create PatientSuspendedEvent
 
-Location: `Core/Scheduling/Scheduling.Domain/Patients/Events/PatientSuspendedEvent.cs`
+Location: `Core/Scheduling/Scheduling.Application/Patients/Events/PatientSuspendedEvent.cs`
 
 ```csharp
 using BuildingBlocks.Domain.Events;
 
-namespace Scheduling.Domain.Patients.Events;
+namespace Scheduling.Application.Patients.Events;
 
 public record PatientSuspendedEvent(Guid PatientId) : IDomainEvent
 {
@@ -161,17 +151,33 @@ public record PatientSuspendedEvent(Guid PatientId) : IDomainEvent
 }
 ```
 
-### Step 6: Update Patient to inherit from Entity and raise events
+### Step 4: Entity base class (simple)
+
+Location: `BuildingBlocks/BuildingBlocks.Domain/Entity.cs`
+
+```csharp
+using BuildingBlocks.Domain.Interfaces;
+
+namespace BuildingBlocks.Domain;
+
+public abstract class Entity : IEntityBase
+{
+    public Guid Id { get; set; }
+}
+```
+
+**Note:** Entity is simple - just provides Id. No event collection. Events are published explicitly by handlers.
+
+### Step 5: Patient entity (no event collection)
 
 Location: `Core/Scheduling/Scheduling.Domain/Patients/Patient.cs`
 
 ```csharp
 using BuildingBlocks.Domain;
-using Scheduling.Domain.Patients.Events;
 
 namespace Scheduling.Domain.Patients;
 
-public class Patient : Entity  // Inherits from shared Entity base class
+public class Patient : Entity
 {
     public string? FirstName { get; private set; }
     public string? LastName { get; private set; }
@@ -192,39 +198,19 @@ public class Patient : Entity  // Inherits from shared Entity base class
         // Validation - enforce invariants
         if (string.IsNullOrWhiteSpace(firstName))
             throw new ArgumentException("First name is required", nameof(firstName));
+        // ... more validation ...
 
-        if (string.IsNullOrWhiteSpace(lastName))
-            throw new ArgumentException("Last name is required", nameof(lastName));
-
-        if (string.IsNullOrWhiteSpace(email))
-            throw new ArgumentException("Email is required", nameof(email));
-
-        if (!email.Contains('@'))
-            throw new ArgumentException("Invalid email format", nameof(email));
-
-        if (dateOfBirth > DateTime.UtcNow)
-            throw new ArgumentException("Date of birth cannot be in the future", nameof(dateOfBirth));
-
-        var patient = new Patient
+        return new Patient
         {
             Id = Guid.NewGuid(),
             FirstName = firstName.Trim(),
             LastName = lastName.Trim(),
-            Email = email.Trim().ToLowerInvariant(),
+            Email = email!.Trim().ToLowerInvariant(),
             PhoneNumber = phoneNumber?.Trim(),
             DateOfBirth = dateOfBirth,
             Status = PatientStatus.Active
         };
-
-        // Raise event
-        patient.AddDomainEvent(new PatientCreatedEvent(
-            patient.Id,
-            patient.FirstName,
-            patient.LastName,
-            patient.Email
-        ));
-
-        return patient;
+        // Note: No event raised here - handler will publish explicitly
     }
 
     public void Suspend()
@@ -233,125 +219,90 @@ public class Patient : Entity  // Inherits from shared Entity base class
             return;
 
         Status = PatientStatus.Suspended;
-
-        // Raise event
-        AddDomainEvent(new PatientSuspendedEvent(Id));
-    }
-
-    // ... rest of methods ...
-}
-```
-
-### Step 7: Add tests for events
-
-Location: `Core/Scheduling/Scheduling.Domain.Tests/Patients/PatientTests.cs`
-
-```csharp
-using FluentAssertions;
-using Scheduling.Domain.Patients;
-using Scheduling.Domain.Patients.Events;
-
-namespace Scheduling.Domain.Tests.Patients;
-
-public class PatientTests
-{
-    [Fact]
-    public void Create_ShouldRaisePatientCreatedEvent()
-    {
-        // Arrange & Act
-        var patient = Patient.Create("John", "Doe", "test@example.com", DateTime.UtcNow.AddYears(-30));
-
-        // Assert
-        patient.DomainEvents.Should().ContainSingle();
-        patient.DomainEvents.First().Should().BeOfType<PatientCreatedEvent>();
-
-        var @event = (PatientCreatedEvent)patient.DomainEvents.First();
-        @event.PatientId.Should().Be(patient.Id);
-        @event.Email.Should().Be("test@example.com");
-    }
-
-    [Fact]
-    public void Suspend_ShouldRaisePatientSuspendedEvent()
-    {
-        // Arrange
-        var patient = Patient.Create("John", "Doe", "test@example.com", DateTime.UtcNow.AddYears(-30));
-        patient.ClearDomainEvents(); // Clear the Created event
-
-        // Act
-        patient.Suspend();
-
-        // Assert
-        patient.DomainEvents.Should().ContainSingle();
-        patient.DomainEvents.First().Should().BeOfType<PatientSuspendedEvent>();
-    }
-
-    [Fact]
-    public void Suspend_WhenAlreadySuspended_ShouldNotRaiseEvent()
-    {
-        // Arrange
-        var patient = Patient.Create("John", "Doe", "test@example.com", DateTime.UtcNow.AddYears(-30));
-        patient.Suspend();
-        patient.ClearDomainEvents();
-
-        // Act
-        patient.Suspend(); // Second time
-
-        // Assert
-        patient.DomainEvents.Should().BeEmpty(); // No new event
+        // Note: No event raised here - handler will publish explicitly
     }
 }
 ```
 
----
-
-## How Events Get Dispatched (Preview)
-
-Events are collected in the entity, then dispatched via MediatR when you save. This is handled by the `DomainEventDispatcher` in the `BuildingBlocks.Infrastructure` project:
+### Step 6: Publishing events in handlers (Phase 3 preview)
 
 ```csharp
-// BuildingBlocks/BuildingBlocks.Infrastructure/Events/DomainEventDispatcher.cs
-public class DomainEventDispatcher : IDomainEventDispatcher
+public class CreatePatientCommandHandler : IRequestHandler<CreatePatientCommand, Guid>
 {
+    private readonly IUnitOfWork _unitOfWork;
     private readonly IMediator _mediator;
 
-    public DomainEventDispatcher(IMediator mediator) => _mediator = mediator;
-
-    public async Task DispatchEventsAsync(DbContext context, CancellationToken ct = default)
+    public CreatePatientCommandHandler(IUnitOfWork unitOfWork, IMediator mediator)
     {
-        var entitiesWithEvents = context.ChangeTracker
-            .Entries<IEntityBase>()
-            .Where(e => e.Entity is IHasDomainEvents entityWithEvents
-                && entityWithEvents.DomainEvents.Any())
-            .Select(e => (IHasDomainEvents)e.Entity)
-            .ToList();
+        _unitOfWork = unitOfWork;
+        _mediator = mediator;
+    }
 
-        var domainEvents = entitiesWithEvents
-            .SelectMany(e => e.DomainEvents)
-            .ToList();
+    public async Task<Guid> Handle(CreatePatientCommand cmd, CancellationToken ct)
+    {
+        var patient = Patient.Create(cmd.FirstName, cmd.LastName, cmd.Email, cmd.DateOfBirth, cmd.PhoneNumber);
 
-        foreach (var entity in entitiesWithEvents)
-            entity.ClearDomainEvents();
+        _unitOfWork.RepositoryFor<Patient>().Add(patient);
+        await _unitOfWork.SaveChangesAsync(ct);
 
-        foreach (var domainEvent in domainEvents)
-            await _mediator.Publish(domainEvent, ct);
+        // Explicit publish after successful save
+        await _mediator.Publish(new PatientCreatedEvent(
+            patient.Id,
+            patient.FirstName!,
+            patient.LastName!,
+            patient.Email!), ct);
+
+        return patient.Id;
     }
 }
 ```
 
-The `UnitOfWork` calls this dispatcher after saving changes. We'll see this in detail in Phase 2.
+### Step 7: Create event handlers
+
+Location: `Core/Scheduling/Scheduling.Application/Patients/EventHandlers/PatientCreatedEventHandler.cs`
+
+```csharp
+using MediatR;
+using Microsoft.Extensions.Logging;
+using Scheduling.Application.Patients.Events;
+
+namespace Scheduling.Application.Patients.EventHandlers;
+
+public class PatientCreatedEventHandler : INotificationHandler<PatientCreatedEvent>
+{
+    private readonly ILogger<PatientCreatedEventHandler> _logger;
+
+    public PatientCreatedEventHandler(ILogger<PatientCreatedEventHandler> logger)
+    {
+        _logger = logger;
+    }
+
+    public Task Handle(PatientCreatedEvent notification, CancellationToken cancellationToken)
+    {
+        _logger.LogInformation(
+            "Patient created: {PatientId} - {FirstName} {LastName} ({Email})",
+            notification.PatientId,
+            notification.FirstName,
+            notification.LastName,
+            notification.Email);
+
+        // In real app: send welcome email, notify admin, etc.
+
+        return Task.CompletedTask;
+    }
+}
+```
 
 ---
 
 ## Verification Checklist
 
 - [ ] `IDomainEvent` interface exists in `BuildingBlocks/BuildingBlocks.Domain/Events/`
-- [ ] `IHasDomainEvents` interface exists in `BuildingBlocks/BuildingBlocks.Domain/Events/`
-- [ ] `Entity` base class exists in `BuildingBlocks/BuildingBlocks.Domain/`
-- [ ] `Patient` inherits from `Entity`
-- [ ] `PatientCreatedEvent` raised in `Create()`
-- [ ] `PatientSuspendedEvent` raised in `Suspend()`
-- [ ] Tests verify events are raised
-- [ ] Tests pass
+- [ ] `PatientCreatedEvent` in `Scheduling.Application/Patients/Events/`
+- [ ] `PatientSuspendedEvent` in `Scheduling.Application/Patients/Events/`
+- [ ] Entity base class is simple (just Id)
+- [ ] Patient entity has no event collection
+- [ ] Events published explicitly by handlers
 
 ---
 
@@ -359,33 +310,27 @@ The `UnitOfWork` calls this dispatcher after saving changes. We'll see this in d
 
 ```
 BuildingBlocks/
-├── BuildingBlocks.Domain/                 ← Pure domain abstractions
-│   ├── Entity.cs
-│   ├── Events/
-│   │   ├── IDomainEvent.cs
-│   │   └── IHasDomainEvents.cs
-│   └── Interfaces/
-│       ├── IEntityBase.cs
-│       ├── IRepository.cs
-│       └── IUnitOfWork.cs
-└── BuildingBlocks.Infrastructure/         ← Infrastructure implementations
-    ├── Repository.cs
-    ├── UnitOfWork.cs
-    └── Events/
-        ├── IDomainEventDispatcher.cs
-        └── DomainEventDispatcher.cs
+└── BuildingBlocks.Domain/
+    ├── Entity.cs                      ← Simple, just Id
+    ├── Events/
+    │   └── IDomainEvent.cs            ← Marker interface for MediatR
+    └── Interfaces/
+        ├── IEntityBase.cs
+        ├── IRepository.cs
+        └── IUnitOfWork.cs
 Core/
 └── Scheduling/
     ├── Scheduling.Domain/
     │   └── Patients/
-    │       ├── Patient.cs
-    │       ├── PatientStatus.cs
-    │       └── Events/
-    │           ├── PatientCreatedEvent.cs
-    │           └── PatientSuspendedEvent.cs
-    └── Scheduling.Domain.Tests/
+    │       ├── Patient.cs             ← No event collection
+    │       └── PatientStatus.cs
+    └── Scheduling.Application/
         └── Patients/
-            └── PatientTests.cs
+            ├── Events/                ← Events live in Application
+            │   ├── PatientCreatedEvent.cs
+            │   └── PatientSuspendedEvent.cs
+            └── EventHandlers/
+                └── PatientCreatedEventHandler.cs
 ```
 
 ---
@@ -393,8 +338,8 @@ Core/
 ## What You Learned
 
 1. **Domain events** capture facts about what happened
-2. **Events decouple** the domain from side effects
-3. **Events are raised** in the domain, **dispatched** by infrastructure
+2. **Events decouple** the main operation from side effects
+3. **Explicit publishing** - handlers decide when to publish
 4. **Past tense naming** - `PatientCreated`, not `CreatePatient`
 5. **MediatR integration** - `IDomainEvent` extends `INotification` for publishing
 

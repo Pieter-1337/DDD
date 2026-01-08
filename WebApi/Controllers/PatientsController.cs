@@ -1,6 +1,9 @@
 ﻿using Microsoft.AspNetCore.Mvc;
 using BuildingBlocks.Domain.Interfaces;
 using Scheduling.Domain.Patients;
+using MediatR;
+using Scheduling.Application.Patients.Commands;
+using Scheduling.Application.Patients.Dtos;
 
 namespace WebApi.Controllers
 {
@@ -9,29 +12,21 @@ namespace WebApi.Controllers
     public class PatientsController : ControllerBase
     {
         private readonly IUnitOfWork _uow;
-        public PatientsController(IUnitOfWork uow)
+        private readonly IMediator _mediator;
+        public PatientsController(IUnitOfWork uow, IMediator mediator)
         {
             _uow = uow;
+            _mediator = mediator;
         }
 
         [HttpPost("create")]
         [ProducesResponseType<bool>(StatusCodes.Status200OK)]
         [ProducesResponseType<bool>(StatusCodes.Status400BadRequest)]
-        public async Task<bool> Create()
+        public async Task<Patient> Create(PatientDto dto)
         {
-            var patient = Patient.Create(
-                "Pieter",
-                "Bracke",
-                "pieterbracke@msn.com",
-                new DateTime(1989, 01, 21),
-                null
-            );
+            var result = await _mediator.Send(new CreatePatientCommand(dto));
 
-            _uow.RepositoryFor<Patient>().Add(patient);
-
-            var result = await _uow.SaveChangesAsync();
-
-            return result == 1;
+            return result;
         }
     }
 }

@@ -40,8 +40,6 @@ namespace Scheduling.Infrastructure.Persistence.Configurations
                 .HasConversion<string>()  // Store enum as string
                 .HasMaxLength(20);
             #endregion Conversions
-
-            builder.Ignore(p => p.DomainEvents);
         }
     }
 }

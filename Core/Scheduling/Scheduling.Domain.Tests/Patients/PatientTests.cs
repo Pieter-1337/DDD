@@ -1,5 +1,4 @@
 using Scheduling.Domain.Patients;
-using Scheduling.Domain.Patients.Events;
 using FluentAssertions;
 using Xunit;
 

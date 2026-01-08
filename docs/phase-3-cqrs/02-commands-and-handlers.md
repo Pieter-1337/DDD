@@ -65,6 +65,7 @@ Location: `Core/Scheduling/Scheduling.Application/Patients/Commands/CreatePatien
 ```csharp
 using BuildingBlocks.Domain.Interfaces;
 using MediatR;
+using Scheduling.Application.Patients.Events;
 using Scheduling.Domain.Patients;
 
 namespace Scheduling.Application.Patients.Commands.CreatePatient;
@@ -72,15 +73,17 @@ namespace Scheduling.Application.Patients.Commands.CreatePatient;
 public class CreatePatientCommandHandler : IRequestHandler<CreatePatientCommand, Guid>
 {
     private readonly IUnitOfWork _unitOfWork;
+    private readonly IMediator _mediator;
 
-    public CreatePatientCommandHandler(IUnitOfWork unitOfWork)
+    public CreatePatientCommandHandler(IUnitOfWork unitOfWork, IMediator mediator)
     {
         _unitOfWork = unitOfWork;
+        _mediator = mediator;
     }
 
     public async Task<Guid> Handle(CreatePatientCommand command, CancellationToken cancellationToken)
     {
-        // Create via domain factory method (validates & raises events)
+        // Create via domain factory method (validates)
         var patient = Patient.Create(
             command.FirstName,
             command.LastName,
@@ -91,8 +94,15 @@ public class CreatePatientCommandHandler : IRequestHandler<CreatePatientCommand,
         // Add to repository
         _unitOfWork.RepositoryFor<Patient>().Add(patient);
 
-        // Save changes (also dispatches domain events)
+        // Save changes
         await _unitOfWork.SaveChangesAsync(cancellationToken);
+
+        // Publish event explicitly after successful save
+        await _mediator.Publish(new PatientCreatedEvent(
+            patient.Id,
+            patient.FirstName!,
+            patient.LastName!,
+            patient.Email!), cancellationToken);
 
         return patient.Id;
     }
@@ -101,8 +111,9 @@ public class CreatePatientCommandHandler : IRequestHandler<CreatePatientCommand,
 
 **Key points:**
 - Implements `IRequestHandler<TRequest, TResponse>`
-- Uses `IUnitOfWork` for persistence (not DbContext directly)
+- Injects both `IUnitOfWork` and `IMediator`
 - Calls domain factory method - domain validates
+- Publishes event explicitly after successful save
 - Returns the created ID
 
 ### Step 4: Create SuspendPatientCommand
@@ -126,6 +137,8 @@ Location: `Core/Scheduling/Scheduling.Application/Patients/Commands/SuspendPatie
 ```csharp
 using BuildingBlocks.Domain.Interfaces;
 using MediatR;
+using Scheduling.Application.Exceptions;
+using Scheduling.Application.Patients.Events;
 using Scheduling.Domain.Patients;
 
 namespace Scheduling.Application.Patients.Commands.SuspendPatient;
@@ -133,26 +146,34 @@ namespace Scheduling.Application.Patients.Commands.SuspendPatient;
 public class SuspendPatientCommandHandler : IRequestHandler<SuspendPatientCommand>
 {
     private readonly IUnitOfWork _unitOfWork;
+    private readonly IMediator _mediator;
 
-    public SuspendPatientCommandHandler(IUnitOfWork unitOfWork)
+    public SuspendPatientCommandHandler(IUnitOfWork unitOfWork, IMediator mediator)
     {
         _unitOfWork = unitOfWork;
+        _mediator = mediator;
     }
 
     public async Task Handle(SuspendPatientCommand command, CancellationToken cancellationToken)
     {
-        // Get the patient
         var patient = await _unitOfWork.RepositoryFor<Patient>()
             .GetByIdAsync(command.PatientId, cancellationToken);
 
         if (patient is null)
             throw new PatientNotFoundException(command.PatientId);
 
-        // Call domain method (validates & raises event)
+        // Check if already suspended (no event needed)
+        if (patient.Status == PatientStatus.Suspended)
+            return;
+
+        // Call domain method
         patient.Suspend();
 
-        // Save changes (EF tracks modifications automatically)
+        // Save changes
         await _unitOfWork.SaveChangesAsync(cancellationToken);
+
+        // Publish event explicitly
+        await _mediator.Publish(new PatientSuspendedEvent(patient.Id), cancellationToken);
     }
 }
 ```
@@ -441,7 +462,8 @@ public class CreatePatientCommandHandlerTests
 - [ ] `PatientNotFoundException` exception created
 - [ ] MediatR registered in DI
 - [ ] Controller uses `IMediator.Send()`
-- [ ] Handlers use `IUnitOfWork`, not `DbContext` directly
+- [ ] Handlers inject both `IUnitOfWork` and `IMediator`
+- [ ] Events published explicitly after `SaveChangesAsync()`
 - [ ] Domain validates (not handlers)
 
 ---
@@ -464,6 +486,9 @@ Core/Scheduling/
     │   │   └── UpdateContactInfo/
     │   │       ├── UpdateContactInfoCommand.cs
     │   │       └── UpdateContactInfoCommandHandler.cs
+    │   ├── Events/                        ← Events live in Application
+    │   │   ├── PatientCreatedEvent.cs
+    │   │   └── PatientSuspendedEvent.cs
     │   └── EventHandlers/
     │       └── PatientCreatedEventHandler.cs
     └── ServiceCollectionExtensions.cs

@@ -1,8 +1,8 @@
-﻿using MediatR;
+using MediatR;
 using Microsoft.Extensions.Logging;
-using Scheduling.Domain.Patients.Events;
+using Scheduling.Application.Patients.Events;
 
-namespace Scheduling.Application.Handlers.EventHandlers
+namespace Scheduling.Application.Patients.Events.Handlers
 {
     public class PatientCreatedEventHandler : INotificationHandler<PatientCreatedEvent>
     {
