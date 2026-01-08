@@ -12,17 +12,15 @@ namespace WebApi.Controllers
     [ApiController]
     public class PatientsController : ControllerBase
     {
-        private readonly IUnitOfWork _uow;
         private readonly IMediator _mediator;
         public PatientsController(IUnitOfWork uow, IMediator mediator)
         {
-            _uow = uow;
             _mediator = mediator;
         }
 
         [HttpGet("{patientId}")]
         [ProducesResponseType<PatientDto>(StatusCodes.Status200OK)]
-        [ProducesResponseType<bool>(StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
         public async Task<IActionResult> GetPatientAsync([FromBody] Guid patientId)
         {
             var response = await _mediator.Send(new GetPatientQuery { Id = patientId });
@@ -31,8 +29,8 @@ namespace WebApi.Controllers
         }
 
         [HttpGet("")]
-        [ProducesResponseType<PatientDto>(StatusCodes.Status200OK)]
-        [ProducesResponseType<bool>(StatusCodes.Status400BadRequest)]
+        [ProducesResponseType<IEnumerable<PatientDto>>(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
         public async Task<IActionResult> GetAllPatientsAsync(PatientStatus status)
         {
             var response = await _mediator.Send(new GetAllPatientsQuery { Status = status });
@@ -42,7 +40,7 @@ namespace WebApi.Controllers
 
         [HttpPost("")]
         [ProducesResponseType<bool>(StatusCodes.Status201Created)]
-        [ProducesResponseType<bool>(StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
         public async Task<IActionResult> CreatePatientAsync(CreatePatientRequest request)
         {
             var response = await _mediator.Send(new CreatePatientCommand(request));
