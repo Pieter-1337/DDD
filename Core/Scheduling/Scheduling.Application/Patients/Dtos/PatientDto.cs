@@ -13,7 +13,7 @@ namespace Scheduling.Application.Patients.Dtos
         public string? PhoneNumber { get; set; }
         public PatientStatus Status { get; set; }
 
-        public static PatientDto FromEntity(Patient patient) => new()
+        public static PatientDto ToDto(Patient patient) => new()
         {
             Id = patient.Id,
             FirstName = patient.FirstName,
@@ -24,7 +24,7 @@ namespace Scheduling.Application.Patients.Dtos
             Status = patient.Status,
         };
 
-        public static Expression<Func<Patient, PatientDto>> ToDto => p => new PatientDto
+        public static Expression<Func<Patient, PatientDto>> Project => p => new PatientDto
         {
             Id = p.Id,
             FirstName = p.FirstName,

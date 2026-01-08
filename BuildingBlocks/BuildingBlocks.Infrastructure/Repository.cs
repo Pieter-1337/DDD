@@ -1,4 +1,4 @@
-using System.Linq.Expressions;
+﻿using System.Linq.Expressions;
 using BuildingBlocks.Application;
 using BuildingBlocks.Domain;
 using Microsoft.EntityFrameworkCore;
@@ -28,6 +28,20 @@ public class Repository<TContext, TEntity> : IRepository<TEntity>
         return query;
     }
 
+    public async Task<IEnumerable<TEntity>> GetAllAsListAsync(Expression<Func<TEntity, bool>>? filter = null, CancellationToken ct = default)
+    {
+        return await GetAll(filter).ToListAsync(ct);
+    }
+
+    public async Task<IEnumerable<TDto>> GetAllAsDtosAsync<TDto>(
+        Expression<Func<TEntity, bool>>? filter = null, 
+        CancellationToken ct = default)
+        where TDto : class, IEntityDto<TEntity, TDto>
+    {
+        return await GetAll(filter)
+            .Select(TDto.Project)
+            .ToListAsync(ct);
+    }
     public async Task<TEntity?> GetByIdAsync(Guid id, CancellationToken ct = default)
     {
         //First try from local cache, else actual query
@@ -47,7 +61,30 @@ public class Repository<TContext, TEntity> : IRepository<TEntity>
         where TDto : class, IEntityDto<TEntity, TDto>
     {
         return await GetAll(filter)
-            .Select(TDto.ToDto)
+            .Select(TDto.Project)
+            .FirstOrDefaultAsync(ct);
+    }
+
+    public async Task<TDto?> FirstOrDefaultAsDtoAsync<TDto, TNavigation>(
+      Expression<Func<TEntity, bool>> filter,
+      Expression<Func<TEntity, TNavigation>> navigation,
+      CancellationToken ct = default)
+      where TNavigation : class
+      where TDto : class, IEntityDto<TNavigation, TDto>
+    {
+        return await GetAll(filter)
+            .Select(navigation)      // Entity → Navigation property
+            .Select(TDto.Project)     // Navigation → DTO
+            .FirstOrDefaultAsync(ct);
+    }
+
+    public async Task<TResult?> FirstOrDefaultWithProjectionAsync<TResult>(
+    Expression<Func<TEntity, bool>> filter,
+    Expression<Func<TEntity, TResult>> projection,
+    CancellationToken ct = default)
+    {
+        return await GetAll(filter)
+            .Select(projection)
             .FirstOrDefaultAsync(ct);
     }
 

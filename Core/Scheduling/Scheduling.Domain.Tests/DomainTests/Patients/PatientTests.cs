@@ -2,7 +2,7 @@ using Scheduling.Domain.Patients;
 using FluentAssertions;
 using Xunit;
 
-namespace Scheduling.Domain.Tests.Patients;
+namespace Scheduling.Domain.Tests.DomainTests.Patients;
 
 public class PatientTests
 {

@@ -22,9 +22,20 @@ namespace WebApi.Controllers
 
         [HttpGet("{patientId}")]
         [ProducesResponseType<PatientDto>(StatusCodes.Status200OK)]
-        public async Task<IActionResult> GetPatientAsync(Guid patientId)
+        [ProducesResponseType<bool>(StatusCodes.Status400BadRequest)]
+        public async Task<IActionResult> GetPatientAsync([FromBody] Guid patientId)
         {
             var response = await _mediator.Send(new GetPatientQuery { Id = patientId });
+
+            return Ok(response);
+        }
+
+        [HttpGet("")]
+        [ProducesResponseType<PatientDto>(StatusCodes.Status200OK)]
+        [ProducesResponseType<bool>(StatusCodes.Status400BadRequest)]
+        public async Task<IActionResult> GetAllPatientsAsync(PatientStatus status)
+        {
+            var response = await _mediator.Send(new GetAllPatientsQuery { Status = status });
 
             return Ok(response);
         }

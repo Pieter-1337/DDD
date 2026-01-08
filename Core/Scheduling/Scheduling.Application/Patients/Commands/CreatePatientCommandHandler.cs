@@ -27,7 +27,7 @@ internal class CreatePatientCommandHandler : IRequestHandler<CreatePatientComman
         { 
             Success = true, 
             Message = "Patient succesfully saved", 
-            PatientDto = PatientDto.FromEntity(patient) 
+            PatientDto = PatientDto.ToDto(patient) 
         };
     }
-}
+}   

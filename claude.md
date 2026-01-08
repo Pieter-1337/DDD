@@ -6,8 +6,8 @@ This is a comprehensive learning project to master Domain-Driven Design (DDD) an
 ## Developer Context
 - **Name**: Pieter
 - **Tech Stack**: C# .NET 9, Blazor Server
-- **Current Role**: .NET Developer at Agfa
-- **Azure Experience**: Cosmos DB, Azure Service Bus, Azure App Configuration
+- **Current Role**: .NET Developer
+- **Azure Experience**: .NET, C#, Cosmos DB, SQL Server, Azure Service Bus, Azure App Configuration
 - **Goal**: Deep dive into DDD, event-driven architecture, RabbitMQ, SQL Server/EF Core, CQRS
 
 ## Project Structure & Learning Path
@@ -142,7 +142,7 @@ tests/
 
 ### Development Tools
 - **Docker** - RabbitMQ, SQL Server
-- **Swagger/OpenAPI** - API documentation
+- **Swagger/OpenAPI/Scalar** - API documentation
 - **Serilog** - Structured logging
 
 ## Docker Services

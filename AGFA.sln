@@ -11,7 +11,7 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Scheduling.Application", "C
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Scheduling.Infrastructure", "Core\Scheduling\Scheduling.Infrastructure\Scheduling.Infrastructure.csproj", "{03BF8933-9227-4E25-93F7-EFCF61D40F2A}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Scheduling.Domain.Tests", "Core\Scheduling\Scheduling.Domain.Tests\Scheduling.Domain.Tests.csproj", "{2454703A-6215-4702-B7DC-D2C009070716}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Scheduling.Tests", "Core\Scheduling\Scheduling.Domain.Tests\Scheduling.Tests.csproj", "{2454703A-6215-4702-B7DC-D2C009070716}"
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "00. Docs", "00. Docs", "{68ECA03B-0FF4-4C25-A648-C83FCB98C045}"
 	ProjectSection(SolutionItems) = preProject

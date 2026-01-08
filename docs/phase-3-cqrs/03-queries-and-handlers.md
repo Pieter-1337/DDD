@@ -40,8 +40,8 @@ public class GetPatientQueryHandler : IRequestHandler<GetPatientQuery, PatientDt
 
 **Key points:**
 - Uses `IUnitOfWork` for repository access (consistent with commands)
-- `FirstOrDefaultAsDtoAsync<TDto>` uses `TDto.ToDto` expression for SQL projection
-- No manual mapping - the DTO's `ToDto` expression handles projection
+- `FirstOrDefaultAsDtoAsync<TDto>` uses `TDto.Project` expression for SQL projection
+- No manual mapping - the DTO's `Project` expression handles projection
 
 ---
 
@@ -69,16 +69,16 @@ namespace BuildingBlocks.Application;
 
 public interface IEntityDto<TEntity, TDto> where TDto : IEntityDto<TEntity, TDto>
 {
-    static abstract Expression<Func<TEntity, TDto>> ToDto { get; }
-    static abstract TDto FromEntity(TEntity entity);
+    static abstract Expression<Func<TEntity, TDto>> Project { get; }
+    static abstract TDto ToDto(TEntity entity);
 }
 ```
 
 **Key points:**
 - `DtoBase` provides common `Id` property for all DTOs
 - `IEntityDto<TEntity, TDto>` uses C# 11 static abstract members
-- `ToDto` - Expression for SQL projection (used by EF Core)
-- `FromEntity` - In-memory mapping when entity is already loaded
+- `Project` - Expression for SQL projection (used by EF Core)
+- `ToDto` - In-memory mapping method when entity is already loaded
 
 ### Step 2: Create PatientDto with IEntityDto
 
@@ -100,7 +100,8 @@ public class PatientDto : DtoBase, IEntityDto<Patient, PatientDto>
     public string? PhoneNumber { get; set; }
     public PatientStatus Status { get; set; }
 
-    public static PatientDto FromEntity(Patient patient) => new()
+    // In-memory mapping when entity already loaded
+    public static PatientDto ToDto(Patient patient) => new()
     {
         Id = patient.Id,
         FirstName = patient.FirstName,
@@ -111,7 +112,8 @@ public class PatientDto : DtoBase, IEntityDto<Patient, PatientDto>
         Status = patient.Status,
     };
 
-    public static Expression<Func<Patient, PatientDto>> ToDto => p => new PatientDto
+    // Expression for SQL projection
+    public static Expression<Func<Patient, PatientDto>> Project => p => new PatientDto
     {
         Id = p.Id,
         FirstName = p.FirstName,
@@ -127,29 +129,84 @@ public class PatientDto : DtoBase, IEntityDto<Patient, PatientDto>
 **Key points:**
 - Inherits from `DtoBase` for common `Id`
 - Implements `IEntityDto<Patient, PatientDto>` for generic projection support
-- `ToDto` is an `Expression` - EF Core translates it to SQL (only selects needed columns)
-- `FromEntity` is for in-memory mapping when you already have the entity
+- `Project` is an `Expression` - EF Core translates it to SQL (only selects needed columns)
+- `ToDto` is a method for in-memory mapping when you already have the entity
 
-### Step 3: Update Repository with Generic DTO Projection
+### Step 3: Update Repository with Query Methods
 
 Location: `BuildingBlocks/BuildingBlocks.Infrastructure/Repository.cs`
 
-Add this method to enable generic DTO projection:
+Add these methods to enable generic querying and DTO projection:
 
 ```csharp
+// Get all entities as list
+public async Task<IEnumerable<TEntity>> GetAllAsListAsync(
+    Expression<Func<TEntity, bool>>? filter = null,
+    CancellationToken ct = default)
+{
+    return await GetAll(filter).ToListAsync(ct);
+}
+
+// Get all entities projected to DTOs
+public async Task<IEnumerable<TDto>> GetAllAsDtosAsync<TDto>(
+    Expression<Func<TEntity, bool>>? filter = null,
+    CancellationToken ct = default)
+    where TDto : class, IEntityDto<TEntity, TDto>
+{
+    return await GetAll(filter)
+        .Select(TDto.Project)
+        .ToListAsync(ct);
+}
+
+// Get single entity projected to DTO
 public async Task<TDto?> FirstOrDefaultAsDtoAsync<TDto>(
     Expression<Func<TEntity, bool>> filter,
     CancellationToken ct = default)
     where TDto : class, IEntityDto<TEntity, TDto>
 {
     return await GetAll(filter)
-        .Select(TDto.ToDto)  // Uses static abstract member
+        .Select(TDto.Project)
+        .FirstOrDefaultAsync(ct);
+}
+
+// Get single entity via navigation property projected to DTO
+public async Task<TDto?> FirstOrDefaultAsDtoAsync<TDto, TNavigation>(
+    Expression<Func<TEntity, bool>> filter,
+    Expression<Func<TEntity, TNavigation>> navigation,
+    CancellationToken ct = default)
+    where TNavigation : class
+    where TDto : class, IEntityDto<TNavigation, TDto>
+{
+    return await GetAll(filter)
+        .Select(navigation)       // Entity → Navigation property
+        .Select(TDto.Project)     // Navigation → DTO
+        .FirstOrDefaultAsync(ct);
+}
+
+// Inline projection to any type
+public async Task<TResult?> FirstOrDefaultWithProjectionAsync<TResult>(
+    Expression<Func<TEntity, bool>> filter,
+    Expression<Func<TEntity, TResult>> projection,
+    CancellationToken ct = default)
+{
+    return await GetAll(filter)
+        .Select(projection)
         .FirstOrDefaultAsync(ct);
 }
 ```
 
+**Method summary:**
+
+| Method | Use Case |
+|--------|----------|
+| `GetAllAsListAsync` | Get list of entities |
+| `GetAllAsDtosAsync<TDto>` | Get list of DTOs |
+| `FirstOrDefaultAsDtoAsync<TDto>` | Single entity → DTO |
+| `FirstOrDefaultAsDtoAsync<TDto, TNav>` | Entity → Navigation → DTO |
+| `FirstOrDefaultWithProjectionAsync` | Inline ad-hoc projection |
+
 **How it works:**
-- `TDto.ToDto` accesses the static abstract `Expression` property
+- `TDto.Project` accesses the static abstract `Expression` property
 - EF Core translates the expression to efficient SQL
 - Only columns needed by the DTO are selected
 
@@ -202,63 +259,63 @@ internal class GetPatientQueryHandler : IRequestHandler<GetPatientQuery, Patient
 
 **Key points:**
 - Uses `IUnitOfWork` for repository access (consistent with commands)
-- `FirstOrDefaultAsDtoAsync<PatientDto>` automatically uses `PatientDto.ToDto` for projection
+- `FirstOrDefaultAsDtoAsync<PatientDto>` automatically uses `PatientDto.Project` for projection
 - Handler is `internal` - only MediatR needs to access it
 - No manual mapping - the DTO's expression handles efficient SQL projection
 
 ### Step 6: Create GetAllPatientsQuery
 
-Location: `Core/Scheduling/Scheduling.Application/Patients/Queries/GetAllPatients/GetAllPatientsQuery.cs`
+Location: `Core/Scheduling/Scheduling.Application/Patients/Queries/GetAllPatientsQuery.cs`
 
 ```csharp
 using MediatR;
-using Scheduling.Application.Patients.Queries.Dtos;
+using Scheduling.Application.Patients.Dtos;
+using Scheduling.Domain.Patients;
 
-namespace Scheduling.Application.Patients.Queries.GetAllPatients;
+namespace Scheduling.Application.Patients.Queries;
 
-public record GetAllPatientsQuery : IRequest<IReadOnlyList<PatientListDto>>;
+public class GetAllPatientsQuery : IRequest<IEnumerable<PatientDto>>
+{
+    public PatientStatus Status { get; set; }
+}
 ```
+
+**Note:** Filter by `PatientStatus` to get only patients with a specific status.
 
 ### Step 7: Create GetAllPatientsQueryHandler
 
-Location: `Core/Scheduling/Scheduling.Application/Patients/Queries/GetAllPatients/GetAllPatientsQueryHandler.cs`
+Location: `Core/Scheduling/Scheduling.Application/Patients/Queries/GetAllPatientsQueryHandler.cs`
 
 ```csharp
+using BuildingBlocks.Application;
 using MediatR;
-using Microsoft.EntityFrameworkCore;
-using Scheduling.Application.Patients.Queries.Dtos;
-using Scheduling.Infrastructure.Persistence;
+using Scheduling.Application.Patients.Dtos;
+using Scheduling.Domain.Patients;
 
-namespace Scheduling.Application.Patients.Queries.GetAllPatients;
+namespace Scheduling.Application.Patients.Queries;
 
-public class GetAllPatientsQueryHandler : IRequestHandler<GetAllPatientsQuery, IReadOnlyList<PatientListDto>>
+internal class GetAllPatientsQueryHandler : IRequestHandler<GetAllPatientsQuery, IEnumerable<PatientDto>>
 {
-    private readonly SchedulingDbContext _context;
+    private readonly IUnitOfWork _uow;
 
-    public GetAllPatientsQueryHandler(SchedulingDbContext context)
+    public GetAllPatientsQueryHandler(IUnitOfWork uow)
     {
-        _context = context;
+        _uow = uow;
     }
 
-    public async Task<IReadOnlyList<PatientListDto>> Handle(
-        GetAllPatientsQuery query,
-        CancellationToken cancellationToken)
+    public async Task<IEnumerable<PatientDto>> Handle(GetAllPatientsQuery query, CancellationToken cancellationToken)
     {
-        return await _context.Patients
-            .AsNoTracking()
-            .OrderBy(p => p.LastName)
-            .ThenBy(p => p.FirstName)
-            .Select(p => new PatientListDto
-            {
-                Id = p.Id,
-                FullName = $"{p.FirstName} {p.LastName}",
-                Email = p.Email!,
-                Status = p.Status.ToString()
-            })
-            .ToListAsync(cancellationToken);
+        return await _uow.RepositoryFor<Patient>()
+            .GetAllAsDtosAsync<PatientDto>(p => p.Status == query.Status, cancellationToken);
     }
 }
 ```
+
+**Key points:**
+- Uses `IUnitOfWork` for repository access (consistent pattern)
+- `GetAllAsDtosAsync<PatientDto>` uses the DTO's `Project` expression
+- Filter passed directly to repository method
+- Handler is `internal` - only MediatR accesses it
 
 ### Step 8: Create Paginated Query (Optional but common)
 
@@ -464,24 +521,24 @@ public async Task<PatientDto?> Handle(GetPatientQuery query, CancellationToken c
     var patient = await _uow.RepositoryFor<Patient>().GetByIdAsync(query.Id, ct);
     patient.LastAccessedAt = DateTime.UtcNow;  // WRONG! Queries don't modify
     await _uow.SaveChangesAsync(ct);
-    return PatientDto.FromEntity(patient);
+    return PatientDto.ToDto(patient);
 }
 ```
 
 ### 2. Use IEntityDto for Projection
 
 ```csharp
-// GOOD - use IEntityDto.ToDto expression for SQL projection
+// GOOD - use IEntityDto.Project expression for SQL projection
 public async Task<PatientDto?> Handle(GetPatientQuery query, CancellationToken ct)
 {
     return await _uow.RepositoryFor<Patient>()
         .FirstOrDefaultAsDtoAsync<PatientDto>(p => p.Id == query.Id, ct);
 }
 
-// ALSO GOOD - use FromEntity when entity already loaded
+// ALSO GOOD - use ToDto when entity already loaded
 var patient = await _uow.RepositoryFor<Patient>().GetByIdAsync(id, ct);
 if (patient is null) return null;
-return PatientDto.FromEntity(patient);
+return PatientDto.ToDto(patient);
 
 // BAD - manual inline mapping (not reusable)
 return await _context.Patients
@@ -490,19 +547,19 @@ return await _context.Patients
     .FirstOrDefaultAsync(ct);
 ```
 
-### 3. ToDto vs FromEntity
+### 3. Project vs ToDto
 
 ```csharp
-// ToDto - Expression for SQL projection (efficient, columns selected at DB level)
-public static Expression<Func<Patient, PatientDto>> ToDto => p => new PatientDto
+// Project - Expression for SQL projection (efficient, columns selected at DB level)
+public static Expression<Func<Patient, PatientDto>> Project => p => new PatientDto
 {
     Id = p.Id,
     FirstName = p.FirstName,
     // Only these columns selected in SQL
 };
 
-// FromEntity - In-memory mapping when entity already loaded
-public static PatientDto FromEntity(Patient patient) => new()
+// ToDto - Method for in-memory mapping when entity already loaded
+public static PatientDto ToDto(Patient patient) => new()
 {
     Id = patient.Id,
     FirstName = patient.FirstName,
@@ -566,14 +623,14 @@ For this learning project, we'll use the direct DbContext approach for simplicit
 ## Verification Checklist
 
 - [ ] `DtoBase` class created in `BuildingBlocks.Application`
-- [ ] `IEntityDto<TEntity, TDto>` interface created with `ToDto` and `FromEntity`
+- [ ] `IEntityDto<TEntity, TDto>` interface created with `Project` and `ToDto`
 - [ ] `PatientDto` implements `IEntityDto<Patient, PatientDto>`
-- [ ] `PatientDto` has both `ToDto` expression and `FromEntity` method
-- [ ] `FirstOrDefaultAsDtoAsync<TDto>` added to `IRepository` and `Repository`
+- [ ] `PatientDto` has both `Project` expression and `ToDto` method
+- [ ] Repository methods added: `GetAllAsListAsync`, `GetAllAsDtosAsync`, `FirstOrDefaultAsDtoAsync`, `FirstOrDefaultWithProjectionAsync`
 - [ ] `GetPatientQuery` and `GetPatientQueryHandler` created
-- [ ] Query handler uses `IUnitOfWork` with `FirstOrDefaultAsDtoAsync`
+- [ ] `GetAllPatientsQuery` and `GetAllPatientsQueryHandler` created with Status filter
+- [ ] Query handlers use `IUnitOfWork` with repository methods
 - [ ] Controller injects both `IUnitOfWork` and `IMediator`
-- [ ] Controller uses `GetPatientQuery { Id = patientId }` syntax
 
 ---
 
@@ -583,8 +640,8 @@ For this learning project, we'll use the direct DbContext approach for simplicit
 BuildingBlocks/
 └── BuildingBlocks.Application/
     ├── DtoBase.cs                    ← Base class for DTOs with Id
-    ├── IEntityDto.cs                 ← Interface for entity DTOs with ToDto/FromEntity
-    ├── IRepository.cs                ← Repository interface with FirstOrDefaultAsDtoAsync
+    ├── IEntityDto.cs                 ← Interface with Project/ToDto
+    ├── IRepository.cs                ← Repository interface with query methods
     ├── IUnitOfWork.cs
     └── SuccessOrFailureDto.cs
 
@@ -597,17 +654,19 @@ Core/Scheduling/
     │   │   ├── SuspendPatientCommand.cs
     │   │   └── SuspendPatientCommandHandler.cs
     │   ├── Dtos/
-    │   │   └── PatientDto.cs         ← Implements IEntityDto<Patient, PatientDto>
+    │   │   └── PatientDto.cs              ← Implements IEntityDto<Patient, PatientDto>
     │   ├── Queries/
     │   │   ├── GetPatientQuery.cs
-    │   │   └── GetPatientQueryHandler.cs
+    │   │   ├── GetPatientQueryHandler.cs
+    │   │   ├── GetAllPatientsQuery.cs     ← With Status filter
+    │   │   └── GetAllPatientsQueryHandler.cs
     │   └── EventHandlers/
     │       └── PatientCreatedEventHandler.cs
     └── ServiceCollectionExtensions.cs
 
 WebApi/
 └── Controllers/
-    └── PatientsController.cs         ← Injects IUnitOfWork and IMediator
+    └── PatientsController.cs              ← Injects IUnitOfWork and IMediator
 ```
 
 ---
