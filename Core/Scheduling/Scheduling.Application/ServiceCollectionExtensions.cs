@@ -10,7 +10,7 @@ namespace Scheduling.Application
             var assembly = typeof(ServiceCollectionExtensions).Assembly;
 
             services.AddMediatR(cfg => cfg.RegisterServicesFromAssembly(assembly));
-            services.AddValidatorsFromAssembly(assembly);
+            services.AddValidatorsFromAssembly(assembly, includeInternalTypes: true);
 
             return services;
         }

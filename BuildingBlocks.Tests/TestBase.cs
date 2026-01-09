@@ -1,8 +1,6 @@
 using BuildingBlocks.Application;
 using BuildingBlocks.Domain;
 using BuildingBlocks.Infrastructure;
-using System.Diagnostics;
-using System.Globalization;
 using System.Text.RegularExpressions;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Microsoft.EntityFrameworkCore;
@@ -20,45 +18,33 @@ namespace BuildingBlocks.Tests;
 /// ensuring test isolation without recreating the database.
 /// </summary>
 [TestClass]
-public abstract class TestBase<TContext> where TContext : DbContext
+public abstract class TestBase<TContext> : ValidatorTestBase where TContext : DbContext
 {
-    #region FluentValidation Error Codes
-    protected const string VALIDATION_NULL_VALIDATOR = "NullValidator";
-    protected const string VALIDATION_EMPTY_VALIDATOR = "EmptyValidator";
-    protected const string VALIDATION_NOT_EMPTY_VALIDATOR = "NotEmptyValidator";
-    protected const string VALIDATION_NOT_NULL_VALIDATOR = "NotNullValidator";
-    protected const string VALIDATION_GREATERTHAN_VALIDATOR = "GreaterThanValidator";
-    protected const string VALIDATION_GREATERTHANOREQUAL_VALIDATOR = "GreaterThanOrEqualValidator";
-    protected const string VALIDATION_LESSTHAN_VALIDATOR = "LessThanValidator";
-    protected const string VALIDATION_LESSTHANOREQUAL_VALIDATOR = "LessThanOrEqualValidator";
-    protected const string VALIDATION_INCLUSIVEBETWEEN_VALIDATOR = "InclusiveBetweenValidator";
-    protected const string VALIDATION_MAXLENGTH_VALIDATOR = "MaximumLengthValidator";
-    protected const string VALIDATION_PREDICATE_VALIDATOR = "PredicateValidator";
-    protected const string VALIDATION_ASYNCPREDICATE_VALIDATOR = "AsyncPredicateValidator";
-    protected const string VALIDATION_EMAIL_VALIDATOR = "EmailValidator";
-    protected const string VALIDATION_EQUAL_VALIDATOR = "EqualValidator";
-    protected const string VALIDATION_NOT_EQUAL_VALIDATOR = "NotEqualValidator";
-    protected const string VALIDATION_REGEX_VALIDATOR = "RegularExpressionValidator";
-    #endregion
-
     private ServiceProvider? _serviceProvider;
     private SqliteConnection? _connection;
-    private Stopwatch? _stopwatch;
     private IServiceScope? _scope;
-
-    public TestContext? TestContext { get; set; }
 
     static TestBase()
     {
         ConfigureNBuilder();
     }
 
+    /// <summary>
+    /// Override to register bounded context-specific services (MediatR, validators, etc.)
+    /// </summary>
     protected abstract void RegisterBoundedContextServices(IServiceCollection services);
 
-    [TestInitialize]
-    public void TestInitialize()
+    protected sealed override void RegisterServices(IServiceCollection services)
     {
-        _stopwatch = new Stopwatch();
+        // This is called by ValidatorTestBase, but we override the full initialization
+        // So this won't be used - we register everything in TestInitialize
+    }
+
+    [TestInitialize]
+    public override void TestInitialize()
+    {
+        // Don't call base - we handle everything here with real database
+        base.TestInitialize(); // For stopwatch only
 
         // SQLite in-memory requires the connection to stay open
         _connection = new SqliteConnection("DataSource=:memory:");
@@ -73,10 +59,10 @@ public abstract class TestBase<TContext> where TContext : DbContext
         services.AddDbContext<TContext>(options =>
             options.UseSqlite(_connection));
 
-        // Register UnitOfWork
+        // Register UnitOfWork (real implementation, not mock)
         services.AddScoped<IUnitOfWork, UnitOfWork<TContext>>();
 
-        //Register Context services, Mediatr, Handlers etc...
+        // Register bounded context services (MediatR, validators, etc.)
         RegisterBoundedContextServices(services);
 
         _serviceProvider = services.BuildServiceProvider();
@@ -92,7 +78,7 @@ public abstract class TestBase<TContext> where TContext : DbContext
     }
 
     [TestCleanup]
-    public void TestCleanup()
+    public override void TestCleanup()
     {
         // Rollback transaction to keep database clean
         Uow.CloseTransactionAsync(new Exception("Test rollback")).GetAwaiter().GetResult();
@@ -105,6 +91,8 @@ public abstract class TestBase<TContext> where TContext : DbContext
 
         _connection?.Dispose();
         _connection = null;
+
+        base.TestCleanup();
     }
 
     #region Service Accessors
@@ -114,7 +102,7 @@ public abstract class TestBase<TContext> where TContext : DbContext
         return _scope!.ServiceProvider.GetRequiredService<IMediator>();
     }
 
-    protected IValidator<T> ValidatorFor<T>()
+    protected new IValidator<T> ValidatorFor<T>()
     {
         return _scope!.ServiceProvider.GetRequiredService<IValidator<T>>();
     }
@@ -122,30 +110,6 @@ public abstract class TestBase<TContext> where TContext : DbContext
     protected IUnitOfWork Uow => _scope!.ServiceProvider.GetRequiredService<IUnitOfWork>();
 
     protected TContext DbContext => _scope!.ServiceProvider.GetRequiredService<TContext>();
-
-    #endregion
-
-    #region Stopwatch
-
-    protected void StartStopwatch() => _stopwatch?.Restart();
-
-    protected void StopStopwatch() => _stopwatch?.Stop();
-
-    protected decimal ElapsedSeconds() => _stopwatch is not null
-        ? (decimal)_stopwatch.Elapsed.TotalSeconds
-        : -1;
-
-    protected long ElapsedMilliseconds() => _stopwatch?.ElapsedMilliseconds ?? -1;
-
-    #endregion
-
-    #region Culture
-
-    protected void SetCurrentCulture(string language = "en-GB")
-    {
-        CultureInfo.CurrentCulture = new CultureInfo(language);
-        CultureInfo.CurrentUICulture = new CultureInfo(language);
-    }
 
     #endregion
 
