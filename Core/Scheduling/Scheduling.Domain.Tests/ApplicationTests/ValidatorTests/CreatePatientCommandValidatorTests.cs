@@ -46,8 +46,9 @@ public class CreatePatientCommandValidatorTests : SchedulingValidatorTestBase
         result.Errors.ShouldContainValidation("Patient.FirstName", VALIDATION_NOT_EMPTY_VALIDATOR);
         result.Errors.ShouldContainValidation("Patient.LastName", VALIDATION_NOT_EMPTY_VALIDATOR);
         result.Errors.ShouldContainValidation("Patient.Email", VALIDATION_NOT_EMPTY_VALIDATOR);
+        result.Errors.ShouldContainValidation("Patient.Email", VALIDATION_EMAIL_VALIDATOR);
         result.Errors.ShouldContainValidation("Patient.DateOfBirth", VALIDATION_NOT_EMPTY_VALIDATOR);
-        result.Errors.Count.ShouldBeGreaterThanOrEqualTo(4); // Email may have additional format error
+
         ElapsedSeconds().ShouldBeLessThan(0.1M);
     }
 
