@@ -3,6 +3,7 @@ using BuildingBlocks.Domain;
 using BuildingBlocks.Domain.Events;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage;
 
 namespace BuildingBlocks.Infrastructure;
 
@@ -10,6 +11,7 @@ public class UnitOfWork<TContext> : IUnitOfWork where TContext : DbContext
 {
     private readonly TContext _context;
     private readonly IMediator _mediator;
+    private IDbContextTransaction? _transaction;
 
     public UnitOfWork(TContext context, IMediator mediator)
     {
@@ -51,5 +53,26 @@ public class UnitOfWork<TContext> : IUnitOfWork where TContext : DbContext
         {
             await _mediator.Publish(domainEvent, cancellationToken);
         }
+    }
+    public async Task BeginTransactionAsync(CancellationToken cancellationToken = default)
+    {
+        _transaction = await _context.Database.BeginTransactionAsync(cancellationToken);
+    }
+
+    public async Task CloseTransactionAsync(Exception? exception = null, CancellationToken cancellationToken = default)
+    {
+        if (_transaction is null) return;
+
+        if (exception is not null)
+        {
+            await _transaction.RollbackAsync(cancellationToken);
+        }
+        else
+        {
+            await _transaction.CommitAsync(cancellationToken);
+        }
+
+        await _transaction.DisposeAsync();
+        _transaction = null;
     }
 }

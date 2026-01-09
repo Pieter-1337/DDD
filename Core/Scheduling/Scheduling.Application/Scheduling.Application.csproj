@@ -8,8 +8,13 @@
     </PropertyGroup>
 
     <ItemGroup>
+        <InternalsVisibleTo Include="Scheduling.Tests" />
+    </ItemGroup>
+
+    <ItemGroup>
         <PackageReference Include="MediatR" />
         <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
+        <PackageReference Include="FluentValidation" />
     </ItemGroup>
 
     <ItemGroup>

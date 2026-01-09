@@ -1,12 +1,29 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+using BuildingBlocks.Application;
+using MediatR;
+using Scheduling.Domain.Patients;
 
-namespace Scheduling.Application.Patients.Commands
+namespace Scheduling.Application.Patients.Commands;
+
+internal class SuspendPatientCommandHandler : IRequestHandler<SuspendPatientCommand, SuspendPatientCommandResponse>
 {
-    public class SuspendPatientCommandHandler
+    private readonly IUnitOfWork _uow;
+
+    public SuspendPatientCommandHandler(IUnitOfWork unitOfWork)
     {
+        _uow = unitOfWork;
+    }
+
+    public async Task<SuspendPatientCommandResponse> Handle(SuspendPatientCommand cmd, CancellationToken cancellationToken)
+    {
+        var patient = await _uow.RepositoryFor<Patient>().GetByIdAsync(cmd.Id, cancellationToken);
+
+        patient!.Suspend();
+        await _uow.SaveChangesAsync(cancellationToken);
+
+        return new SuspendPatientCommandResponse
+        {
+            Success = true,
+            Message = "Patient successfully suspended"
+        };
     }
 }

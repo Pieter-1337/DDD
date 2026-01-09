@@ -31,7 +31,8 @@ namespace Scheduling.Application.Patients.Dtos
             LastName = p.LastName,
             Email = p.Email,
             PhoneNumber = p.PhoneNumber,
-            DateOfBirth = p.DateOfBirth
+            DateOfBirth = p.DateOfBirth,
+            Status = p.Status
         };
     }
 }

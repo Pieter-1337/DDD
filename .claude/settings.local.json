@@ -15,7 +15,8 @@
       "Bash(dotnet sln:*)",
       "WebSearch",
       "Bash(rm:*)",
-      "Bash(mv:*)"
+      "Bash(mv:*)",
+      "Bash(dotnet nuget search:*)"
     ]
   }
 }

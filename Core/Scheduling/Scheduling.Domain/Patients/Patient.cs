@@ -19,7 +19,8 @@ public class Patient : Entity
         string lastName,
         string email,
         DateTime dateOfBirth,
-        string? phoneNumber = null)
+        string? phoneNumber = null,
+        PatientStatus? status = null)
     {
         var patient = new Patient
         {
@@ -29,7 +30,7 @@ public class Patient : Entity
             Email = email.Trim().ToLowerInvariant(),
             PhoneNumber = phoneNumber?.Trim(),
             DateOfBirth = dateOfBirth,
-            Status = PatientStatus.Active
+            Status = status ?? PatientStatus.Active
         };
 
         patient.AddDomainEvent(new PatientCreatedEvent(

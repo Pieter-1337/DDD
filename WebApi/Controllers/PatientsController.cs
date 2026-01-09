@@ -21,7 +21,7 @@ namespace WebApi.Controllers
         [HttpGet("{patientId}")]
         [ProducesResponseType<PatientDto>(StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
-        public async Task<IActionResult> GetPatientAsync([FromBody] Guid patientId)
+        public async Task<IActionResult> GetPatientAsync(Guid patientId)
         {
             var response = await _mediator.Send(new GetPatientQuery { Id = patientId });
 
@@ -45,6 +45,15 @@ namespace WebApi.Controllers
         {
             var response = await _mediator.Send(new CreatePatientCommand(request));
             return CreatedAtAction(nameof(GetPatientAsync), new { patientId = response.PatientDto.Id }, response);
+        }
+
+        [HttpPost("{patientId}/suspend")]
+        [ProducesResponseType<bool>(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        public async Task<IActionResult> SuspendPatientAsync(Guid patientId)
+        {
+            var response = await _mediator.Send(new SuspendPatientCommand { Id = patientId });
+            return Ok(response);
         }
     }
 }

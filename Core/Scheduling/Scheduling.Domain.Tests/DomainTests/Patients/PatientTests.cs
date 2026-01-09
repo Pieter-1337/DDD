@@ -1,12 +1,13 @@
+using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Scheduling.Domain.Patients;
-using FluentAssertions;
-using Xunit;
+using Shouldly;
 
-namespace Scheduling.Domain.Tests.DomainTests.Patients;
+namespace Scheduling.Tests.DomainTests.Patients;
 
+[TestClass]
 public class PatientTests
 {
-    [Fact]
+    [TestMethod]
     public void Create_ShouldCreatePatientWithCorrectValues()
     {
         // Arrange
@@ -19,14 +20,14 @@ public class PatientTests
         var patient = Patient.Create(firstName, lastName, email, dateOfBirth);
 
         // Assert
-        patient.Id.Should().NotBeEmpty();
-        patient.FirstName.Should().Be("John");
-        patient.LastName.Should().Be("Doe");
-        patient.Email.Should().Be("john.doe@example.com");
-        patient.Status.Should().Be(PatientStatus.Active);
+        patient.Id.ShouldNotBe(Guid.Empty);
+        patient.FirstName.ShouldBe("John");
+        patient.LastName.ShouldBe("Doe");
+        patient.Email.ShouldBe("john.doe@example.com");
+        patient.Status.ShouldBe(PatientStatus.Active);
     }
 
-    [Fact]
+    [TestMethod]
     public void Suspend_ShouldChangeStatusToSuspended()
     {
         // Arrange
@@ -36,10 +37,10 @@ public class PatientTests
         patient.Suspend();
 
         // Assert
-        patient.Status.Should().Be(PatientStatus.Suspended);
+        patient.Status.ShouldBe(PatientStatus.Suspended);
     }
 
-    [Fact]
+    [TestMethod]
     public void Suspend_WhenAlreadySuspended_ShouldRemainSuspended()
     {
         // Arrange
@@ -50,10 +51,10 @@ public class PatientTests
         patient.Suspend(); // Call again
 
         // Assert
-        patient.Status.Should().Be(PatientStatus.Suspended);
+        patient.Status.ShouldBe(PatientStatus.Suspended);
     }
 
-    [Fact]
+    [TestMethod]
     public void UpdateContactInfo_ShouldUpdateEmail()
     {
         // Arrange
@@ -63,10 +64,10 @@ public class PatientTests
         patient.UpdateContactInfo("new@example.com", null);
 
         // Assert
-        patient.Email.Should().Be("new@example.com");
+        patient.Email.ShouldBe("new@example.com");
     }
 
-    [Fact]
+    [TestMethod]
     public void Activate_WhenSuspended_ShouldChangeStatusToActive()
     {
         // Arrange
@@ -77,6 +78,6 @@ public class PatientTests
         patient.Activate();
 
         // Assert
-        patient.Status.Should().Be(PatientStatus.Active);
+        patient.Status.ShouldBe(PatientStatus.Active);
     }
 }

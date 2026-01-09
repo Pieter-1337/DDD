@@ -16,8 +16,8 @@ internal class CreatePatientCommandHandler : IRequestHandler<CreatePatientComman
 
     public async Task<CreatePatientCommandResponse> Handle(CreatePatientCommand cmd, CancellationToken cancellationToken)
     {
-        var dto = cmd.Patient;
-        var patient = Patient.Create(dto.FirstName, dto.LastName, dto.Email, dto.DateOfBirth, dto.PhoneNumber);
+        var request = cmd.Patient;
+        var patient = Patient.Create(request.FirstName, request.LastName, request.Email, request.DateOfBirth, request.PhoneNumber, request.Status);
         _uow.RepositoryFor<Patient>().Add(patient);
 
         // SaveChanges auto-dispatches domain events that were set in the behaviours inssued from the entity
