@@ -179,8 +179,8 @@ Core/
 ### Step 6: Verify it compiles
 
 ```bash
-cd C:/projects/ddd/agfa
-dotnet build AGFA.sln
+cd C:/projects/ddd
+dotnet build DDD.sln
 ```
 
 ---

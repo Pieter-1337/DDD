@@ -1,7 +1,7 @@
 ﻿# DDD & Event-Driven Architecture Learning Project
 
 ## Overview
-This is a comprehensive learning project to master Domain-Driven Design (DDD) and Event-Driven Architecture patterns in preparation for working at Agfa. The project builds incrementally, implementing each concept step-by-step.
+This is a comprehensive learning project to master Domain-Driven Design (DDD) and Event-Driven Architecture patterns. The project builds incrementally, implementing each concept step-by-step.
 
 ## Developer Context
 - **Name**: Pieter
@@ -23,7 +23,7 @@ This is a comprehensive learning project to master Domain-Driven Design (DDD) an
 - Domain Services
 - Bounded Contexts
 
-**Practice Domain**: Healthcare appointment scheduling (relevant to Agfa)
+**Practice Domain**: Healthcare appointment scheduling
 - Patient aggregate
 - Appointment aggregate
 - Doctor aggregate

@@ -13,13 +13,13 @@ Now we'll create the actual database using EF Core migrations.
 The migrations tool needs a startup project. Add the design package:
 
 ```bash
-cd AGFA/WebApi
+cd DDD/WebApi
 dotnet add package Microsoft.EntityFrameworkCore.Design
 ```
 
 ### Step 2: Add connection string to appsettings.json
 
-Location: `AGFA/appsettings.json`
+Location: `DDD/appsettings.json`
 
 ```json
 {
@@ -40,7 +40,7 @@ Location: `AGFA/appsettings.json`
 
 ### Step 3: Register Infrastructure in Program.cs
 
-Update `AGFA/Program.cs`:
+Update `DDD/Program.cs`:
 
 ```csharp
 using Scheduling.Infrastructure;
@@ -63,7 +63,7 @@ var app = builder.Build();
 ### Step 4: Add WebApi reference to Infrastructure
 
 ```bash
-cd AGFA/WebApi
+cd DDD/WebApi
 dotnet add reference ../src/Scheduling.Infrastructure/Scheduling.Infrastructure.csproj
 ```
 
@@ -72,8 +72,8 @@ dotnet add reference ../src/Scheduling.Infrastructure/Scheduling.Infrastructure.
 From the solution root:
 
 ```bash
-cd C:/projects/ddd/AGFA
-dotnet ef migrations add InitialCreate --project AGFA/src/Scheduling.Infrastructure --startup-project AGFA/WebApi --output-dir Persistence/Migrations
+cd C:/projects/ddd/DDD
+dotnet ef migrations add InitialCreate --project DDD/src/Scheduling.Infrastructure --startup-project DDD/WebApi --output-dir Persistence/Migrations
 ```
 
 **What this does:**
@@ -118,7 +118,7 @@ protected override void Up(MigrationBuilder migrationBuilder)
 ### Step 7: Apply the migration
 
 ```bash
-dotnet ef database update --project AGFA/src/Scheduling.Infrastructure --startup-project AGFA/WebApi
+dotnet ef database update --project DDD/src/Scheduling.Infrastructure --startup-project DDD/WebApi
 ```
 
 This creates the database and tables.
@@ -137,16 +137,16 @@ In Visual Studio:
 
 ```bash
 # Create a new migration
-dotnet ef migrations add MigrationName --project AGFA/src/Scheduling.Infrastructure --startup-project AGFA/WebApi --output-dir Persistence/Migrations
+dotnet ef migrations add MigrationName --project DDD/src/Scheduling.Infrastructure --startup-project DDD/WebApi --output-dir Persistence/Migrations
 
 # Apply migrations
-dotnet ef database update --project AGFA/src/Scheduling.Infrastructure --startup-project AGFA/WebApi
+dotnet ef database update --project DDD/src/Scheduling.Infrastructure --startup-project DDD/WebApi
 
 # Remove last migration (if not applied)
-dotnet ef migrations remove --project AGFA/src/Scheduling.Infrastructure --startup-project AGFA/WebApi
+dotnet ef migrations remove --project DDD/src/Scheduling.Infrastructure --startup-project DDD/WebApi
 
 # Generate SQL script (for production deployments)
-dotnet ef migrations script --project AGFA/src/Scheduling.Infrastructure --startup-project AGFA/WebApi
+dotnet ef migrations script --project DDD/src/Scheduling.Infrastructure --startup-project DDD/WebApi
 ```
 
 ---
@@ -171,22 +171,22 @@ When you have multiple DbContexts in the same project, use `--context` to specif
 ```bash
 # Create migration for Scheduling context
 dotnet ef migrations add InitialCreate \
-  --project AGFA/src/Scheduling.Infrastructure \
-  --startup-project AGFA/WebApi \
+  --project DDD/src/Scheduling.Infrastructure \
+  --startup-project DDD/WebApi \
   --context SchedulingDbContext \
   --output-dir Persistence/Migrations
 
 # Create migration for Billing context
 dotnet ef migrations add InitialCreate \
-  --project AGFA/src/Billing.Infrastructure \
-  --startup-project AGFA/WebApi \
+  --project DDD/src/Billing.Infrastructure \
+  --startup-project DDD/WebApi \
   --context BillingDbContext \
   --output-dir Persistence/Migrations
 
 # Apply migrations for specific context
 dotnet ef database update \
-  --project AGFA/src/Scheduling.Infrastructure \
-  --startup-project AGFA/WebApi \
+  --project DDD/src/Scheduling.Infrastructure \
+  --startup-project DDD/WebApi \
   --context SchedulingDbContext
 ```
 

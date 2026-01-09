@@ -262,14 +262,14 @@ public class PatientTests
 ### Step 6: Add FluentAssertions to test project
 
 ```bash
-cd AGFA/tests/Scheduling.Domain.Tests
+cd DDD/tests/Scheduling.Domain.Tests
 dotnet add package FluentAssertions
 ```
 
 ### Step 7: Run Tests
 
 ```bash
-cd C:/projects/ddd/AGFA
+cd C:/projects/ddd/DDD
 dotnet test
 ```
 

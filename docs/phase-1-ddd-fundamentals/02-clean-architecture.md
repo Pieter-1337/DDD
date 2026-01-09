@@ -236,13 +236,13 @@ Location: `Core/Scheduling/Scheduling.Domain.Tests/Scheduling.Domain.Tests.cspro
 ### Step 8: Add projects to solution
 
 ```bash
-dotnet sln AGFA.sln add BuildingBlocks/BuildingBlocks.Domain/BuildingBlocks.Domain.csproj
-dotnet sln AGFA.sln add BuildingBlocks/BuildingBlocks.Infrastructure/BuildingBlocks.Infrastructure.csproj
-dotnet sln AGFA.sln add Core/Scheduling/Scheduling.Domain/Scheduling.Domain.csproj
-dotnet sln AGFA.sln add Core/Scheduling/Scheduling.Application/Scheduling.Application.csproj
-dotnet sln AGFA.sln add Core/Scheduling/Scheduling.Infrastructure/Scheduling.Infrastructure.csproj
-dotnet sln AGFA.sln add Core/Scheduling/Scheduling.Domain.Tests/Scheduling.Domain.Tests.csproj
-dotnet sln AGFA.sln add WebApi/WebApi.csproj
+dotnet sln DDD.sln add BuildingBlocks/BuildingBlocks.Domain/BuildingBlocks.Domain.csproj
+dotnet sln DDD.sln add BuildingBlocks/BuildingBlocks.Infrastructure/BuildingBlocks.Infrastructure.csproj
+dotnet sln DDD.sln add Core/Scheduling/Scheduling.Domain/Scheduling.Domain.csproj
+dotnet sln DDD.sln add Core/Scheduling/Scheduling.Application/Scheduling.Application.csproj
+dotnet sln DDD.sln add Core/Scheduling/Scheduling.Infrastructure/Scheduling.Infrastructure.csproj
+dotnet sln DDD.sln add Core/Scheduling/Scheduling.Domain.Tests/Scheduling.Domain.Tests.csproj
+dotnet sln DDD.sln add WebApi/WebApi.csproj
 ```
 
 ### Step 9: Setup Central Package Management
@@ -342,7 +342,7 @@ app.Run();
 ### Step 12: Build and verify
 
 ```bash
-dotnet build AGFA.sln
+dotnet build DDD.sln
 ```
 
 Should build with 0 errors.

@@ -13,7 +13,9 @@
       "Bash(dir:*)",
       "Bash(ls:*)",
       "Bash(dotnet sln:*)",
-      "WebSearch"
+      "WebSearch",
+      "Bash(rm:*)",
+      "Bash(mv:*)"
     ]
   }
 }
