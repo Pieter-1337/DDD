@@ -12,7 +12,7 @@
 
 ---
 
-## Phase 1: DDD Fundamentals ✓
+## Phase 1: DDD Fundamentals
 
 ### Concepts Learned
 
@@ -41,7 +41,7 @@
 
 ---
 
-## Phase 2: EF Core Persistence ✓
+## Phase 2: EF Core Persistence
 
 ### Concepts Learned
 
@@ -80,28 +80,37 @@
 
 ## Phase 3: CQRS Pattern
 
-### Concepts to Learn
+### Concepts Learned
 
-- [ ] Commands and Command Handlers (write side)
-- [ ] Queries and Query Handlers (read side)
-- [ ] DTOs for query responses
-- [ ] Command validation with FluentValidation
-- [ ] MediatR pipeline behaviors
+- [x] Commands and Command Handlers (write side)
+- [x] Queries and Query Handlers (read side)
+- [x] DTOs for query responses
+- [x] Command validation with FluentValidation
+- [ ] MediatR pipeline behaviors (documented, not implemented)
 
 ### Implementation Progress
 
-- [ ] Create Command/Query folder structure
-- [ ] Implement CreatePatientCommand and handler
-- [ ] Implement SuspendPatientCommand and handler
-- [ ] Implement GetPatientByIdQuery and handler
-- [ ] Implement GetAllPatientsQuery and handler
-- [ ] Add PatientDto and PatientListDto
-- [ ] Create command validators
-- [ ] Implement ValidationBehavior
-- [ ] Implement LoggingBehavior
-- [ ] Implement PerformanceBehavior
-- [ ] Update controller to use MediatR
-- [ ] Add exception handling middleware
+- [x] Create Command/Query folder structure
+- [x] Implement CreatePatientCommand and handler
+- [x] Implement SuspendPatientCommand and handler
+- [x] Implement GetPatientByIdQuery and handler
+- [x] Implement GetAllPatientsQuery and handler
+- [x] Add PatientDto
+- [x] Create command validators (inline with commands)
+- [x] Create query validators (inline with queries)
+- [x] Update controller to use MediatR
+- [ ] Implement ValidationBehavior (optional)
+- [ ] Implement LoggingBehavior (optional)
+- [ ] Implement PerformanceBehavior (optional)
+- [ ] Add exception handling middleware (optional)
+
+### Key Decisions Made
+
+1. **Validators inline with commands/queries** - Using `#region Validators` in same file
+2. **UserValidator base class** - All validators extend `UserValidator<T>` for future role-based validation
+3. **ExistsAsync for entity validation** - Efficient existence check without loading entire entity
+4. **EmailValidationMode.AspNetCoreCompatible** - Use ASP.NET Core compatible email validation (not obsolete regex)
+5. **SuppressAsyncSuffixInActionNames = false** - Keep "Async" suffix in action names for `nameof()` compatibility
 
 ### Docs Available
 
@@ -110,6 +119,79 @@
 - `phase-3-cqrs/03-queries-and-handlers.md` - Read side implementation
 - `phase-3-cqrs/04-validation.md` - FluentValidation integration
 - `phase-3-cqrs/05-pipeline-behaviors.md` - MediatR pipeline behaviors
+
+---
+
+## Testing
+
+### Testing Approach
+
+Following RefArch integration testing patterns:
+
+- **Framework**: MSTest (`[TestClass]`, `[TestMethod]`, `[TestInitialize]`, `[TestCleanup]`)
+- **Assertions**: Shouldly
+- **Test Data**: NBuilder (FizzWare.NBuilder)
+- **Database**: SQLite in-memory
+- **Isolation**: Transaction-based (rollback after each test)
+
+### Test Project Structure
+
+```
+Core/Scheduling/Scheduling.Domain.Tests/
++-- Common/
+|   +-- TestBase.cs                    <- Base class with DI, transactions, helpers
++-- ApplicationTests/
+|   +-- HandlerTests/
+|       +-- CreatePatientCommandHandlerTests.cs
+|       +-- GetPatientQueryHandlerTests.cs
+|       +-- GetAllPatientsQueryHandlerTests.cs
++-- DomainTests/
+    +-- Patients/
+        +-- PatientTests.cs
+```
+
+### TestBase Features
+
+- SQLite in-memory database (connection kept open)
+- Full DI container with real Mediator, UnitOfWork, Validators
+- Transaction-based isolation (begin in TestInitialize, rollback in TestCleanup)
+- Helper methods: `GetMediator()`, `ValidatorFor<T>()`, `Uow`, `DbContext`
+- Stopwatch helpers for performance assertions
+- FluentValidation error code constants
+- NBuilder configuration for entity ID handling
+
+### Key Testing Decisions
+
+1. **Integration tests over unit tests** - Test full pipeline with real dependencies
+2. **Transaction rollback** - Each test starts fresh without recreating database
+3. **Real validators in pipeline** - Tests exercise actual validation logic
+4. **MSTest for consistency** - Matches reference architecture conventions
+
+---
+
+## Configuration
+
+### ASP.NET Core Settings
+
+```csharp
+// Program.cs - Keep Async suffix in action names
+builder.Services.AddControllers(options =>
+{
+    options.SuppressAsyncSuffixInActionNames = false;
+})
+```
+
+This allows using `nameof(GetPatientAsync)` in `CreatedAtAction` calls.
+
+### JSON Serialization
+
+```csharp
+// Program.cs - Serialize enums as strings
+.AddJsonOptions(options =>
+{
+    options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter());
+});
+```
 
 ---
 

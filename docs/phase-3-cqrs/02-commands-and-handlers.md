@@ -306,7 +306,24 @@ public static class ServiceCollectionExtensions
 }
 ```
 
-### Step 11: Update the Controller
+### Step 11: Configure ASP.NET Core
+
+By default, ASP.NET Core strips the "Async" suffix from action method names. To use `nameof(GetPatientAsync)` in `CreatedAtAction`, disable this:
+
+Location: `WebApi/Program.cs`
+
+```csharp
+builder.Services.AddControllers(options =>
+{
+    options.SuppressAsyncSuffixInActionNames = false;
+})
+.AddJsonOptions(options =>
+{
+    options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter());
+});
+```
+
+### Step 12: Update the Controller
 
 Location: `WebApi/Controllers/PatientsController.cs`
 
@@ -325,12 +342,10 @@ namespace WebApi.Controllers;
 [ApiController]
 public class PatientsController : ControllerBase
 {
-    private readonly IUnitOfWork _uow;
     private readonly IMediator _mediator;
 
     public PatientsController(IUnitOfWork uow, IMediator mediator)
     {
-        _uow = uow;
         _mediator = mediator;
     }
 
@@ -354,11 +369,12 @@ public class PatientsController : ControllerBase
 ```
 
 **Key points:**
-- Controller injects both `IUnitOfWork` and `IMediator`
+- Controller injects `IMediator` (IUnitOfWork injected but not used directly)
 - Controller receives request DTO, wraps in command, dispatches to MediatR
 - Returns `CreatePatientCommandResponse` with `Success`, `Message`, and `PatientDto`
-- Uses `CreatedAtAction` for proper REST semantics
+- Uses `CreatedAtAction` with `nameof()` for type-safe action references
 - Query endpoints use `GetPatientQuery` dispatched through MediatR
+- `SuppressAsyncSuffixInActionNames = false` allows `nameof(GetPatientAsync)` to work
 
 ---
 
@@ -516,94 +532,126 @@ public void Suspend()
 
 ## Testing Commands
 
+Integration tests with MSTest, Shouldly, and NBuilder:
+
 ```csharp
-public class CreatePatientCommandHandlerTests
+[TestClass]
+public class CreatePatientCommandHandlerTests : TestBase
 {
-    [Fact]
-    public async Task Handle_ValidCommand_ReturnsPatientId()
+    [TestMethod]
+    public async Task Handle_Should_CreatePatient_ForValidRequest()
     {
         // Arrange
-        var unitOfWork = new MockUnitOfWork();
-        var handler = new CreatePatientCommandHandler(unitOfWork);
-        var command = new CreatePatientCommand(
-            "John", "Doe", "john@example.com",
-            DateTime.UtcNow.AddYears(-30), null);
+        var request = Builder<CreatePatientRequest>.CreateNew()
+            .With(p => p.FirstName = "John")
+            .With(p => p.LastName = "Doe")
+            .With(p => p.Email = "john.doe@example.com")
+            .With(p => p.DateOfBirth = new DateTime(1990, 1, 15))
+            .With(p => p.PhoneNumber = "+1234567890")
+            .Build();
+
+        var command = new CreatePatientCommand(request);
 
         // Act
-        var patientId = await handler.Handle(command, CancellationToken.None);
+        StartStopwatch();
+        var response = await GetMediator().Send(command);
+        StopStopwatch();
 
         // Assert
-        patientId.Should().NotBeEmpty();
-        unitOfWork.SaveChangesWasCalled.Should().BeTrue();
+        response.ShouldNotBeNull();
+        response.Success.ShouldBeTrue();
+        response.Message.ShouldNotBeNullOrEmpty();
+        response.PatientDto.ShouldNotBeNull();
+        response.PatientDto.Id.ShouldNotBe(default);
+
+        // Verify persisted to database
+        var reloadedPatient = await Uow.RepositoryFor<Patient>().GetByIdAsync(response.PatientDto.Id);
+        reloadedPatient.ShouldNotBeNull();
+        reloadedPatient!.FirstName.ShouldBe("John");
+
+        ElapsedSeconds().ShouldBeLessThan(1M);
     }
 
-    [Fact]
-    public async Task Handle_InvalidEmail_ThrowsDomainException()
+    [TestMethod]
+    public async Task Handle_Should_CreatePatient_WithoutPhoneNumber()
     {
         // Arrange
-        var unitOfWork = new MockUnitOfWork();
-        var handler = new CreatePatientCommandHandler(unitOfWork);
-        var command = new CreatePatientCommand(
-            "John", "Doe", "invalid-email",  // No @
-            DateTime.UtcNow.AddYears(-30), null);
+        var request = Builder<CreatePatientRequest>.CreateNew()
+            .With(p => p.FirstName = "Jane")
+            .With(p => p.LastName = "Smith")
+            .With(p => p.Email = "jane.smith@example.com")
+            .With(p => p.DateOfBirth = new DateTime(1985, 6, 20))
+            .With(p => p.PhoneNumber = null)
+            .Build();
 
-        // Act & Assert
-        await Assert.ThrowsAsync<ArgumentException>(
-            () => handler.Handle(command, CancellationToken.None));
+        var command = new CreatePatientCommand(request);
+
+        // Act
+        var response = await GetMediator().Send(command);
+
+        // Assert
+        response.ShouldNotBeNull();
+        response.Success.ShouldBeTrue();
+        response.PatientDto.PhoneNumber.ShouldBeNull();
     }
 }
 ```
+
+**Key points:**
+- Extends `TestBase` for DI, database, and transaction management
+- Uses NBuilder for test data construction
+- Uses Shouldly for fluent assertions
+- Tests run in transactions (rolled back after each test)
+- Full integration tests through MediatR pipeline
 
 ---
 
 ## Verification Checklist
 
-- [ ] `SuccessOrFailureDto` base class exists in `BuildingBlocks.Application`
-- [ ] `CreatePatientRequest` DTO class created
-- [ ] `CreatePatientCommand` record wraps the request DTO
-- [ ] `CreatePatientCommandResponse` inherits from `SuccessOrFailureDto`
-- [ ] `CreatePatientCommandHandler` implements `IRequestHandler` and returns response
-- [ ] `SuspendPatientCommand` record created
-- [ ] `SuspendPatientCommandHandler` implements `IRequestHandler`
-- [ ] `PatientNotFoundException` exception created
-- [ ] MediatR registered in DI
-- [ ] Controller receives request DTO, wraps in command
-- [ ] Handlers inject `IUnitOfWork` (events auto-dispatched)
-- [ ] Entity adds events in behavior methods
-- [ ] FluentValidation validates (not domain)
+- [x] `SuccessOrFailureDto` base class exists in `BuildingBlocks.Application`
+- [x] `CreatePatientRequest` DTO class created (inline with command)
+- [x] `CreatePatientCommand` record wraps the request DTO
+- [x] `CreatePatientCommandResponse` inherits from `SuccessOrFailureDto`
+- [x] `CreatePatientCommandHandler` implements `IRequestHandler` and returns response
+- [x] `SuspendPatientCommand` class created
+- [x] `SuspendPatientCommandHandler` implements `IRequestHandler`
+- [x] MediatR registered in DI
+- [x] `SuppressAsyncSuffixInActionNames = false` configured
+- [x] Controller receives request DTO, wraps in command
+- [x] Handlers inject `IUnitOfWork` (events auto-dispatched)
+- [x] Entity adds events in behavior methods
+- [x] FluentValidation validates (not domain)
 
 ---
 
 ## Folder Structure After This Step
 
+Commands, requests, responses, and validators are all in the same file:
+
 ```
 Core/Scheduling/
-├── Scheduling.Domain/
-│   └── Patients/
-│       ├── Patient.cs                           ← Uses AddDomainEvent()
-│       ├── PatientStatus.cs
-│       └── Events/                              ← Events in Domain layer
-│           ├── PatientCreatedEvent.cs
-│           └── PatientSuspendedEvent.cs
-└── Scheduling.Application/
-    ├── Exceptions/
-    │   └── PatientNotFoundException.cs
-    ├── Patients/
-    │   ├── Commands/
-    │   │   ├── CreatePatient/
-    │   │   │   ├── CreatePatientRequest.cs      ← Request DTO (class, nullable)
-    │   │   │   ├── CreatePatientCommand.cs      ← Command wraps request
-    │   │   │   └── CreatePatientCommandHandler.cs
-    │   │   ├── SuspendPatient/
-    │   │   │   ├── SuspendPatientCommand.cs
-    │   │   │   └── SuspendPatientCommandHandler.cs
-    │   │   └── UpdateContactInfo/
-    │   │       ├── UpdateContactInfoCommand.cs
-    │   │       └── UpdateContactInfoCommandHandler.cs
-    │   └── EventHandlers/
-    │       └── PatientCreatedEventHandler.cs
-    └── ServiceCollectionExtensions.cs
++-- Scheduling.Domain/
+|   +-- Patients/
+|       +-- Patient.cs                           <- Uses AddDomainEvent()
+|       +-- PatientStatus.cs
+|       +-- Events/                              <- Events in Domain layer
+|           +-- PatientCreatedEvent.cs
+|           +-- PatientSuspendedEvent.cs
++-- Scheduling.Application/
+    +-- Patients/
+    |   +-- Commands/
+    |   |   +-- CreatePatientCommand.cs          <- Command + Request + Response + Validators
+    |   |   +-- CreatePatientCommandHandler.cs
+    |   |   +-- SuspendPatientCommand.cs         <- Command + Response + Validator
+    |   |   +-- SuspendPatientCommandHandler.cs
+    |   +-- Dtos/
+    |   |   +-- PatientDto.cs
+    |   +-- EventHandlers/
+    |       +-- PatientCreatedEventHandler.cs
+    +-- ServiceCollectionExtensions.cs
 ```
+
+**Note:** All related types (Command, Request DTO, Response DTO, Validators) are in the same file, organized with `#region Validators`. This keeps related code together and makes it easier to understand the full contract.
 
 ---
 
