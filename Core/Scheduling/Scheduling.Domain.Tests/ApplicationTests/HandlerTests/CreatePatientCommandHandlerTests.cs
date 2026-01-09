@@ -1,14 +1,15 @@
+using BuildingBlocks.Tests;
 using FizzWare.NBuilder;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Scheduling.Application.Patients.Commands;
 using Scheduling.Domain.Patients;
-using Scheduling.Tests.Common;
+using Scheduling.Infrastructure.Persistence;
 using Shouldly;
 
 namespace Scheduling.Tests.ApplicationTests.HandlerTests;
 
 [TestClass]
-public class CreatePatientCommandHandlerTests : TestBase
+public class CreatePatientCommandHandlerTests : SchedulingDbTestBase
 {
     [TestMethod]
     public async Task Handle_Should_CreatePatient_ForValidRequest()

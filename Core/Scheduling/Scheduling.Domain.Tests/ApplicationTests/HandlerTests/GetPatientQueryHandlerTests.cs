@@ -2,13 +2,12 @@ using FizzWare.NBuilder;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Scheduling.Application.Patients.Commands;
 using Scheduling.Application.Patients.Queries;
-using Scheduling.Tests.Common;
 using Shouldly;
 
 namespace Scheduling.Tests.ApplicationTests.HandlerTests;
 
 [TestClass]
-public class GetPatientQueryHandlerTests : TestBase
+public class GetPatientQueryHandlerTests : SchedulingDbTestBase
 {
     [TestMethod]
     public async Task Handle_Should_ReturnPatient_WhenExists()

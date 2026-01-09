@@ -1,20 +1,18 @@
 using BuildingBlocks.Application;
 using BuildingBlocks.Domain;
 using BuildingBlocks.Infrastructure;
-using FizzWare.NBuilder;
-using FluentValidation;
-using MediatR;
-using Microsoft.Data.Sqlite;
-using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.VisualStudio.TestTools.UnitTesting;
-using Scheduling.Application;
-using Scheduling.Infrastructure.Persistence;
 using System.Diagnostics;
 using System.Globalization;
 using System.Text.RegularExpressions;
+using Microsoft.VisualStudio.TestTools.UnitTesting;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Data.Sqlite;
+using Microsoft.Extensions.DependencyInjection;
+using MediatR;
+using FluentValidation;
+using FizzWare.NBuilder;
 
-namespace Scheduling.Tests.Common;
+namespace BuildingBlocks.Tests;
 
 /// <summary>
 /// Base class for integration tests.
@@ -22,7 +20,7 @@ namespace Scheduling.Tests.Common;
 /// ensuring test isolation without recreating the database.
 /// </summary>
 [TestClass]
-public abstract class TestBase
+public abstract class TestBase<TContext> where TContext : DbContext
 {
     #region FluentValidation Error Codes
     protected const string VALIDATION_NULL_VALIDATOR = "NullValidator";
@@ -55,6 +53,8 @@ public abstract class TestBase
         ConfigureNBuilder();
     }
 
+    protected abstract void RegisterBoundedContextServices(IServiceCollection services);
+
     [TestInitialize]
     public void TestInitialize()
     {
@@ -70,23 +70,20 @@ public abstract class TestBase
         services.AddLogging();
 
         // Register DbContext with SQLite
-        services.AddDbContext<SchedulingDbContext>(options =>
+        services.AddDbContext<TContext>(options =>
             options.UseSqlite(_connection));
 
         // Register UnitOfWork
-        services.AddScoped<IUnitOfWork, UnitOfWork<SchedulingDbContext>>();
+        services.AddScoped<IUnitOfWork, UnitOfWork<TContext>>();
 
-        // Register MediatR and handlers
-        services.AddSchedulingApplication();
-
-        // Register validators (when they exist)
-        services.AddValidatorsFromAssembly(typeof(Scheduling.Application.ServiceCollectionExtensions).Assembly);
+        //Register Context services, Mediatr, Handlers etc...
+        RegisterBoundedContextServices(services);
 
         _serviceProvider = services.BuildServiceProvider();
 
         // Ensure database is created
         using var scope = _serviceProvider.CreateScope();
-        var dbContext = scope.ServiceProvider.GetRequiredService<SchedulingDbContext>();
+        var dbContext = scope.ServiceProvider.GetRequiredService<TContext>();
         dbContext.Database.EnsureCreated();
 
         // Create scope for test and begin transaction
@@ -124,7 +121,7 @@ public abstract class TestBase
 
     protected IUnitOfWork Uow => _scope!.ServiceProvider.GetRequiredService<IUnitOfWork>();
 
-    protected SchedulingDbContext DbContext => _scope!.ServiceProvider.GetRequiredService<SchedulingDbContext>();
+    protected TContext DbContext => _scope!.ServiceProvider.GetRequiredService<TContext>();
 
     #endregion
 

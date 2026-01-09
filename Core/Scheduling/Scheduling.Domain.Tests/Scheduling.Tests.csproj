@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
 
     <PropertyGroup>
         <TargetFramework>net9.0</TargetFramework>
@@ -12,7 +12,6 @@
         <PackageReference Include="Microsoft.NET.Test.Sdk" />
         <PackageReference Include="MSTest.TestAdapter" />
         <PackageReference Include="MSTest.TestFramework" />
-        <PackageReference Include="FluentAssertions" />
         <PackageReference Include="Moq" />
         <PackageReference Include="Shouldly" />
         <PackageReference Include="NBuilder" />
@@ -21,6 +20,7 @@
     </ItemGroup>
 
     <ItemGroup>
+        <ProjectReference Include="..\..\..\BuildingBlocks.Tests\BuildingBlocks.Tests.csproj" />
         <ProjectReference Include="..\Scheduling.Application\Scheduling.Application.csproj" />
         <ProjectReference Include="..\Scheduling.Domain\Scheduling.Domain.csproj" />
         <ProjectReference Include="..\Scheduling.Infrastructure\Scheduling.Infrastructure.csproj" />

@@ -3,13 +3,12 @@ using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Scheduling.Application.Patients.Commands;
 using Scheduling.Application.Patients.Queries;
 using Scheduling.Domain.Patients;
-using Scheduling.Tests.Common;
 using Shouldly;
 
 namespace Scheduling.Tests.ApplicationTests.HandlerTests;
 
 [TestClass]
-public class GetAllPatientsQueryHandlerTests : TestBase
+public class GetAllPatientsQueryHandlerTests : SchedulingDbTestBase
 {
     [TestMethod]
     public async Task Handle_Should_ReturnActivePatients_WhenFilteredByActiveStatus()
