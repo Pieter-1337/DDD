@@ -281,10 +281,59 @@ internal class GetAllPatientsQueryValidator : UserValidator<GetAllPatientsQuery>
 
 ### Step 7: Register Validators in DI
 
-Update `Core/Scheduling/Scheduling.Application/ServiceCollectionExtensions.cs`:
+The `AddBoundedContext` extension method in `BuildingBlocks.Application` handles the common registration for all bounded contexts:
+
+Location: `BuildingBlocks/BuildingBlocks.Application/BuildingBlocksServiceCollectionExtensions.cs`
 
 ```csharp
+using System.Reflection;
 using FluentValidation;
+using Microsoft.Extensions.DependencyInjection;
+
+namespace BuildingBlocks.Application;
+
+public static class BuildingBlocksServiceCollectionExtensions
+{
+    private static bool _fluentValidationDefaultsConfigured;
+
+    /// <summary>
+    /// Registers a bounded context's MediatR handlers and FluentValidation validators.
+    /// Add additional shared config for context services here.
+    /// Also configures shared BuildingBlocks defaults (once).
+    /// </summary>
+    public static IServiceCollection AddBoundedContext(this IServiceCollection services, Assembly boundedContextAssembly)
+    {
+        SetFluentValidationDefaults();
+
+        services.AddMediatR(cfg => cfg.RegisterServicesFromAssembly(boundedContextAssembly));
+        services.AddValidatorsFromAssembly(boundedContextAssembly, includeInternalTypes: true);
+
+        return services;
+    }
+
+    private static void SetFluentValidationDefaults()
+    {
+        if (_fluentValidationDefaultsConfigured) return;
+
+        // Use property names as-is (no PascalCase to "Display Name" conversion)
+        ValidatorOptions.Global.DisplayNameResolver = (type, member, expression) => member?.Name;
+
+        _fluentValidationDefaultsConfigured = true;
+    }
+}
+```
+
+**Key points:**
+- **`includeInternalTypes: true`** - Registers internal validators (our validators are internal)
+- **`SetFluentValidationDefaults()`** - Configures FluentValidation once across all bounded contexts
+- **`DisplayNameResolver`** - Keeps property names as-is (e.g., `FirstName` instead of `"First Name"`) for cleaner test assertions with `nameof()`
+
+Each bounded context calls this shared method:
+
+Location: `Core/Scheduling/Scheduling.Application/ServiceCollectionExtensions.cs`
+
+```csharp
+using BuildingBlocks.Application;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Scheduling.Application;
@@ -293,13 +342,9 @@ public static class ServiceCollectionExtensions
 {
     public static IServiceCollection AddSchedulingApplication(this IServiceCollection services)
     {
-        var assembly = typeof(ServiceCollectionExtensions).Assembly;
+        services.AddBoundedContext(typeof(ServiceCollectionExtensions).Assembly);
 
-        // Register MediatR
-        services.AddMediatR(cfg => cfg.RegisterServicesFromAssembly(assembly));
-
-        // Register all validators from this assembly
-        services.AddValidatorsFromAssembly(assembly);
+        // Add any Scheduling-specific services here
 
         return services;
     }
@@ -727,35 +772,25 @@ builder.Services.AddControllers(options =>
 });
 ```
 
-Update `Core/Scheduling/Scheduling.Application/ServiceCollectionExtensions.cs`:
+To add the pre-processor behavior, update `BuildingBlocks.Application/BuildingBlocksServiceCollectionExtensions.cs`:
 
 ```csharp
-using FluentValidation;
-using MediatR;
-using Microsoft.Extensions.DependencyInjection;
-
-namespace Scheduling.Application;
-
-public static class ServiceCollectionExtensions
+public static IServiceCollection AddBoundedContext(this IServiceCollection services, Assembly boundedContextAssembly)
 {
-    public static IServiceCollection AddSchedulingApplication(this IServiceCollection services)
+    SetFluentValidationDefaults();
+
+    services.AddMediatR(cfg =>
     {
-        var assembly = typeof(ServiceCollectionExtensions).Assembly;
+        cfg.RegisterServicesFromAssembly(boundedContextAssembly);
+        cfg.AddOpenBehavior(typeof(RequestPreProcessorBehavior<,>));
+    });
+    services.AddValidatorsFromAssembly(boundedContextAssembly, includeInternalTypes: true);
 
-        // Register MediatR with pre/post processor behaviors
-        services.AddMediatR(cfg =>
-        {
-            cfg.RegisterServicesFromAssembly(assembly);
-            cfg.AddOpenBehavior(typeof(RequestPreProcessorBehavior<,>));
-        });
-
-        // Register all validators from this assembly
-        services.AddValidatorsFromAssembly(assembly);
-
-        return services;
-    }
+    return services;
 }
 ```
+
+This enables the pre-processor for all bounded contexts automatically.
 
 ### Step 12: Using Custom Error Codes and Severity
 
@@ -853,7 +888,8 @@ Core/Scheduling/
     +-- ServiceCollectionExtensions.cs
 BuildingBlocks/
 +-- BuildingBlocks.Application/
-    +-- UserValidator.cs                      <- Base validator class
+    +-- BuildingBlocksServiceCollectionExtensions.cs  <- Shared DI registration
+    +-- UserValidator.cs                              <- Base validator class
     +-- IUnitOfWork.cs
     +-- IRepository.cs
     +-- SuccessOrFailureDto.cs

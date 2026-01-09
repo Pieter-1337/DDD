@@ -1,5 +1,5 @@
-using Scheduling.Infrastructure;
 using Scheduling.Application;
+using Scheduling.Infrastructure;
 using System.Text.Json.Serialization;
 
 var builder = WebApplication.CreateBuilder(args);

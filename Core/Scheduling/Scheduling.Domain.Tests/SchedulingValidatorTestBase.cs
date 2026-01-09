@@ -17,7 +17,6 @@ public abstract class SchedulingValidatorTestBase : ValidatorTestBase
 
     protected override void RegisterServices(IServiceCollection services)
     {
-        // Register validators from Scheduling.Application
         services.AddSchedulingApplication();
 
         // Setup repository mocks for validators that need them

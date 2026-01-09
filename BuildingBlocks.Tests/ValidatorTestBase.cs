@@ -6,6 +6,7 @@ using FluentValidation.Results;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Moq;
+using Shouldly;
 
 namespace BuildingBlocks.Tests;
 
@@ -119,30 +120,14 @@ public abstract class ValidatorTestBase
 public static class ValidationResultExtensions
 {
     /// <summary>
-    /// Asserts that the validation errors contain an error for the specified property with the specified error code.
+    /// Assert if a validation message exists with specified property name and error code
     /// </summary>
-    public static void ShouldContainValidation(this IList<ValidationFailure> errors, string propertyName, string errorCode)
+    /// <param name="actual"></param>
+    /// <param name="propertyName">Property name (translated)</param>
+    /// <param name="errorCode">Validation rule name</param>
+    public static void ShouldContainValidation(this IEnumerable<ValidationFailure> actual, string propertyName, string errorCode)
     {
-        var hasError = errors.Any(e => e.PropertyName == propertyName && e.ErrorCode == errorCode);
-        if (!hasError)
-        {
-            var existingErrors = string.Join(", ", errors.Select(e => $"{e.PropertyName}:{e.ErrorCode}"));
-            throw new AssertFailedException(
-                $"Expected validation error for '{propertyName}' with code '{errorCode}', but found: [{existingErrors}]");
-        }
-    }
-
-    /// <summary>
-    /// Asserts that the validation errors contain an error for the specified property (any error code).
-    /// </summary>
-    public static void ShouldContainValidationFor(this IList<ValidationFailure> errors, string propertyName)
-    {
-        var hasError = errors.Any(e => e.PropertyName == propertyName);
-        if (!hasError)
-        {
-            var existingErrors = string.Join(", ", errors.Select(e => e.PropertyName));
-            throw new AssertFailedException(
-                $"Expected validation error for '{propertyName}', but found: [{existingErrors}]");
-        }
+        actual.ShouldContain(e => e.FormattedMessagePlaceholderValues.Contains(new KeyValuePair<string, object>("PropertyName", propertyName)) && e.ErrorCode == errorCode,
+            $"No validation message exists with property name '{propertyName}' for rule '{errorCode}'");
     }
 }

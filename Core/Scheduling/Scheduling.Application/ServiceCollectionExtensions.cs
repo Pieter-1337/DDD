@@ -1,18 +1,16 @@
-﻿using FluentValidation;
+using BuildingBlocks.Application;
 using Microsoft.Extensions.DependencyInjection;
 
-namespace Scheduling.Application
+namespace Scheduling.Application;
+
+public static class ServiceCollectionExtensions
 {
-    public static class ServiceCollectionExtensions
+    public static IServiceCollection AddSchedulingApplication(this IServiceCollection services)
     {
-        public static IServiceCollection AddSchedulingApplication(this IServiceCollection services) 
-        {
-            var assembly = typeof(ServiceCollectionExtensions).Assembly;
+        services.AddBoundedContext(typeof(ServiceCollectionExtensions).Assembly);
 
-            services.AddMediatR(cfg => cfg.RegisterServicesFromAssembly(assembly));
-            services.AddValidatorsFromAssembly(assembly, includeInternalTypes: true);
+        // Add any Scheduling-specific services here
 
-            return services;
-        }
+        return services;
     }
 }

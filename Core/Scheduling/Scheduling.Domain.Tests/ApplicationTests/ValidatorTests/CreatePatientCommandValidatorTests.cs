@@ -1,6 +1,7 @@
 using BuildingBlocks.Tests;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Scheduling.Application.Patients.Commands;
+using Scheduling.Domain.Patients;
 using Shouldly;
 
 namespace Scheduling.Tests.ApplicationTests.ValidatorTests;
@@ -43,11 +44,11 @@ public class CreatePatientCommandValidatorTests : SchedulingValidatorTestBase
         StopStopwatch();
 
         // Assert
-        result.Errors.ShouldContainValidation("Patient.FirstName", VALIDATION_NOT_EMPTY_VALIDATOR);
-        result.Errors.ShouldContainValidation("Patient.LastName", VALIDATION_NOT_EMPTY_VALIDATOR);
-        result.Errors.ShouldContainValidation("Patient.Email", VALIDATION_NOT_EMPTY_VALIDATOR);
-        result.Errors.ShouldContainValidation("Patient.Email", VALIDATION_EMAIL_VALIDATOR);
-        result.Errors.ShouldContainValidation("Patient.DateOfBirth", VALIDATION_NOT_EMPTY_VALIDATOR);
+        result.Errors.ShouldContainValidation(nameof(CreatePatientRequest.FirstName), VALIDATION_NOT_EMPTY_VALIDATOR);
+        result.Errors.ShouldContainValidation(nameof(CreatePatientRequest.LastName), VALIDATION_NOT_EMPTY_VALIDATOR);
+        result.Errors.ShouldContainValidation(nameof(CreatePatientRequest.Email), VALIDATION_NOT_EMPTY_VALIDATOR);
+        result.Errors.ShouldContainValidation(nameof(CreatePatientRequest.Email), VALIDATION_EMAIL_VALIDATOR);
+        result.Errors.ShouldContainValidation(nameof(CreatePatientRequest.DateOfBirth), VALIDATION_NOT_EMPTY_VALIDATOR);
 
         ElapsedSeconds().ShouldBeLessThan(0.1M);
     }
@@ -68,7 +69,7 @@ public class CreatePatientCommandValidatorTests : SchedulingValidatorTestBase
         var result = await ValidatorFor<CreatePatientCommand>().ValidateAsync(command);
 
         // Assert
-        result.Errors.ShouldContainValidation("Patient.Email", VALIDATION_EMAIL_VALIDATOR);
+        result.Errors.ShouldContainValidation(nameof(CreatePatientRequest.Email), VALIDATION_EMAIL_VALIDATOR);
         result.Errors.Count.ShouldBe(1);
     }
 
