@@ -44,7 +44,7 @@ namespace WebApi.Controllers
         public async Task<IActionResult> CreatePatientAsync(CreatePatientRequest request)
         {
             var response = await _mediator.Send(new CreatePatientCommand(request));
-            return CreatedAtAction(nameof(GetPatientAsync), new { patientId = response.PatientDto }, response);
+            return CreatedAtAction(nameof(GetPatientAsync), new { patientId = response.PatientDto.Id }, response);
         }
     }
 }
