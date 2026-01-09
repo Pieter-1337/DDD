@@ -116,4 +116,4 @@ Now that we understand *why* DDD, we'll learn the building blocks:
 2. **Entities** - Objects with identity that change over time (have id in domain and DB)
 3. **Aggregates** - Clusters of objects treated as a unit
 
-→ Continue to: [02-value-objects.md](./02-value-objects.md)
+→ Continue to: [02-clean-architecture.md](./02-clean-architecture.md) - Project Structure

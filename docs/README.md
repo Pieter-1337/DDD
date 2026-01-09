@@ -26,11 +26,12 @@ Each phase directory contains:
 
 ## Current Phase
 
-**Phase 4: Integration Testing** - In Progress
+**Phase 4: Integration Testing** - Complete
 
-- Generic `TestBase<TContext>` in BuildingBlocks.Tests
-- Bounded context test bases (e.g., `SchedulingTestBase`)
+- Two-tier test base hierarchy: `ValidatorTestBase` → `TestBase<TContext>`
+- `SchedulingValidatorTestBase` for validator unit tests (mocked IUnitOfWork)
+- `SchedulingDbTestBase` for handler integration tests (SQLite)
 - Transaction-based test isolation
-- MSTest with Shouldly and NBuilder
+- MSTest with Shouldly, Moq, and NBuilder
 
 See [PROGRESS.md](./PROGRESS.md) for detailed status.

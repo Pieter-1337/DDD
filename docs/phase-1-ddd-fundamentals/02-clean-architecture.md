@@ -370,4 +370,4 @@ After completing the steps, verify:
 2. **Layer Separation** - Each layer has a single responsibility
 3. **Testability** - Domain can be tested without database or web framework
 
-→ Next: [03-value-objects.md](./03-value-objects.md) - Your first Value Object
+→ Next: [03-building-patient-aggregate.md](./03-building-patient-aggregate.md) - Building the Patient Aggregate

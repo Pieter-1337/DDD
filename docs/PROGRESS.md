@@ -153,43 +153,46 @@ This allows using `nameof(GetPatientAsync)` in `CreatedAtAction` calls.
 
 ### Concepts Learned
 
-- [x] Generic TestBase pattern for reusable test infrastructure
+- [x] Two-tier test base hierarchy (ValidatorTestBase → TestBase<TContext>)
+- [x] Validator unit tests with mocked IUnitOfWork
+- [x] Integration tests with SQLite in-memory database
 - [x] Transaction-based test isolation (rollback after each test)
-- [x] SQLite in-memory for fast integration tests
-- [x] MSTest with Shouldly and NBuilder
+- [x] MSTest with Shouldly, Moq, and NBuilder
 
 ### Implementation Progress
 
-- [x] Create `BuildingBlocks.Tests` project with generic `TestBase<TContext>`
-- [x] Create `SchedulingTestBase` extending `TestBase<SchedulingDbContext>`
+- [x] Create `BuildingBlocks.Tests` project
+- [x] Create `ValidatorTestBase` for validator unit tests with mocked IUnitOfWork
+- [x] Create `TestBase<TContext>` inheriting from ValidatorTestBase
+- [x] Add `ShouldContainValidation()` extension for type-safe assertions
+- [x] Add FluentValidation error code constants
+- [x] Create `SchedulingValidatorTestBase` for Scheduling validator tests
+- [x] Create `SchedulingDbTestBase` for Scheduling integration tests
 - [x] Implement transaction-based isolation
-- [x] Add helper methods (`GetMediator()`, `ValidatorFor<T>()`, `Uow`, `DbContext`)
-- [ ] Write handler tests for all commands/queries
-- [ ] Write domain tests for entity behavior
+- [x] Write validator tests (CreatePatientCommand, GetPatientQuery, GetAllPatientsQuery, SuspendPatientCommand)
+- [x] Write handler tests (CreatePatientCommand, GetPatientQuery, GetAllPatientsQuery)
+- [x] Write domain tests (Patient entity behavior)
 
 ### Key Decisions Made
 
-1. **Integration tests over unit tests** - Test full pipeline with real dependencies
-2. **Transaction rollback** - Each test starts fresh without recreating database
-3. **Real validators in pipeline** - Tests exercise actual validation logic
-4. **MSTest for consistency** - Matches reference architecture conventions
-5. **Generic TestBase in BuildingBlocks** - Reusable across all bounded contexts
-6. **Use `ServiceProvider?` not `IServiceProvider?`** - Required for `Dispose()` to work
+1. **Two-tier test base hierarchy** - ValidatorTestBase for unit tests, TestBase for integration tests
+2. **Mocked IUnitOfWork for validators** - Fast unit tests without database
+3. **Transaction rollback** - Each integration test starts fresh without recreating database
+4. **`ShouldContainValidation()` with `nameof()`** - Type-safe validation assertions
+5. **MSTest for consistency** - Matches reference architecture conventions
+6. **Generic TestBase in BuildingBlocks** - Reusable across all bounded contexts
 
-### Migration from Phase 3 Examples
+### Test Organization
 
-The test examples shown in Phase 3 docs used `TestBase` directly. Now:
-
-| Before (Phase 3 docs) | After (Phase 4) |
-|-----------------------|-----------------|
-| `class MyTests : TestBase` | `class MyTests : SchedulingTestBase` |
-| TestBase in same project | TestBase in `BuildingBlocks.Tests` |
-| Hardcoded to SchedulingDbContext | Generic `TestBase<TContext>` |
-| Hardcoded service registration | Abstract `RegisterBoundedContextServices()` |
+| Test Type | Base Class | Database |
+|-----------|------------|----------|
+| Validator unit tests | `SchedulingValidatorTestBase` | Mocked |
+| Handler integration tests | `SchedulingDbTestBase` | SQLite |
+| Domain entity tests | None | None |
 
 ### Docs Available
 
-- `phase-4-testing/01-integration-testing-setup.md` - Full setup guide for TestBase pattern
+- `phase-4-testing/01-integration-testing-setup.md` - Full setup guide for test infrastructure
 
 ---
 
