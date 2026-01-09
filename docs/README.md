@@ -11,8 +11,9 @@ docs/
 +-- phase-1-ddd-fundamentals/    # DDD tactical patterns
 +-- phase-2-ef-core/             # Persistence with EF Core
 +-- phase-3-cqrs/                # CQRS pattern
-+-- phase-4-event-driven/        # Event-driven architecture (planned)
-+-- phase-5-integration/         # Complete system integration (planned)
++-- phase-4-testing/             # Integration testing setup
++-- phase-5-event-driven/        # Event-driven architecture (planned)
++-- phase-6-integration/         # Complete system integration (planned)
 ```
 
 ## How to Use
@@ -25,16 +26,11 @@ Each phase directory contains:
 
 ## Current Phase
 
-**Phase 3: CQRS Pattern** - In Progress
+**Phase 4: Integration Testing** - In Progress
 
-Core CQRS implementation complete:
-- Commands and Handlers
-- Queries and Handlers
-- FluentValidation with entity existence checks
-- Integration testing with MSTest
-
-Remaining (optional):
-- Pipeline behaviors (logging, performance, validation)
-- Exception handling middleware
+- Generic `TestBase<TContext>` in BuildingBlocks.Tests
+- Bounded context test bases (e.g., `SchedulingTestBase`)
+- Transaction-based test isolation
+- MSTest with Shouldly and NBuilder
 
 See [PROGRESS.md](./PROGRESS.md) for detailed status.

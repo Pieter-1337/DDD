@@ -536,7 +536,7 @@ Integration tests with MSTest, Shouldly, and NBuilder:
 
 ```csharp
 [TestClass]
-public class CreatePatientCommandHandlerTests : TestBase
+public class CreatePatientCommandHandlerTests : SchedulingTestBase
 {
     [TestMethod]
     public async Task Handle_Should_CreatePatient_ForValidRequest()
@@ -598,7 +598,7 @@ public class CreatePatientCommandHandlerTests : TestBase
 ```
 
 **Key points:**
-- Extends `TestBase` for DI, database, and transaction management
+- Extends `SchedulingTestBase` (which extends generic `TestBase<SchedulingDbContext>`)
 - Uses NBuilder for test data construction
 - Uses Shouldly for fluent assertions
 - Tests run in transactions (rolled back after each test)

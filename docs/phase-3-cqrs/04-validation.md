@@ -411,7 +411,7 @@ Integration tests validate the full pipeline including validators:
 
 ```csharp
 [TestClass]
-public class CreatePatientCommandHandlerTests : TestBase
+public class CreatePatientCommandHandlerTests : SchedulingTestBase
 {
     [TestMethod]
     public async Task Handle_Should_CreatePatient_ForValidRequest()

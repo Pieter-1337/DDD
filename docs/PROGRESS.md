@@ -7,8 +7,9 @@
 | Phase 1: DDD Fundamentals | Complete | 2026-01-05 | 2026-01-05 |
 | Phase 2: EF Core Persistence | Complete | 2026-01-05 | 2026-01-07 |
 | Phase 3: CQRS Pattern | In Progress | 2026-01-07 | - |
-| Phase 4: Event-Driven | Not Started | - | - |
-| Phase 5: Integration | Not Started | - | - |
+| Phase 4: Integration Testing | In Progress | 2026-01-09 | - |
+| Phase 5: Event-Driven | Not Started | - | - |
+| Phase 6: Integration | Not Started | - | - |
 
 ---
 
@@ -122,53 +123,6 @@
 
 ---
 
-## Testing
-
-### Testing Approach
-
-Following RefArch integration testing patterns:
-
-- **Framework**: MSTest (`[TestClass]`, `[TestMethod]`, `[TestInitialize]`, `[TestCleanup]`)
-- **Assertions**: Shouldly
-- **Test Data**: NBuilder (FizzWare.NBuilder)
-- **Database**: SQLite in-memory
-- **Isolation**: Transaction-based (rollback after each test)
-
-### Test Project Structure
-
-```
-Core/Scheduling/Scheduling.Domain.Tests/
-+-- Common/
-|   +-- TestBase.cs                    <- Base class with DI, transactions, helpers
-+-- ApplicationTests/
-|   +-- HandlerTests/
-|       +-- CreatePatientCommandHandlerTests.cs
-|       +-- GetPatientQueryHandlerTests.cs
-|       +-- GetAllPatientsQueryHandlerTests.cs
-+-- DomainTests/
-    +-- Patients/
-        +-- PatientTests.cs
-```
-
-### TestBase Features
-
-- SQLite in-memory database (connection kept open)
-- Full DI container with real Mediator, UnitOfWork, Validators
-- Transaction-based isolation (begin in TestInitialize, rollback in TestCleanup)
-- Helper methods: `GetMediator()`, `ValidatorFor<T>()`, `Uow`, `DbContext`
-- Stopwatch helpers for performance assertions
-- FluentValidation error code constants
-- NBuilder configuration for entity ID handling
-
-### Key Testing Decisions
-
-1. **Integration tests over unit tests** - Test full pipeline with real dependencies
-2. **Transaction rollback** - Each test starts fresh without recreating database
-3. **Real validators in pipeline** - Tests exercise actual validation logic
-4. **MSTest for consistency** - Matches reference architecture conventions
-
----
-
 ## Configuration
 
 ### ASP.NET Core Settings
@@ -195,7 +149,51 @@ This allows using `nameof(GetPatientAsync)` in `CreatedAtAction` calls.
 
 ---
 
-## Phase 4: Event-Driven Architecture
+## Phase 4: Integration Testing
+
+### Concepts Learned
+
+- [x] Generic TestBase pattern for reusable test infrastructure
+- [x] Transaction-based test isolation (rollback after each test)
+- [x] SQLite in-memory for fast integration tests
+- [x] MSTest with Shouldly and NBuilder
+
+### Implementation Progress
+
+- [x] Create `BuildingBlocks.Tests` project with generic `TestBase<TContext>`
+- [x] Create `SchedulingTestBase` extending `TestBase<SchedulingDbContext>`
+- [x] Implement transaction-based isolation
+- [x] Add helper methods (`GetMediator()`, `ValidatorFor<T>()`, `Uow`, `DbContext`)
+- [ ] Write handler tests for all commands/queries
+- [ ] Write domain tests for entity behavior
+
+### Key Decisions Made
+
+1. **Integration tests over unit tests** - Test full pipeline with real dependencies
+2. **Transaction rollback** - Each test starts fresh without recreating database
+3. **Real validators in pipeline** - Tests exercise actual validation logic
+4. **MSTest for consistency** - Matches reference architecture conventions
+5. **Generic TestBase in BuildingBlocks** - Reusable across all bounded contexts
+6. **Use `ServiceProvider?` not `IServiceProvider?`** - Required for `Dispose()` to work
+
+### Migration from Phase 3 Examples
+
+The test examples shown in Phase 3 docs used `TestBase` directly. Now:
+
+| Before (Phase 3 docs) | After (Phase 4) |
+|-----------------------|-----------------|
+| `class MyTests : TestBase` | `class MyTests : SchedulingTestBase` |
+| TestBase in same project | TestBase in `BuildingBlocks.Tests` |
+| Hardcoded to SchedulingDbContext | Generic `TestBase<TContext>` |
+| Hardcoded service registration | Abstract `RegisterBoundedContextServices()` |
+
+### Docs Available
+
+- `phase-4-testing/01-integration-testing-setup.md` - Full setup guide for TestBase pattern
+
+---
+
+## Phase 5: Event-Driven Architecture
 
 *Not started*
 
@@ -210,7 +208,7 @@ This allows using `nameof(GetPatientAsync)` in `CreatedAtAction` calls.
 
 ---
 
-## Phase 5: Integration
+## Phase 6: Integration
 
 *Not started*
 
