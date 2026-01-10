@@ -1,4 +1,6 @@
-﻿using BuildingBlocks.Application;
+﻿using BuildingBlocks.Application.Dtos;
+using BuildingBlocks.Application.Interfaces;
+using BuildingBlocks.Application.Validators;
 using FluentValidation;
 using MediatR;
 using Scheduling.Domain.Patients;

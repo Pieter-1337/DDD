@@ -1,5 +1,5 @@
 ﻿using System.Linq.Expressions;
-using BuildingBlocks.Application;
+using BuildingBlocks.Application.Interfaces;
 using BuildingBlocks.Domain;
 using Microsoft.EntityFrameworkCore;
 

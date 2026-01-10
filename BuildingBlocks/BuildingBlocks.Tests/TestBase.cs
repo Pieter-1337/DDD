@@ -1,4 +1,3 @@
-using BuildingBlocks.Application;
 using BuildingBlocks.Domain;
 using BuildingBlocks.Infrastructure;
 using System.Text.RegularExpressions;
@@ -9,6 +8,7 @@ using Microsoft.Extensions.DependencyInjection;
 using MediatR;
 using FluentValidation;
 using FizzWare.NBuilder;
+using BuildingBlocks.Application.Interfaces;
 
 namespace BuildingBlocks.Tests;
 

@@ -1,4 +1,5 @@
-﻿using BuildingBlocks.Application;
+﻿using BuildingBlocks.Application.Dtos;
+using BuildingBlocks.Application.Validators;
 using FluentValidation;
 using FluentValidation.Validators;
 using MediatR;

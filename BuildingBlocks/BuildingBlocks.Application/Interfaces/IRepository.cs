@@ -1,7 +1,7 @@
 using System.Linq.Expressions;
 using BuildingBlocks.Domain;
 
-namespace BuildingBlocks.Application;
+namespace BuildingBlocks.Application.Interfaces;
 
 public interface IRepository<TEntity> where TEntity : class, IEntityBase
 {

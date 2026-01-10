@@ -1,6 +1,6 @@
 ﻿using System.Linq.Expressions;
 
-namespace BuildingBlocks.Application
+namespace BuildingBlocks.Application.Interfaces
 {
     public interface IEntityDto<TEntity, TDto> where TDto : IEntityDto<TEntity, TDto>
     {

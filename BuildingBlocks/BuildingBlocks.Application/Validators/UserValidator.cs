@@ -1,6 +1,6 @@
 ﻿using FluentValidation;
 
-namespace BuildingBlocks.Application
+namespace BuildingBlocks.Application.Validators
 {
     public abstract class UserValidator<T> : AbstractValidator<T>
     {

@@ -1,4 +1,4 @@
-using BuildingBlocks.Application;
+using BuildingBlocks.Application.Interfaces;
 using BuildingBlocks.Domain;
 using BuildingBlocks.Domain.Events;
 using MediatR;

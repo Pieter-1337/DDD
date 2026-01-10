@@ -1,10 +1,10 @@
 ﻿using Microsoft.AspNetCore.Mvc;
-using BuildingBlocks.Application;
 using Scheduling.Domain.Patients;
 using MediatR;
 using Scheduling.Application.Patients.Commands;
 using Scheduling.Application.Patients.Dtos;
 using Scheduling.Application.Patients.Queries;
+using BuildingBlocks.Application.Interfaces;
 
 namespace WebApi.Controllers
 {

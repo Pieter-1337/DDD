@@ -1,6 +1,6 @@
 using System.Diagnostics;
 using System.Globalization;
-using BuildingBlocks.Application;
+using BuildingBlocks.Application.Interfaces;
 using FluentValidation;
 using FluentValidation.Results;
 using Microsoft.Extensions.DependencyInjection;

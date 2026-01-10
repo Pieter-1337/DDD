@@ -1,4 +1,4 @@
-using BuildingBlocks.Application;
+using BuildingBlocks.Application.Interfaces;
 using MediatR;
 using Scheduling.Domain.Patients;
 

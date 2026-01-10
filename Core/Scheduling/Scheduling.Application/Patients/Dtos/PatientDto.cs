@@ -1,4 +1,5 @@
-﻿using BuildingBlocks.Application;
+﻿using BuildingBlocks.Application.Dtos;
+using BuildingBlocks.Application.Interfaces;
 using Scheduling.Domain.Patients;
 using System.Linq.Expressions;
 

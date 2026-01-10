@@ -1,6 +1,6 @@
 using BuildingBlocks.Domain;
 
-namespace BuildingBlocks.Application;
+namespace BuildingBlocks.Application.Interfaces;
 
 public interface IUnitOfWork
 {
