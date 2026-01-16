@@ -54,7 +54,18 @@ This is a comprehensive learning project to master Domain-Driven Design (DDD) an
 - Query optimization
 - MediatR for CQRS implementation
 
-### Phase 4: Event-Driven Architecture
+### Phase 4: Testing
+**Goal**: Establish test infrastructure for confidence and regression prevention
+
+**Concepts to implement**:
+- Two-tier test base hierarchy (ValidatorTestBase, TestBase<TContext>)
+- Validator unit tests with mocked IUnitOfWork
+- Handler integration tests with SQLite in-memory
+- Domain entity unit tests
+- Transaction-based test isolation
+- MSTest, Shouldly, Moq, NBuilder
+
+### Phase 5: Event-Driven Architecture
 **Goal**: Implement asynchronous communication between bounded contexts
 
 **Concepts to implement**:
@@ -69,7 +80,7 @@ This is a comprehensive learning project to master Domain-Driven Design (DDD) an
 
 **Message Broker**: RabbitMQ (running in Docker)
 
-### Phase 5: Integration - Complete System
+### Phase 6: Integration
 **Goal**: Build a cohesive system integrating all concepts
 
 **System features**:

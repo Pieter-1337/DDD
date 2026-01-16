@@ -7,8 +7,8 @@
 | Phase 1: DDD Fundamentals | Complete | 2026-01-05 | 2026-01-05 |
 | Phase 2: EF Core Persistence | Complete | 2026-01-05 | 2026-01-07 |
 | Phase 3: CQRS Pattern | Complete | 2026-01-07 | 2026-01-16 |
-| Phase 4: Integration Testing | In Progress | 2026-01-09 | - |
-| Phase 5: Event-Driven | Not Started | - | - |
+| Phase 4: Testing | In Progress | 2026-01-09 | - |
+| Phase 5: Event-Driven Architecture | Not Started | - | - |
 | Phase 6: Integration | Not Started | - | - |
 
 ---
@@ -157,7 +157,7 @@ This allows using `nameof(GetPatientAsync)` in `CreatedAtAction` calls.
 
 ---
 
-## Phase 4: Integration Testing
+## Phase 4: Testing
 
 ### Concepts Learned
 
@@ -208,6 +208,10 @@ This allows using `nameof(GetPatientAsync)` in `CreatedAtAction` calls.
 
 *Not started*
 
+### Docs Available
+
+- `phase-5-event-driven/` - (to be created)
+
 ### Planned Topics
 
 - Domain Events vs Integration Events
@@ -222,6 +226,10 @@ This allows using `nameof(GetPatientAsync)` in `CreatedAtAction` calls.
 ## Phase 6: Integration
 
 *Not started*
+
+### Docs Available
+
+- `phase-6-integration/` - (to be created)
 
 ### Planned Topics
 
