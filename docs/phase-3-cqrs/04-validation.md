@@ -380,7 +380,7 @@ internal class GetAllPatientsQueryValidator : UserValidator<GetAllPatientsQuery>
     public GetAllPatientsQueryValidator()
     {
         RuleFor(q => q.Status)
-            .Must(s => PatientStatus.TryFromName(s, out _))
+            .Must(PatientStatus.IsInEnum)
             .WithErrorCode(ErrorCode.InvalidStatus.Value)
             .WithMessage(ErrorCode.InvalidStatus.Message);
     }
@@ -401,7 +401,8 @@ public async Task<IEnumerable<PatientDto>> Handle(GetAllPatientsQuery query, Can
 **Why string in DTOs instead of SmartEnum directly?**
 - Invalid SmartEnum values throw `SmartEnumNotFoundException` during JSON deserialization
 - This results in a generic 500 error, not a proper validation response
-- Using `string` + `TryFromName` gives you a proper 400 response with your custom error code
+- Using `string` + `IsInEnum` gives you a proper 400 response with your custom error code
+- `SmartEnumBase<T>` provides `IsInEnum` for clean validation syntax
 
 **In tests**, use `PatientStatus.X.Name` to avoid magic strings:
 ```csharp

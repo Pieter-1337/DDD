@@ -18,7 +18,7 @@ namespace Scheduling.Application.Patients.Queries
         public GetAllPatientsQueryValidator()
         {
             RuleFor(q => q.Status)
-                .Must(s => PatientStatus.TryFromName(s, out _))
+                .Must(PatientStatus.IsInEnum)
                 .WithErrorCode(ErrorCode.InvalidStatus.Value)
                 .WithMessage(ErrorCode.InvalidStatus.Message);
         }

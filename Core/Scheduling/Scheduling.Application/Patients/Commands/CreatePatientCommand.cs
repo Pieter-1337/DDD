@@ -65,7 +65,7 @@ namespace Scheduling.Application.Patients.Commands
                 .WithMessage(ErrorCode.DateOfBirthRequired.Message);
 
             RuleFor(p => p.Status)
-                .Must(s => PatientStatus.TryFromName(s, out _))
+                .Must(PatientStatus.IsInEnum)
                 .WithErrorCode(ErrorCode.InvalidStatus.Value)
                 .WithMessage(ErrorCode.InvalidStatus.Message);
         }
