@@ -17,7 +17,11 @@
       "Bash(rm:*)",
       "Bash(mv:*)",
       "Bash(dotnet nuget search:*)",
-      "Bash(dotnet restore:*)"
+      "Bash(dotnet restore:*)",
+      "Bash(findstr:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git push:*)"
     ]
   }
 }
