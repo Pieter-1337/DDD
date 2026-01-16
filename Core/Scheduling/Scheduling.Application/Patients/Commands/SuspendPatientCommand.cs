@@ -1,15 +1,15 @@
-﻿using BuildingBlocks.Application.Dtos;
+using BuildingBlocks.Application.Dtos;
 using BuildingBlocks.Application.Interfaces;
+using BuildingBlocks.Application.Messaging;
 using BuildingBlocks.Application.Validators;
 using FluentValidation;
-using MediatR;
 using Scheduling.Domain.Patients;
 
 namespace Scheduling.Application.Patients.Commands
 {
-    public class SuspendPatientCommand : IRequest<SuspendPatientCommandResponse>
+    public record SuspendPatientCommand : Command<SuspendPatientCommandResponse>
     {
-        public Guid Id { get; set; }
+        public Guid Id { get; init; }
     }
 
     public class SuspendPatientCommandResponse : SuccessOrFailureDto { }

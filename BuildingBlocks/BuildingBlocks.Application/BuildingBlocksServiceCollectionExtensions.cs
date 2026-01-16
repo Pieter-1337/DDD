@@ -38,11 +38,13 @@ public static class BuildingBlocksServiceCollectionExtensions
     /// <summary>
     /// Registers the default pipeline behaviors from BuildingBlocks.
     /// Call this after AddMediatR to add cross-cutting behaviors.
-    /// Order matters: behaviors execute in the order they are registered.
+    /// Order matters: behaviors execute in the order they are registered (first = outermost).
     /// </summary>
     public static IServiceCollection AddDefaultPipelineBehaviors(this IServiceCollection services)
     {
-        // Order: Logging -> Validation -> Performance -> UnhandledException -> Handler
+        // Order: Transaction -> Logging -> Validation -> Performance -> UnhandledException -> Handler
+        // Transaction is first so validators run inside the transaction (if they need DB access)
+        services.AddTransient(typeof(IPipelineBehavior<,>), typeof(TransactionBehavior<,>));
         services.AddTransient(typeof(IPipelineBehavior<,>), typeof(LoggingBehavior<,>));
         services.AddTransient(typeof(IPipelineBehavior<,>), typeof(ValidationBehavior<,>));
         services.AddTransient(typeof(IPipelineBehavior<,>), typeof(PerformanceBehavior<,>));

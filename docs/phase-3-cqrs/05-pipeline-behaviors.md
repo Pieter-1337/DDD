@@ -59,12 +59,16 @@ BuildingBlocks.Application/
 ├── Behaviors/                       <- Cross-cutting pipeline behaviors
 │   ├── LoggingBehavior.cs
 │   ├── PerformanceBehavior.cs
-│   ├── TransactionBehavior.cs       <- Uses IUnitOfWork (generic)
+│   ├── TransactionBehavior.cs       <- Uses IUnitOfWork + Command<T> type checking
 │   ├── UnhandledExceptionBehavior.cs
 │   └── ValidationBehavior.cs        <- Uses IValidator<T> (generic)
 ├── Interfaces/
 │   ├── IUnitOfWork.cs
 │   └── IRepository.cs
+├── Messaging/                       <- Base types for CQRS
+│   ├── Command.cs                   <- Base record for commands (wrapped in transaction)
+│   ├── Query.cs                     <- Base record for queries (no transaction)
+│   └── OrchestrationCommand.cs      <- Base record for orchestrators (no transaction)
 ├── Validators/
 │   └── UserValidator.cs
 └── BuildingBlocksServiceCollectionExtensions.cs  <- AddBoundedContext() + AddDefaultPipelineBehaviors()
@@ -111,15 +115,21 @@ This provides `ILogger<T>` without pulling in the full ASP.NET Core dependency. 
 
 | Behavior | Purpose | Applies To | Overridable Methods |
 |----------|---------|------------|---------------------|
-| `LoggingBehavior` | Logs request start/end/error | All requests (skips ValidationException) | `OnHandling`, `OnHandled`, `OnError` |
-| `UnhandledExceptionBehavior` | Catches & logs exceptions | All requests (skips ValidationException) | `OnException` |
-| `PerformanceBehavior` | Warns on slow requests (>500ms) | All requests | `ThresholdMilliseconds`, `OnSlowRequest` |
-| `ValidationBehavior` | Validates input, throws on failure | All requests | `ValidateAsync`, `OnValidationFailure` |
 | `TransactionBehavior` | Wraps in DB transaction | Commands only | `ShouldApplyTransaction` |
+| `LoggingBehavior` | Logs request start/end/error | All requests (skips ValidationException) | `OnHandling`, `OnHandled`, `OnError` |
+| `ValidationBehavior` | Validates input, throws on failure | All requests | `ValidateAsync`, `OnValidationFailure` |
+| `PerformanceBehavior` | Warns on slow requests (>500ms) | All requests | `ThresholdMilliseconds`, `OnSlowRequest` |
+| `UnhandledExceptionBehavior` | Catches & logs exceptions | All requests (skips ValidationException) | `OnException` |
 
 ---
 
-### Step 1: Create LoggingBehavior
+**Note:** `TransactionBehavior` is the outermost behavior (first in the pipeline) but is covered in its own detailed section below because it requires the `Command<T>`/`Query<T>` base types.
+
+### Step 1: Create TransactionBehavior
+
+See the dedicated **Transaction Behavior** section below - it includes the base types (`Command<T>`, `Query<T>`, `OrchestrationCommand<T>`) that are required for type-safe command/query distinction.
+
+### Step 2: Create LoggingBehavior
 
 **What it does:** Logs when a request starts and when it completes (or fails).
 
@@ -201,7 +211,82 @@ public class LoggingBehavior<TRequest, TResponse> : IPipelineBehavior<TRequest, 
 
 **Extensibility:** All methods are `virtual` and `Logger` is `protected`, so web apps can override specific hooks or the entire `Handle` method.
 
-### Step 2: Create PerformanceBehavior
+### Step 3: Create ValidationBehavior
+
+**What it does:** Runs all FluentValidation validators for the request before the handler executes. Throws `ValidationException` if any validation fails.
+
+**Why it's useful:**
+- Validates input BEFORE any business logic runs
+- Catches bad data early (fail fast)
+- Returns user-friendly validation errors
+- Validators are automatically discovered and injected
+
+**How it works:**
+```
+Request arrives
+  → ValidationBehavior
+    → Runs all IValidator<TRequest> instances
+      → Valid? → Call next() to continue to handler
+      → Invalid? → Throw ValidationException (caught by ExceptionToJsonFilter)
+```
+
+Location: `BuildingBlocks/BuildingBlocks.Application/Behaviors/ValidationBehavior.cs`
+
+```csharp
+using FluentValidation;
+using FluentValidation.Results;
+using MediatR;
+
+namespace BuildingBlocks.Application.Behaviors;
+
+public class ValidationBehavior<TRequest, TResponse> : IPipelineBehavior<TRequest, TResponse>
+    where TRequest : notnull
+{
+    protected readonly IEnumerable<IValidator<TRequest>> Validators;
+
+    public ValidationBehavior(IEnumerable<IValidator<TRequest>> validators)
+    {
+        Validators = validators;
+    }
+
+    public virtual async Task<TResponse> Handle(
+        TRequest request,
+        RequestHandlerDelegate<TResponse> next,
+        CancellationToken cancellationToken)
+    {
+        if (Validators.Any())
+        {
+            await ValidateAsync(request, cancellationToken);
+        }
+
+        return await next();
+    }
+
+    protected virtual async Task ValidateAsync(TRequest request, CancellationToken cancellationToken)
+    {
+        var context = new ValidationContext<TRequest>(request);
+        var failures = new List<ValidationFailure>();
+
+        foreach (var validator in Validators)
+        {
+            var result = await validator.ValidateAsync(context, cancellationToken);
+            failures.AddRange(result.Errors.Where(f => f is not null));
+        }
+
+        if (failures.Count > 0)
+        {
+            OnValidationFailure(request, failures);
+        }
+    }
+
+    protected virtual void OnValidationFailure(TRequest request, List<ValidationFailure> failures)
+        => throw new ValidationException(failures);
+}
+```
+
+**Extensibility:** Override `ValidateAsync` to customize validation logic, or override `OnValidationFailure` to customize error handling.
+
+### Step 4: Create PerformanceBehavior
 
 **What it does:** Measures how long each request takes to execute. Logs a warning if it exceeds a threshold (default: 500ms).
 
@@ -273,7 +358,7 @@ public class PerformanceBehavior<TRequest, TResponse> : IPipelineBehavior<TReque
 
 **Extensibility:** Override `ThresholdMilliseconds` to change the slow request threshold, or override `OnSlowRequest` to customize the logging.
 
-### Step 3: Create UnhandledExceptionBehavior
+### Step 5: Create UnhandledExceptionBehavior
 
 **What it does:** Catches any unhandled exception, logs it with full request details, then re-throws it.
 
@@ -344,84 +429,9 @@ public class UnhandledExceptionBehavior<TRequest, TResponse> : IPipelineBehavior
 
 **Extensibility:** Override `OnException` to customize exception logging (e.g., add correlation IDs, sanitize sensitive data).
 
-### Step 3b: Create ValidationBehavior
-
-**What it does:** Runs all FluentValidation validators for the request before the handler executes. Throws `ValidationException` if any validation fails.
-
-**Why it's useful:**
-- Validates input BEFORE any business logic runs
-- Catches bad data early (fail fast)
-- Returns user-friendly validation errors
-- Validators are automatically discovered and injected
-
-**How it works:**
-```
-Request arrives
-  → ValidationBehavior
-    → Runs all IValidator<TRequest> instances
-      → Valid? → Call next() to continue to handler
-      → Invalid? → Throw ValidationException (caught by ExceptionToJsonFilter)
-```
-
-Location: `BuildingBlocks/BuildingBlocks.Application.Behaviors/ValidationBehavior.cs`
-
-```csharp
-using FluentValidation;
-using FluentValidation.Results;
-using MediatR;
-
-namespace BuildingBlocks.Application.Behaviors;
-
-public class ValidationBehavior<TRequest, TResponse> : IPipelineBehavior<TRequest, TResponse>
-    where TRequest : notnull
-{
-    protected readonly IEnumerable<IValidator<TRequest>> Validators;
-
-    public ValidationBehavior(IEnumerable<IValidator<TRequest>> validators)
-    {
-        Validators = validators;
-    }
-
-    public virtual async Task<TResponse> Handle(
-        TRequest request,
-        RequestHandlerDelegate<TResponse> next,
-        CancellationToken cancellationToken)
-    {
-        if (Validators.Any())
-        {
-            await ValidateAsync(request, cancellationToken);
-        }
-
-        return await next();
-    }
-
-    protected virtual async Task ValidateAsync(TRequest request, CancellationToken cancellationToken)
-    {
-        var context = new ValidationContext<TRequest>(request);
-        var failures = new List<ValidationFailure>();
-
-        foreach (var validator in Validators)
-        {
-            var result = await validator.ValidateAsync(context, cancellationToken);
-            failures.AddRange(result.Errors.Where(f => f is not null));
-        }
-
-        if (failures.Count > 0)
-        {
-            OnValidationFailure(request, failures);
-        }
-    }
-
-    protected virtual void OnValidationFailure(TRequest request, List<ValidationFailure> failures)
-        => throw new ValidationException(failures);
-}
-```
-
-**Extensibility:** Override `ValidateAsync` to customize validation logic, or override `OnValidationFailure` to customize error handling.
-
 ---
 
-### Step 4: Register Behaviors
+### Step 6: Register Behaviors
 
 Both methods live in `BuildingBlocks/BuildingBlocks.Application/BuildingBlocksServiceCollectionExtensions.cs`:
 
@@ -459,11 +469,13 @@ public static class BuildingBlocksServiceCollectionExtensions
     /// <summary>
     /// Registers the default pipeline behaviors from BuildingBlocks.
     /// Call this after AddMediatR to add cross-cutting behaviors.
-    /// Order matters: behaviors execute in the order they are registered.
+    /// Order matters: behaviors execute in the order they are registered (first = outermost).
     /// </summary>
     public static IServiceCollection AddDefaultPipelineBehaviors(this IServiceCollection services)
     {
-        // Order: Logging -> Validation -> Performance -> UnhandledException -> Handler
+        // Order: Transaction -> Logging -> Validation -> Performance -> UnhandledException -> Handler
+        // Transaction is first so validators run inside the transaction (if they need DB access)
+        services.AddTransient(typeof(IPipelineBehavior<,>), typeof(TransactionBehavior<,>));
         services.AddTransient(typeof(IPipelineBehavior<,>), typeof(LoggingBehavior<,>));
         services.AddTransient(typeof(IPipelineBehavior<,>), typeof(ValidationBehavior<,>));
         services.AddTransient(typeof(IPipelineBehavior<,>), typeof(PerformanceBehavior<,>));
@@ -487,14 +499,15 @@ public static class BuildingBlocksServiceCollectionExtensions
 **Pipeline execution order:**
 ```
 Request
-  → UnhandledExceptionBehavior (catches all exceptions)
+  → TransactionBehavior (starts transaction for commands)
     → LoggingBehavior (logs start/end)
-      → PerformanceBehavior (measures time)
-        → ValidationBehavior (validates input)
-          → Handler (actual logic)
+      → ValidationBehavior (validates input)
+        → PerformanceBehavior (measures time)
+          → UnhandledExceptionBehavior (catches exceptions)
+            → Handler (actual logic)
 ```
 
-### Step 5: Bounded Context Registration
+### Step 7: Bounded Context Registration
 
 Each bounded context registers handlers and validators only:
 
@@ -520,7 +533,7 @@ public static class ServiceCollectionExtensions
 }
 ```
 
-### Step 6: Web App Registration
+### Step 8: Web App Registration
 
 The web application decides which behaviors to use. WebApi already gets `BuildingBlocks.Application` transitively through Scheduling references, so no additional project references are needed for behaviors.
 
@@ -574,7 +587,7 @@ builder.Services.AddTransient(typeof(IPipelineBehavior<,>), typeof(PerformanceBe
 builder.Services.AddTransient(typeof(IPipelineBehavior<,>), typeof(ValidationBehavior<,>));
 ```
 
-### Step 7: Override Behaviors in Web Apps (Optional)
+### Step 9: Override Behaviors in Web Apps (Optional)
 
 Create a custom behavior that inherits from the base and overrides specific methods:
 
@@ -608,64 +621,23 @@ public class AdminLoggingBehavior<TRequest, TResponse> : LoggingBehavior<TReques
 
 | Base Class | Overridable Members |
 |------------|---------------------|
+| `TransactionBehavior` | `Handle`, `ShouldApplyTransaction` |
 | `LoggingBehavior` | `Handle`, `OnHandling`, `OnHandled`, `OnError` |
+| `ValidationBehavior` | `Handle`, `ValidateAsync`, `OnValidationFailure` |
 | `PerformanceBehavior` | `Handle`, `ThresholdMilliseconds`, `OnSlowRequest` |
 | `UnhandledExceptionBehavior` | `Handle`, `OnException` |
-| `ValidationBehavior` | `Handle`, `ValidateAsync`, `OnValidationFailure` |
-| `TransactionBehavior` | `Handle`, `ShouldApplyTransaction` |
 
 ---
 
-## Advanced: Conditional Behaviors
+## Transaction Behavior
 
-### Query-Only Behavior (Skip for Commands)
-
-```csharp
-public class QueryCachingBehavior<TRequest, TResponse> : IPipelineBehavior<TRequest, TResponse>
-    where TRequest : notnull
-{
-    public async Task<TResponse> Handle(
-        TRequest request,
-        RequestHandlerDelegate<TResponse> next,
-        CancellationToken cancellationToken)
-    {
-        // Only apply to queries (requests that end with "Query")
-        if (!typeof(TRequest).Name.EndsWith("Query"))
-            return await next();
-
-        // Caching logic here...
-        return await next();
-    }
-}
-```
-
-### Using Marker Interfaces
-
-```csharp
-// Marker interface
-public interface ICachedQuery { }
-
-// Query that should be cached
-public record GetPatientByIdQuery(Guid PatientId) : IRequest<PatientDto?>, ICachedQuery;
-
-// Behavior only for cached queries
-public class CachingBehavior<TRequest, TResponse> : IPipelineBehavior<TRequest, TResponse>
-    where TRequest : ICachedQuery
-{
-    // Only runs for requests implementing ICachedQuery
-}
-```
-
----
-
-## Transaction Behavior (Optional)
-
-**What it does:** Wraps command execution in a database transaction. Commits on success, rolls back on any exception.
+**What it does:** Wraps command execution in a database transaction. Commits on success or ValidationException (expected client error), rolls back on any other exception.
 
 **Why it's useful:**
 - Ensures atomicity: either all database changes succeed, or none do
 - Prevents partial updates when a command makes multiple changes
-- Only applies to commands (skips queries for performance)
+- Uses type-based checking (`Command<T>`) not string-based naming conventions
+- Commits on `ValidationException` because validators may have modified state (e.g., checked existence)
 - Uses `IUnitOfWork` so it works with any bounded context's DbContext
 
 **When to use it:**
@@ -676,21 +648,24 @@ public class CachingBehavior<TRequest, TResponse> : IPipelineBehavior<TRequest, 
 **When you might NOT need it:**
 - If your handlers only modify one aggregate and call `SaveChangesAsync()` once
 - EF Core already wraps `SaveChangesAsync()` in an implicit transaction
-- For read-only queries (behavior skips these automatically)
+- For read-only queries (behavior skips these automatically based on type)
 
 **Flow:**
 ```
-Command arrives
+Command arrives (inherits from Command<T>)
   → BeginTransactionAsync()
     → Handler executes (may call SaveChangesAsync multiple times)
       → Success? → CommitAsync()
-      → Exception? → RollbackAsync() → Re-throw
+      → ValidationException? → CommitAsync() → Re-throw (validators may have side effects)
+      → Other Exception? → RollbackAsync() → Re-throw
 ```
 
-Location: `BuildingBlocks/BuildingBlocks.Application.Behaviors/TransactionBehavior.cs`
+Location: `BuildingBlocks/BuildingBlocks.Application/Behaviors/TransactionBehavior.cs`
 
 ```csharp
 using BuildingBlocks.Application.Interfaces;
+using BuildingBlocks.Application.Messaging;
+using FluentValidation;
 using MediatR;
 
 namespace BuildingBlocks.Application.Behaviors;
@@ -711,7 +686,9 @@ public class TransactionBehavior<TRequest, TResponse> : IPipelineBehavior<TReque
         CancellationToken cancellationToken)
     {
         if (!ShouldApplyTransaction(request))
+        {
             return await next();
+        }
 
         await UnitOfWork.BeginTransactionAsync(cancellationToken);
 
@@ -721,6 +698,12 @@ public class TransactionBehavior<TRequest, TResponse> : IPipelineBehavior<TReque
             await UnitOfWork.CloseTransactionAsync(cancellationToken: cancellationToken);
             return response;
         }
+        catch (ValidationException)
+        {
+            // Commit on ValidationException - validators may have side effects
+            await UnitOfWork.CloseTransactionAsync(cancellationToken: cancellationToken);
+            throw;
+        }
         catch (Exception ex)
         {
             await UnitOfWork.CloseTransactionAsync(ex, cancellationToken);
@@ -729,11 +712,149 @@ public class TransactionBehavior<TRequest, TResponse> : IPipelineBehavior<TReque
     }
 
     protected virtual bool ShouldApplyTransaction(TRequest request)
-        => typeof(TRequest).Name.EndsWith("Command");
+    {
+        // Type-based checking using Command<T> base record
+        if (request is Command<TResponse> command)
+        {
+            return !command.SkipTransaction;
+        }
+        return false;
+    }
 }
 ```
 
-**Extensibility:** Override `ShouldApplyTransaction` to change which requests get wrapped in a transaction (e.g., use a marker interface instead of naming convention).
+**Extensibility:** Override `ShouldApplyTransaction` to customize transaction logic. The default checks:
+1. Is the request a `Command<T>`? (queries never get transactions)
+2. Does the command have `SkipTransaction = false`? (orchestration commands skip)
+
+---
+
+## Command/Query Base Types
+
+The framework provides base record types for type-safe CQRS:
+
+### Command<TResponse>
+
+Commands are write operations wrapped in a database transaction by default.
+
+```csharp
+using MediatR;
+using System.Text.Json.Serialization;
+
+namespace BuildingBlocks.Application.Messaging;
+
+public abstract record Command<TResponse> : IRequest<TResponse>
+{
+    /// <summary>
+    /// If true, the command will NOT be wrapped in a transaction.
+    /// Used by OrchestrationCommand or when you need manual transaction control.
+    /// </summary>
+    [JsonIgnore]
+    public bool SkipTransaction { get; init; }
+}
+```
+
+### Query<TResponse>
+
+Queries are read-only operations that never get wrapped in a transaction.
+
+```csharp
+using MediatR;
+
+namespace BuildingBlocks.Application.Messaging;
+
+public abstract record Query<TResponse> : IRequest<TResponse>;
+```
+
+### OrchestrationCommand<TResponse>
+
+Orchestration commands coordinate multiple child commands but do NOT get wrapped in a transaction themselves. Each child command dispatched via `IMediator.Send()` gets its own transaction.
+
+```csharp
+namespace BuildingBlocks.Application.Messaging;
+
+public abstract record OrchestrationCommand<TResponse> : Command<TResponse>
+{
+    /// <summary>
+    /// Always true for orchestration commands - they never get wrapped in a transaction.
+    /// </summary>
+    public new bool SkipTransaction => true;
+}
+```
+
+**Use OrchestrationCommand for:**
+- Long-running workflows
+- Saga/Process Manager patterns
+- Operations involving external services
+- When you need independent transaction boundaries per step
+
+**IMPORTANT:** Orchestration handlers should ONLY dispatch other commands, never perform direct database operations.
+
+---
+
+## Using Base Types in Commands/Queries
+
+### Commands
+
+```csharp
+using BuildingBlocks.Application.Messaging;
+
+// Simple command (wrapped in transaction)
+public record SuspendPatientCommand : Command<SuspendPatientCommandResponse>
+{
+    public Guid Id { get; init; }
+}
+
+// Command with primary constructor
+public record CreatePatientCommand(CreatePatientRequest Patient) : Command<CreatePatientCommandResponse>;
+```
+
+### Queries
+
+```csharp
+using BuildingBlocks.Application.Messaging;
+
+// Simple query (no transaction)
+public record GetPatientQuery : Query<PatientDto?>
+{
+    public Guid Id { get; init; }
+}
+
+// Query with enum filter
+public record GetAllPatientsQuery : Query<IEnumerable<PatientDto>>
+{
+    public PatientStatus Status { get; init; }
+}
+```
+
+### Orchestration Commands
+
+```csharp
+using BuildingBlocks.Application.Messaging;
+
+// Coordinates multiple commands - no transaction wrapper
+public record TransferPatientCommand : OrchestrationCommand<TransferPatientResponse>
+{
+    public Guid PatientId { get; init; }
+    public Guid FromDoctorId { get; init; }
+    public Guid ToDoctorId { get; init; }
+}
+
+// Handler only dispatches other commands
+public class TransferPatientCommandHandler : IRequestHandler<TransferPatientCommand, TransferPatientResponse>
+{
+    private readonly IMediator _mediator;
+
+    public async Task<TransferPatientResponse> Handle(TransferPatientCommand request, CancellationToken ct)
+    {
+        // Each command gets its own transaction
+        await _mediator.Send(new RemovePatientFromDoctorCommand(request.PatientId, request.FromDoctorId), ct);
+        await _mediator.Send(new AssignPatientToDoctorCommand(request.PatientId, request.ToDoctorId), ct);
+
+        return new TransferPatientResponse { Success = true };
+    }
+}
+```
 
 ---
 
@@ -754,8 +875,9 @@ Visual representation of the pipeline:
                              │
                              ▼
 ┌──────────────────────────────────────────────────────────────────┐
-│              UnhandledExceptionBehavior                           │
-│    try { next() } catch { log & rethrow }                        │
+│                TransactionBehavior                                │
+│    Begin transaction → next() → Commit/Rollback                  │
+│    (Only for Command<T>, skips Query<T> and OrchestrationCommand) │
 └────────────────────────────┬─────────────────────────────────────┘
                              │
                              ▼
@@ -766,14 +888,20 @@ Visual representation of the pipeline:
                              │
                              ▼
 ┌──────────────────────────────────────────────────────────────────┐
+│                ValidationBehavior                                 │
+│    Validate request → throw if invalid → next() if valid         │
+└────────────────────────────┬─────────────────────────────────────┘
+                             │
+                             ▼
+┌──────────────────────────────────────────────────────────────────┐
 │               PerformanceBehavior                                 │
 │    Start timer → next() → Stop timer → Log if slow               │
 └────────────────────────────┬─────────────────────────────────────┘
                              │
                              ▼
 ┌──────────────────────────────────────────────────────────────────┐
-│                ValidationBehavior                                 │
-│    Validate request → throw if invalid → next() if valid         │
+│              UnhandledExceptionBehavior                           │
+│    try { next() } catch { log & rethrow }                        │
 └────────────────────────────┬─────────────────────────────────────┘
                              │
                              ▼
@@ -842,11 +970,11 @@ public class ValidationBehaviorTests
 
 ## Verification Checklist
 
+- [ ] `TransactionBehavior` created with `virtual` methods in BuildingBlocks.Application/Behaviors
 - [ ] `LoggingBehavior` created with `virtual` methods in BuildingBlocks.Application/Behaviors
+- [ ] `ValidationBehavior` created with `virtual` methods in BuildingBlocks.Application/Behaviors
 - [ ] `PerformanceBehavior` created with `virtual` methods in BuildingBlocks.Application/Behaviors
 - [ ] `UnhandledExceptionBehavior` created with `virtual` methods in BuildingBlocks.Application/Behaviors
-- [ ] `ValidationBehavior` created with `virtual` methods in BuildingBlocks.Application/Behaviors
-- [ ] `TransactionBehavior` created with `virtual` methods in BuildingBlocks.Application/Behaviors (optional)
 - [ ] `AddBoundedContext()` in BuildingBlocks.Application registers handlers and validators only
 - [ ] `AddDefaultPipelineBehaviors()` in BuildingBlocks.Application registers the default behaviors
 - [ ] BuildingBlocks.Application.csproj has Microsoft.Extensions.Logging.Abstractions package
@@ -864,17 +992,21 @@ public class ValidationBehaviorTests
 ```
 BuildingBlocks/
 ├── BuildingBlocks.Application/
-│   ├── Behaviors/                              <- Cross-cutting behaviors
+│   ├── Behaviors/                              <- Cross-cutting behaviors (in pipeline order)
+│   │   ├── TransactionBehavior.cs              <- ShouldApplyTransaction (type-based)
 │   │   ├── LoggingBehavior.cs                  <- OnHandling, OnHandled, OnError
+│   │   ├── ValidationBehavior.cs               <- ValidateAsync, OnValidationFailure
 │   │   ├── PerformanceBehavior.cs              <- ThresholdMilliseconds, OnSlowRequest
-│   │   ├── TransactionBehavior.cs              <- ShouldApplyTransaction (optional)
-│   │   ├── UnhandledExceptionBehavior.cs       <- OnException
-│   │   └── ValidationBehavior.cs               <- ValidateAsync, OnValidationFailure
+│   │   └── UnhandledExceptionBehavior.cs       <- OnException
 │   ├── Dtos/
 │   │   └── SuccessOrFailureDto.cs
 │   ├── Interfaces/
 │   │   ├── IRepository.cs
 │   │   └── IUnitOfWork.cs
+│   ├── Messaging/                              <- Base types for CQRS
+│   │   ├── Command.cs                          <- Base record (wrapped in transaction)
+│   │   ├── Query.cs                            <- Base record (no transaction)
+│   │   └── OrchestrationCommand.cs             <- Base record (no transaction, orchestrates)
 │   ├── Validators/
 │   │   └── UserValidator.cs
 │   └── BuildingBlocksServiceCollectionExtensions.cs  <- AddBoundedContext() + AddDefaultPipelineBehaviors()

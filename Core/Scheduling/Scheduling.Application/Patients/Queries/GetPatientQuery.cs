@@ -1,15 +1,15 @@
 using BuildingBlocks.Application.Interfaces;
+using BuildingBlocks.Application.Messaging;
 using BuildingBlocks.Application.Validators;
 using FluentValidation;
-using MediatR;
 using Scheduling.Application.Patients.Dtos;
 using Scheduling.Domain.Patients;
 
 namespace Scheduling.Application.Patients.Queries;
 
-public class GetPatientQuery : IRequest<PatientDto?>
+public record GetPatientQuery : Query<PatientDto?>
 {
-    public Guid Id { get; set; }
+    public Guid Id { get; init; }
 }
 
 #region Validators

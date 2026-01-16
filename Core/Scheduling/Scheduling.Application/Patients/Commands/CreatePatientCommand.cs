@@ -1,14 +1,14 @@
-﻿using BuildingBlocks.Application.Dtos;
+using BuildingBlocks.Application.Dtos;
+using BuildingBlocks.Application.Messaging;
 using BuildingBlocks.Application.Validators;
 using FluentValidation;
 using FluentValidation.Validators;
-using MediatR;
 using Scheduling.Application.Patients.Dtos;
 using Scheduling.Domain.Patients;
 
 namespace Scheduling.Application.Patients.Commands
 {
-    public record CreatePatientCommand(CreatePatientRequest Patient) : IRequest<CreatePatientCommandResponse>;
+    public record CreatePatientCommand(CreatePatientRequest Patient) : Command<CreatePatientCommandResponse>;
 
     public class CreatePatientRequest
     {

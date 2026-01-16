@@ -1,14 +1,14 @@
-﻿using BuildingBlocks.Application.Validators;
+using BuildingBlocks.Application.Messaging;
+using BuildingBlocks.Application.Validators;
 using FluentValidation;
-using MediatR;
 using Scheduling.Application.Patients.Dtos;
 using Scheduling.Domain.Patients;
 
 namespace Scheduling.Application.Patients.Queries
 {
-    public class GetAllPatientsQuery : IRequest<IEnumerable<PatientDto>>
+    public record GetAllPatientsQuery : Query<IEnumerable<PatientDto>>
     {
-        public PatientStatus Status { get; set; }
+        public PatientStatus Status { get; init; }
     }
 
     #region Validators
