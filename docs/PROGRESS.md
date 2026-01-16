@@ -188,7 +188,7 @@ This allows using `nameof(GetPatientAsync)` in `CreatedAtAction` calls.
 2. **Mocked IUnitOfWork for validators** - Fast unit tests without database
 3. **Transaction rollback** - Each integration test starts fresh without recreating database
 4. **`ShouldContainValidation()` with `nameof()`** - Type-safe validation assertions
-5. **MSTest for consistency** - Matches reference architecture conventions
+5. **MSTest for consistency** - Out of the box compatibility
 6. **Generic TestBase in BuildingBlocks** - Reusable across all bounded contexts
 
 ### Test Organization

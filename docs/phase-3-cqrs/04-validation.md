@@ -402,7 +402,6 @@ public async Task<IEnumerable<PatientDto>> Handle(GetAllPatientsQuery query, Can
 - Invalid SmartEnum values throw `SmartEnumNotFoundException` during JSON deserialization
 - This results in a generic 500 error, not a proper validation response
 - Using `string` + `TryFromName` gives you a proper 400 response with your custom error code
-- Pattern follows reference architecture approach
 
 **In tests**, use `PatientStatus.X.Name` to avoid magic strings:
 ```csharp
