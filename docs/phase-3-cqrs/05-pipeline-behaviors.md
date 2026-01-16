@@ -50,18 +50,94 @@ public async Task<Guid> Handle(CreatePatientCommand cmd, CancellationToken ct)
 
 ---
 
+## Where Do Behaviors Live?
+
+Pipeline behaviors are **cross-cutting concerns** - they apply identically to all bounded contexts. Therefore, they belong in `BuildingBlocks.Application`, not in individual bounded context projects.
+
+```
+BuildingBlocks.Application/          <- Cross-cutting concerns
+├── Behaviors/
+│   ├── LoggingBehavior.cs
+│   ├── PerformanceBehavior.cs
+│   ├── TransactionBehavior.cs       <- Uses IUnitOfWork (generic)
+│   └── UnhandledExceptionBehavior.cs
+├── RequestValidationProcessor.cs    <- Already here (validation)
+└── BuildingBlocksServiceCollectionExtensions.cs
+
+Scheduling.Application/              <- Bounded context handlers only
+├── Patients/
+│   ├── Commands/
+│   └── Queries/
+└── ServiceCollectionExtensions.cs   <- Just calls AddBoundedContext()
+```
+
+**Rule of thumb:**
+- All pipeline behaviors use abstractions (`IUnitOfWork`, `ILogger`) → `BuildingBlocks.Application`
+- Bounded contexts contain only their handlers, validators, and DTOs
+
+---
+
 ## What You Need To Do
+
+### Prerequisites
+
+Add the logging abstractions package to `BuildingBlocks.Application.csproj`:
+
+```xml
+<ItemGroup>
+    <PackageReference Include="FluentValidation" />
+    <PackageReference Include="FluentValidation.DependencyInjectionExtensions" />
+    <PackageReference Include="MediatR" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />  <!-- ADD THIS -->
+</ItemGroup>
+```
+
+This provides `ILogger<T>` without pulling in the full ASP.NET Core dependency. The actual logging implementation (console, Serilog, etc.) is configured in the WebApi project.
+
+---
+
+### Behavior Summary
+
+| Behavior | Purpose | Applies To | Logs |
+|----------|---------|------------|------|
+| `UnhandledExceptionBehavior` | Catches & logs all exceptions with request context | All requests | Errors only |
+| `LoggingBehavior` | Logs request start/end | All requests | Info + Errors |
+| `PerformanceBehavior` | Warns on slow requests (>500ms) | All requests | Warnings only (when slow) |
+| `RequestValidationProcessor` | Validates input, throws on failure | All requests | None (throws exception) |
+| `TransactionBehavior` | Wraps in DB transaction | Commands only | None |
+
+---
 
 ### Step 1: Create LoggingBehavior
 
-Location: `Core/Scheduling/Scheduling.Application/Behaviors/LoggingBehavior.cs`
+**What it does:** Logs when a request starts and when it completes (or fails).
+
+**Why it's useful:**
+- Provides visibility into what the application is doing
+- Helps trace request flow in production logs
+- Logs exceptions with the request name for easier debugging
+- Enables correlation of logs across distributed systems (when combined with correlation IDs)
+
+**Example log output:**
+```
+[INF] Handling CreatePatientCommand
+[INF] Handled CreatePatientCommand
+```
+
+Or on failure:
+```
+[INF] Handling CreatePatientCommand
+[ERR] Error handling CreatePatientCommand - System.InvalidOperationException: ...
+```
+
+Location: `BuildingBlocks/BuildingBlocks.Application/Behaviors/LoggingBehavior.cs`
 
 ```csharp
 using System.Diagnostics;
 using MediatR;
 using Microsoft.Extensions.Logging;
 
-namespace Scheduling.Application.Behaviors;
+namespace BuildingBlocks.Application.Behaviors;
 
 public class LoggingBehavior<TRequest, TResponse> : IPipelineBehavior<TRequest, TResponse>
     where TRequest : notnull
@@ -101,14 +177,29 @@ public class LoggingBehavior<TRequest, TResponse> : IPipelineBehavior<TRequest, 
 
 ### Step 2: Create PerformanceBehavior
 
-Location: `Core/Scheduling/Scheduling.Application/Behaviors/PerformanceBehavior.cs`
+**What it does:** Measures how long each request takes to execute. Logs a warning if it exceeds a threshold (default: 500ms).
+
+**Why it's useful:**
+- Identifies slow queries/commands that need optimization
+- Provides early warning of performance degradation
+- Helps find N+1 query problems, missing indexes, or expensive operations
+- Only logs when threshold exceeded (no noise for fast requests)
+
+**Example log output (only when slow):**
+```
+[WRN] Long running request: GetAllPatientsQuery (1523ms)
+```
+
+**Tip:** You can make the threshold configurable via `IOptions<PerformanceSettings>` for different environments.
+
+Location: `BuildingBlocks/BuildingBlocks.Application/Behaviors/PerformanceBehavior.cs`
 
 ```csharp
 using System.Diagnostics;
 using MediatR;
 using Microsoft.Extensions.Logging;
 
-namespace Scheduling.Application.Behaviors;
+namespace BuildingBlocks.Application.Behaviors;
 
 public class PerformanceBehavior<TRequest, TResponse> : IPipelineBehavior<TRequest, TResponse>
     where TRequest : notnull
@@ -152,13 +243,30 @@ public class PerformanceBehavior<TRequest, TResponse> : IPipelineBehavior<TReque
 
 ### Step 3: Create UnhandledExceptionBehavior
 
-Location: `Core/Scheduling/Scheduling.Application/Behaviors/UnhandledExceptionBehavior.cs`
+**What it does:** Catches any unhandled exception, logs it with full request details, then re-throws it.
+
+**Why it's useful:**
+- Ensures ALL exceptions are logged with context (request name + request data)
+- Uses structured logging (`{@Request}`) to serialize the entire request object
+- Acts as a safety net - even if other error handling fails, this captures it
+- Registered first (outermost) so it catches exceptions from all inner behaviors
+
+**Example log output:**
+```
+[ERR] Unhandled exception for request CreatePatientCommand: {"Patient":{"FirstName":"John","LastName":"Doe",...}}
+      System.InvalidOperationException: Patient already exists
+         at Scheduling.Application.Patients.Commands.CreatePatientCommandHandler.Handle(...)
+```
+
+**Note:** This behavior re-throws the exception after logging. The `ExceptionToJsonFilter` (in WebApplications) then converts it to an HTTP response.
+
+Location: `BuildingBlocks/BuildingBlocks.Application/Behaviors/UnhandledExceptionBehavior.cs`
 
 ```csharp
 using MediatR;
 using Microsoft.Extensions.Logging;
 
-namespace Scheduling.Application.Behaviors;
+namespace BuildingBlocks.Application.Behaviors;
 
 public class UnhandledExceptionBehavior<TRequest, TResponse> : IPipelineBehavior<TRequest, TResponse>
     where TRequest : notnull
@@ -194,40 +302,82 @@ public class UnhandledExceptionBehavior<TRequest, TResponse> : IPipelineBehavior
 }
 ```
 
-### Step 4: Register All Behaviors
+### Validation via RequestValidationProcessor (Already Implemented)
 
-Update `Core/Scheduling/Scheduling.Application/ServiceCollectionExtensions.cs`:
+**What it does:** Runs all FluentValidation validators for the request before the handler executes. Throws `ValidationException` if any validation fails.
+
+**Why it's useful:**
+- Validates input BEFORE any business logic runs
+- Catches bad data early (fail fast)
+- Returns user-friendly validation errors
+- Validators are automatically discovered and injected
+
+**How it works:**
+```
+Request arrives
+  → RequestPreProcessorBehavior (MediatR built-in)
+    → RequestValidationProcessor (your implementation)
+      → Runs all IValidator<TRequest> instances
+        → Valid? → Continue to handler
+        → Invalid? → Throw ValidationException (caught by ExceptionToJsonFilter)
+```
+
+**You already have this!** See `RequestValidationProcessor.cs` in BuildingBlocks.Application (from 04-validation.md).
+
+---
+
+### Step 4: Register Behaviors in BuildingBlocks
+
+Update `BuildingBlocks/BuildingBlocks.Application/BuildingBlocksServiceCollectionExtensions.cs`:
 
 ```csharp
+using System.Reflection;
+using BuildingBlocks.Application.Behaviors;
 using FluentValidation;
 using MediatR;
+using MediatR.Pipeline;
 using Microsoft.Extensions.DependencyInjection;
-using Scheduling.Application.Behaviors;
 
-namespace Scheduling.Application;
+namespace BuildingBlocks.Application;
 
-public static class ServiceCollectionExtensions
+public static class BuildingBlocksServiceCollectionExtensions
 {
-    public static IServiceCollection AddSchedulingApplication(this IServiceCollection services)
-    {
-        var assembly = typeof(ServiceCollectionExtensions).Assembly;
+    private static bool _fluentValidationDefaultsConfigured;
 
-        // Register MediatR with pipeline behaviors
+    /// <summary>
+    /// Registers a bounded context's MediatR handlers and FluentValidation validators.
+    /// Also registers shared pipeline behaviors and configures BuildingBlocks defaults (once).
+    /// </summary>
+    public static IServiceCollection AddBoundedContext(this IServiceCollection services, Assembly boundedContextAssembly)
+    {
+        SetFluentValidationDefaults();
+
         services.AddMediatR(cfg =>
         {
-            cfg.RegisterServicesFromAssembly(assembly);
+            cfg.RegisterServicesFromAssembly(boundedContextAssembly);
 
-            // Order matters! First registered = outermost in pipeline
-            cfg.AddBehavior(typeof(IPipelineBehavior<,>), typeof(UnhandledExceptionBehavior<,>));
-            cfg.AddBehavior(typeof(IPipelineBehavior<,>), typeof(LoggingBehavior<,>));
-            cfg.AddBehavior(typeof(IPipelineBehavior<,>), typeof(PerformanceBehavior<,>));
-            cfg.AddBehavior(typeof(IPipelineBehavior<,>), typeof(ValidationBehavior<,>));
+            // Pipeline behaviors - Order matters! First registered = outermost in pipeline
+            cfg.AddOpenBehavior(typeof(UnhandledExceptionBehavior<,>));
+            cfg.AddOpenBehavior(typeof(LoggingBehavior<,>));
+            cfg.AddOpenBehavior(typeof(PerformanceBehavior<,>));
+
+            // Validation pre-processor (runs before handler)
+            cfg.AddOpenBehavior(typeof(RequestPreProcessorBehavior<,>));
         });
 
-        // Register all validators
-        services.AddValidatorsFromAssembly(assembly);
+        services.AddValidatorsFromAssembly(boundedContextAssembly, includeInternalTypes: true);
 
         return services;
+    }
+
+    private static void SetFluentValidationDefaults()
+    {
+        if (_fluentValidationDefaultsConfigured) return;
+
+        // Use property names as-is (no PascalCase to "Display Name" conversion)
+        ValidatorOptions.Global.DisplayNameResolver = (type, member, expression) => member?.Name;
+
+        _fluentValidationDefaultsConfigured = true;
     }
 }
 ```
@@ -238,8 +388,34 @@ Request
   → UnhandledExceptionBehavior (catches all exceptions)
     → LoggingBehavior (logs start/end)
       → PerformanceBehavior (measures time)
-        → ValidationBehavior (validates input)
+        → RequestPreProcessorBehavior (runs validators via RequestValidationProcessor)
           → Handler (actual logic)
+```
+
+### Step 5: Simplify Bounded Context Registration
+
+Each bounded context now just calls `AddBoundedContext()` - no need to register behaviors:
+
+Location: `Core/Scheduling/Scheduling.Application/ServiceCollectionExtensions.cs`
+
+```csharp
+using BuildingBlocks.Application;
+using Microsoft.Extensions.DependencyInjection;
+
+namespace Scheduling.Application;
+
+public static class ServiceCollectionExtensions
+{
+    public static IServiceCollection AddSchedulingApplication(this IServiceCollection services)
+    {
+        // Registers MediatR handlers, validators, and all pipeline behaviors
+        services.AddBoundedContext(typeof(ServiceCollectionExtensions).Assembly);
+
+        // Add any Scheduling-specific services here
+
+        return services;
+    }
+}
 ```
 
 ---
@@ -288,25 +464,49 @@ public class CachingBehavior<TRequest, TResponse> : IPipelineBehavior<TRequest, 
 
 ## Transaction Behavior (Optional)
 
-For commands that need explicit transactions:
+**What it does:** Wraps command execution in a database transaction. Commits on success, rolls back on any exception.
 
-Location: `Core/Scheduling/Scheduling.Application/Behaviors/TransactionBehavior.cs`
+**Why it's useful:**
+- Ensures atomicity: either all database changes succeed, or none do
+- Prevents partial updates when a command makes multiple changes
+- Only applies to commands (skips queries for performance)
+- Uses `IUnitOfWork` so it works with any bounded context's DbContext
+
+**When to use it:**
+- Commands that modify multiple aggregates
+- Commands where you need "all or nothing" behavior
+- When handlers call `SaveChangesAsync()` multiple times
+
+**When you might NOT need it:**
+- If your handlers only modify one aggregate and call `SaveChangesAsync()` once
+- EF Core already wraps `SaveChangesAsync()` in an implicit transaction
+- For read-only queries (behavior skips these automatically)
+
+**Flow:**
+```
+Command arrives
+  → BeginTransactionAsync()
+    → Handler executes (may call SaveChangesAsync multiple times)
+      → Success? → CommitAsync()
+      → Exception? → RollbackAsync() → Re-throw
+```
+
+Location: `BuildingBlocks/BuildingBlocks.Application/Behaviors/TransactionBehavior.cs`
 
 ```csharp
+using BuildingBlocks.Application.Interfaces;
 using MediatR;
-using Microsoft.EntityFrameworkCore;
-using Scheduling.Infrastructure.Persistence;
 
-namespace Scheduling.Application.Behaviors;
+namespace BuildingBlocks.Application.Behaviors;
 
 public class TransactionBehavior<TRequest, TResponse> : IPipelineBehavior<TRequest, TResponse>
     where TRequest : notnull
 {
-    private readonly SchedulingDbContext _context;
+    private readonly IUnitOfWork _unitOfWork;
 
-    public TransactionBehavior(SchedulingDbContext context)
+    public TransactionBehavior(IUnitOfWork unitOfWork)
     {
-        _context = context;
+        _unitOfWork = unitOfWork;
     }
 
     public async Task<TResponse> Handle(
@@ -318,29 +518,19 @@ public class TransactionBehavior<TRequest, TResponse> : IPipelineBehavior<TReque
         if (!typeof(TRequest).Name.EndsWith("Command"))
             return await next();
 
-        // Already in a transaction?
-        if (_context.Database.CurrentTransaction is not null)
-            return await next();
+        await _unitOfWork.BeginTransactionAsync(cancellationToken);
 
-        var strategy = _context.Database.CreateExecutionStrategy();
-
-        return await strategy.ExecuteAsync(async () =>
+        try
         {
-            await using var transaction = await _context.Database
-                .BeginTransactionAsync(cancellationToken);
-
-            try
-            {
-                var response = await next();
-                await transaction.CommitAsync(cancellationToken);
-                return response;
-            }
-            catch
-            {
-                await transaction.RollbackAsync(cancellationToken);
-                throw;
-            }
-        });
+            var response = await next();
+            await _unitOfWork.CloseTransactionAsync(cancellationToken: cancellationToken);
+            return response;
+        }
+        catch (Exception ex)
+        {
+            await _unitOfWork.CloseTransactionAsync(ex, cancellationToken);
+            throw;
+        }
     }
 }
 ```
@@ -452,31 +642,40 @@ public class ValidationBehaviorTests
 
 ## Verification Checklist
 
-- [ ] `LoggingBehavior` created and logs request start/end
-- [ ] `PerformanceBehavior` created and warns for slow requests
-- [ ] `UnhandledExceptionBehavior` created and logs exceptions
-- [ ] All behaviors registered in correct order
-- [ ] Pipeline behaviors run for all MediatR requests
+- [ ] `LoggingBehavior` created in BuildingBlocks.Application/Behaviors
+- [ ] `PerformanceBehavior` created in BuildingBlocks.Application/Behaviors
+- [ ] `UnhandledExceptionBehavior` created in BuildingBlocks.Application/Behaviors
+- [ ] `TransactionBehavior` created in BuildingBlocks.Application/Behaviors (optional)
+- [ ] All behaviors registered in `AddBoundedContext()` in correct order
+- [ ] Pipeline behaviors run for all MediatR requests across all bounded contexts
 - [ ] Validation failures return proper error responses
 - [ ] Slow requests are logged as warnings
+- [ ] BuildingBlocks.Application.csproj has Microsoft.Extensions.Logging.Abstractions package
 
 ---
 
 ## Folder Structure After This Step
 
 ```
-Core/Scheduling/
-└── Scheduling.Application/
-    ├── Behaviors/
+BuildingBlocks/
+└── BuildingBlocks.Application/
+    ├── Behaviors/                              <- Cross-cutting behaviors
     │   ├── LoggingBehavior.cs
     │   ├── PerformanceBehavior.cs
-    │   ├── UnhandledExceptionBehavior.cs
-    │   └── ValidationBehavior.cs
-    ├── Common/
-    │   └── PagedResult.cs
-    ├── Exceptions/
-    │   ├── PatientNotFoundException.cs
-    │   └── ValidationException.cs
+    │   ├── TransactionBehavior.cs              <- Optional, uses IUnitOfWork
+    │   └── UnhandledExceptionBehavior.cs
+    ├── Dtos/
+    │   └── SuccessOrFailureDto.cs
+    ├── Interfaces/
+    │   ├── IRepository.cs
+    │   └── IUnitOfWork.cs                      <- Has BeginTransactionAsync/CloseTransactionAsync
+    ├── Validators/
+    │   └── UserValidator.cs
+    ├── BuildingBlocksServiceCollectionExtensions.cs  <- Registers all behaviors
+    └── RequestValidationProcessor.cs
+
+Core/Scheduling/
+└── Scheduling.Application/
     ├── Patients/
     │   ├── Commands/
     │   │   └── ...
@@ -484,7 +683,7 @@ Core/Scheduling/
     │   │   └── ...
     │   └── EventHandlers/
     │       └── PatientCreatedEventHandler.cs
-    └── ServiceCollectionExtensions.cs
+    └── ServiceCollectionExtensions.cs          <- Just calls AddBoundedContext()
 ```
 
 ---

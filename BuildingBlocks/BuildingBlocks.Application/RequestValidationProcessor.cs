@@ -4,9 +4,13 @@ using MediatR.Pipeline;
 
 namespace BuildingBlocks.Application
 {
-    public class RequestValidationProcessor<TRequest> : IRequestPreProcessor<TRequest>
+    public class RequestValidationProcessor<TRequest> : IRequestPreProcessor<TRequest> where TRequest : notnull
     {
         private readonly IValidator<TRequest>[] _validators;
+        public RequestValidationProcessor(IValidator<TRequest>[] validators)
+        {
+            _validators = validators;
+        }
 
         public async Task Process(TRequest request, CancellationToken cancellationToken)
         {

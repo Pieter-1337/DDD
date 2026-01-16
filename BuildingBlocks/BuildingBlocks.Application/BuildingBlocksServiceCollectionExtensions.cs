@@ -1,5 +1,6 @@
 using System.Reflection;
 using FluentValidation;
+using MediatR.Pipeline;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace BuildingBlocks.Application;
@@ -22,8 +23,14 @@ public static class BuildingBlocksServiceCollectionExtensions
     {
         SetFluentValidationDefaults();
 
-        services.AddMediatR(cfg => cfg.RegisterServicesFromAssembly(boundedContextAssembly));
+        services.AddMediatR(cfg =>
+        {
+            cfg.RegisterServicesFromAssembly(boundedContextAssembly);
+            cfg.AddOpenBehavior(typeof(RequestPreProcessorBehavior<,>));
+        });
+           
         services.AddValidatorsFromAssembly(boundedContextAssembly, includeInternalTypes: true);
+        
 
         return services;
     }
