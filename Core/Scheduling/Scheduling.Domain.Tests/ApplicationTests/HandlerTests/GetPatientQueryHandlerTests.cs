@@ -2,6 +2,7 @@ using FizzWare.NBuilder;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Scheduling.Application.Patients.Commands;
 using Scheduling.Application.Patients.Queries;
+using Scheduling.Domain.Patients;
 using Shouldly;
 
 namespace Scheduling.Tests.ApplicationTests.HandlerTests;
@@ -19,6 +20,7 @@ public class GetPatientQueryHandlerTests : SchedulingDbTestBase
             .With(p => p.Email = "john.doe@example.com")
             .With(p => p.DateOfBirth = new DateTime(1990, 1, 15))
             .With(p => p.PhoneNumber = "+1234567890")
+            .With(p => p.Status = PatientStatus.Active.Name)
             .Build();
 
         var createResponse = await GetMediator().Send(new CreatePatientCommand(createRequest));
@@ -64,6 +66,7 @@ public class GetPatientQueryHandlerTests : SchedulingDbTestBase
             .With(p => p.LastName = "One")
             .With(p => p.Email = "patient.one@example.com")
             .With(p => p.DateOfBirth = new DateTime(1990, 1, 1))
+            .With(p => p.Status = PatientStatus.Active.Name)
             .Build();
 
         var patient2Request = Builder<CreatePatientRequest>.CreateNew()
@@ -71,6 +74,7 @@ public class GetPatientQueryHandlerTests : SchedulingDbTestBase
             .With(p => p.LastName = "Two")
             .With(p => p.Email = "patient.two@example.com")
             .With(p => p.DateOfBirth = new DateTime(1985, 5, 10))
+            .With(p => p.Status = PatientStatus.Active.Name)
             .Build();
 
         var response1 = await GetMediator().Send(new CreatePatientCommand(patient1Request));

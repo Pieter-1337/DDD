@@ -118,6 +118,7 @@
 5. **SuppressAsyncSuffixInActionNames = false** - Keep "Async" suffix in action names for `nameof()` compatibility
 6. **SmartEnum for enumerations** - Using Ardalis.SmartEnum instead of C# enums for type safety
 7. **ErrorCode with SmartEnum** - Consistent error codes with auto-prefixing (`ERR_` for errors, `WRN_` for warnings)
+8. **SmartEnum as string in DTOs** - Use `string` type in DTOs, validate with `TryFromName`, convert in handler with `FromName`
 
 ### Docs Available
 

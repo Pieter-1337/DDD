@@ -36,7 +36,8 @@ public class CreatePatientCommandValidatorTests : SchedulingValidatorTestBase
             FirstName = "",
             LastName = "",
             Email = "",
-            DateOfBirth = default
+            DateOfBirth = default,
+            Status = null!
         });
 
         // Act
@@ -50,6 +51,7 @@ public class CreatePatientCommandValidatorTests : SchedulingValidatorTestBase
         result.Errors.ShouldContainValidation(nameof(CreatePatientRequest.Email), ErrorCode.EmailRequired.Value);
         result.Errors.ShouldContainValidation(nameof(CreatePatientRequest.Email), ErrorCode.InvalidEmail.Value);
         result.Errors.ShouldContainValidation(nameof(CreatePatientRequest.DateOfBirth), ErrorCode.DateOfBirthRequired.Value);
+        result.Errors.ShouldContainValidation(nameof(CreatePatientRequest.Status), ErrorCode.InvalidStatus.Value);
 
         ElapsedSeconds().ShouldBeLessThan(0.1M);
     }
@@ -63,7 +65,8 @@ public class CreatePatientCommandValidatorTests : SchedulingValidatorTestBase
             FirstName = "John",
             LastName = "Doe",
             Email = "not-an-email",
-            DateOfBirth = new DateTime(1990, 1, 15)
+            DateOfBirth = new DateTime(1990, 1, 15),
+            Status = PatientStatus.Active.Name
         });
 
         // Act
@@ -71,6 +74,27 @@ public class CreatePatientCommandValidatorTests : SchedulingValidatorTestBase
 
         // Assert
         result.Errors.ShouldContainValidation(nameof(CreatePatientRequest.Email), ErrorCode.InvalidEmail.Value);
+        result.Errors.Count.ShouldBe(1);
+    }
+
+    [TestMethod]
+    public async Task Invalid_When_StatusIsInvalid()
+    {
+        // Arrange
+        var command = new CreatePatientCommand(new CreatePatientRequest
+        {
+            FirstName = "John",
+            LastName = "Doe",
+            Email = "john.doe@example.com",
+            DateOfBirth = new DateTime(1990, 1, 15),
+            Status = "InvalidStatus"
+        });
+
+        // Act
+        var result = await ValidatorFor<CreatePatientCommand>().ValidateAsync(command);
+
+        // Assert
+        result.Errors.ShouldContainValidation(nameof(CreatePatientRequest.Status), ErrorCode.InvalidStatus.Value);
         result.Errors.Count.ShouldBe(1);
     }
 
@@ -83,7 +107,8 @@ public class CreatePatientCommandValidatorTests : SchedulingValidatorTestBase
             FirstName = "John",
             LastName = "Doe",
             Email = "john.doe@example.com",
-            DateOfBirth = new DateTime(1990, 1, 15)
+            DateOfBirth = new DateTime(1990, 1, 15),
+            Status = PatientStatus.Active.Name
         });
 
         // Act
@@ -107,7 +132,8 @@ public class CreatePatientCommandValidatorTests : SchedulingValidatorTestBase
             LastName = "Doe",
             Email = "john.doe@example.com",
             DateOfBirth = new DateTime(1990, 1, 15),
-            PhoneNumber = null
+            PhoneNumber = null,
+            Status = PatientStatus.Active.Name
         });
 
         // Act

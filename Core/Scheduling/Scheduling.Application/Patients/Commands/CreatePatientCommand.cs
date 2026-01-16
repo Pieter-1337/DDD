@@ -18,7 +18,7 @@ namespace Scheduling.Application.Patients.Commands
         public string Email { get; set; }
         public DateTime DateOfBirth { get; set; }
         public string? PhoneNumber { get; set; }
-        public PatientStatus Status { get; set; }
+        public string Status { get; set; }
     }
 
     public class CreatePatientCommandResponse : SuccessOrFailureDto
@@ -63,6 +63,11 @@ namespace Scheduling.Application.Patients.Commands
                 .NotEmpty()
                 .WithErrorCode(ErrorCode.DateOfBirthRequired.Value)
                 .WithMessage(ErrorCode.DateOfBirthRequired.Message);
+
+            RuleFor(p => p.Status)
+                .Must(s => PatientStatus.TryFromName(s, out _))
+                .WithErrorCode(ErrorCode.InvalidStatus.Value)
+                .WithMessage(ErrorCode.InvalidStatus.Message);
         }
     }
     #endregion Validators

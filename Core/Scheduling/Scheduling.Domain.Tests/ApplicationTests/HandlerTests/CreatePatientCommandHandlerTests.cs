@@ -21,6 +21,7 @@ public class CreatePatientCommandHandlerTests : SchedulingDbTestBase
             .With(p => p.Email = "john.doe@example.com")
             .With(p => p.DateOfBirth = new DateTime(1990, 1, 15))
             .With(p => p.PhoneNumber = "+1234567890")
+            .With(p => p.Status = PatientStatus.Active.Name)
             .Build();
 
         var command = new CreatePatientCommand(request);
@@ -58,6 +59,7 @@ public class CreatePatientCommandHandlerTests : SchedulingDbTestBase
             .With(p => p.Email = "jane.smith@example.com")
             .With(p => p.DateOfBirth = new DateTime(1985, 6, 20))
             .With(p => p.PhoneNumber = null)
+            .With(p => p.Status = PatientStatus.Active.Name)
             .Build();
 
         var command = new CreatePatientCommand(request);
@@ -84,6 +86,7 @@ public class CreatePatientCommandHandlerTests : SchedulingDbTestBase
             .With(p => p.LastName = "User")
             .With(p => p.Email = "TEST.USER@EXAMPLE.COM")
             .With(p => p.DateOfBirth = new DateTime(2000, 1, 1))
+            .With(p => p.Status = PatientStatus.Active.Name)
             .Build();
 
         var command = new CreatePatientCommand(request);

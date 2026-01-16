@@ -16,7 +16,8 @@ namespace Scheduling.Application.Patients.Queries
 
         public async Task<IEnumerable<PatientDto>> Handle(GetAllPatientsQuery query, CancellationToken cancellationToken)
         {
-            return await _uow.RepositoryFor<Patient>().GetAllAsDtosAsync<PatientDto>(p => p.Status == query.Status);
+            var status = PatientStatus.FromName(query.Status);
+            return await _uow.RepositoryFor<Patient>().GetAllAsDtosAsync<PatientDto>(p => p.Status == status);
         }
     }
 }

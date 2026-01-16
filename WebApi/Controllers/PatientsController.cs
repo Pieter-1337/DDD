@@ -1,5 +1,4 @@
 ﻿using Microsoft.AspNetCore.Mvc;
-using Scheduling.Domain.Patients;
 using MediatR;
 using Scheduling.Application.Patients.Commands;
 using Scheduling.Application.Patients.Dtos;
@@ -31,7 +30,7 @@ namespace WebApi.Controllers
         [HttpGet("")]
         [ProducesResponseType<IEnumerable<PatientDto>>(StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
-        public async Task<IActionResult> GetAllPatientsAsync(PatientStatus status)
+        public async Task<IActionResult> GetAllPatientsAsync(string status)
         {
             var response = await _mediator.Send(new GetAllPatientsQuery { Status = status });
 

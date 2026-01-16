@@ -355,7 +355,7 @@ internal class GetPatientQueryValidator : UserValidator<GetPatientQuery>
 
 ### Step 7: SmartEnum Validation
 
-For SmartEnum parameters, use `.NotNull()` instead of `.IsInEnum()`. Invalid SmartEnum values fail at JSON deserialization, so the validator only needs to check for null:
+For SmartEnum parameters in DTOs, use `string` type and validate with `.Must(SmartEnum.TryFromName)`. This gives you full control over validation errors instead of relying on JSON deserialization exceptions.
 
 Location: `Core/Scheduling/Scheduling.Application/Patients/Queries/GetAllPatientsQuery.cs`
 
@@ -371,7 +371,7 @@ namespace Scheduling.Application.Patients.Queries;
 
 public record GetAllPatientsQuery : Query<IEnumerable<PatientDto>>
 {
-    public PatientStatus Status { get; init; }
+    public string Status { get; init; }  // String, not SmartEnum
 }
 
 #region Validators
@@ -380,7 +380,7 @@ internal class GetAllPatientsQueryValidator : UserValidator<GetAllPatientsQuery>
     public GetAllPatientsQueryValidator()
     {
         RuleFor(q => q.Status)
-            .NotNull()
+            .Must(s => PatientStatus.TryFromName(s, out _))
             .WithErrorCode(ErrorCode.InvalidStatus.Value)
             .WithMessage(ErrorCode.InvalidStatus.Message);
     }
@@ -388,10 +388,26 @@ internal class GetAllPatientsQueryValidator : UserValidator<GetAllPatientsQuery>
 #endregion Validators
 ```
 
-**Why NotNull instead of IsInEnum?**
-- SmartEnum is a class, not a C# enum
-- Invalid values (like `"InvalidStatus"` or `999`) throw during JSON deserialization
-- The validator only catches missing/null values
+**In the handler**, convert the string to SmartEnum:
+
+```csharp
+public async Task<IEnumerable<PatientDto>> Handle(GetAllPatientsQuery query, CancellationToken ct)
+{
+    var status = PatientStatus.FromName(query.Status);  // Safe - already validated
+    return await _uow.RepositoryFor<Patient>().GetAllAsDtosAsync<PatientDto>(p => p.Status == status);
+}
+```
+
+**Why string in DTOs instead of SmartEnum directly?**
+- Invalid SmartEnum values throw `SmartEnumNotFoundException` during JSON deserialization
+- This results in a generic 500 error, not a proper validation response
+- Using `string` + `TryFromName` gives you a proper 400 response with your custom error code
+- Pattern follows reference architecture approach
+
+**In tests**, use `PatientStatus.X.Name` to avoid magic strings:
+```csharp
+var query = new GetAllPatientsQuery { Status = PatientStatus.Active.Name };
+```
 
 ### Step 8: Register Validators in DI
 

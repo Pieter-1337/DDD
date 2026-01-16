@@ -19,6 +19,7 @@ public class GetAllPatientsQueryHandlerTests : SchedulingDbTestBase
             .With(p => p.LastName = "Patient1")
             .With(p => p.Email = "active1@example.com")
             .With(p => p.DateOfBirth = new DateTime(1990, 1, 1))
+            .With(p => p.Status = PatientStatus.Active.Name)
             .Build();
 
         var patient2 = Builder<CreatePatientRequest>.CreateNew()
@@ -26,12 +27,13 @@ public class GetAllPatientsQueryHandlerTests : SchedulingDbTestBase
             .With(p => p.LastName = "Patient2")
             .With(p => p.Email = "active2@example.com")
             .With(p => p.DateOfBirth = new DateTime(1985, 5, 10))
+            .With(p => p.Status = PatientStatus.Active.Name)
             .Build();
 
         await GetMediator().Send(new CreatePatientCommand(patient1));
         await GetMediator().Send(new CreatePatientCommand(patient2));
 
-        var query = new GetAllPatientsQuery { Status = PatientStatus.Active };
+        var query = new GetAllPatientsQuery { Status = PatientStatus.Active.Name };
 
         // Act
         StartStopwatch();
@@ -55,6 +57,7 @@ public class GetAllPatientsQueryHandlerTests : SchedulingDbTestBase
             .With(p => p.LastName = "Patient")
             .With(p => p.Email = "suspended@example.com")
             .With(p => p.DateOfBirth = new DateTime(1990, 1, 1))
+            .With(p => p.Status = PatientStatus.Active.Name)
             .Build();
 
         var createResponse = await GetMediator().Send(new CreatePatientCommand(patientRequest));
@@ -62,7 +65,7 @@ public class GetAllPatientsQueryHandlerTests : SchedulingDbTestBase
         // Suspend the patient
         await GetMediator().Send(new SuspendPatientCommand { Id = createResponse.PatientDto.Id });
 
-        var query = new GetAllPatientsQuery { Status = PatientStatus.Suspended };
+        var query = new GetAllPatientsQuery { Status = PatientStatus.Suspended.Name };
 
         // Act
         var result = await GetMediator().Send(query);
@@ -83,12 +86,13 @@ public class GetAllPatientsQueryHandlerTests : SchedulingDbTestBase
             .With(p => p.LastName = "Only")
             .With(p => p.Email = "active.only@example.com")
             .With(p => p.DateOfBirth = new DateTime(1990, 1, 1))
+            .With(p => p.Status = PatientStatus.Active.Name)
             .Build();
 
         await GetMediator().Send(new CreatePatientCommand(patientRequest));
 
         // Query for inactive patients (none exist)
-        var query = new GetAllPatientsQuery { Status = PatientStatus.Inactive };
+        var query = new GetAllPatientsQuery { Status = PatientStatus.Inactive.Name };
 
         // Act
         var result = await GetMediator().Send(query);
@@ -107,6 +111,7 @@ public class GetAllPatientsQueryHandlerTests : SchedulingDbTestBase
             .With(p => p.LastName = "Active")
             .With(p => p.Email = "still.active@example.com")
             .With(p => p.DateOfBirth = new DateTime(1990, 1, 1))
+            .With(p => p.Status = PatientStatus.Active.Name)
             .Build();
 
         var toSuspendRequest = Builder<CreatePatientRequest>.CreateNew()
@@ -114,6 +119,7 @@ public class GetAllPatientsQueryHandlerTests : SchedulingDbTestBase
             .With(p => p.LastName = "Suspended")
             .With(p => p.Email = "will.suspend@example.com")
             .With(p => p.DateOfBirth = new DateTime(1985, 5, 10))
+            .With(p => p.Status = PatientStatus.Active.Name)
             .Build();
 
         await GetMediator().Send(new CreatePatientCommand(activeRequest));
@@ -123,7 +129,7 @@ public class GetAllPatientsQueryHandlerTests : SchedulingDbTestBase
         await GetMediator().Send(new SuspendPatientCommand { Id = suspendResponse.PatientDto.Id });
 
         // Query for active only
-        var query = new GetAllPatientsQuery { Status = PatientStatus.Active };
+        var query = new GetAllPatientsQuery { Status = PatientStatus.Active.Name };
 
         // Act
         var result = await GetMediator().Send(query);

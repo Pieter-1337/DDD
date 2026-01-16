@@ -13,7 +13,7 @@ public class GetAllPatientsQueryValidatorTests : SchedulingValidatorTestBase
     [TestMethod]
     public async Task Invalid_When_StatusIsNull()
     {
-        // Arrange - With SmartEnum, invalid values fail at deserialization, so we test null
+        // Arrange
         var query = new GetAllPatientsQuery
         {
             Status = null!
@@ -31,10 +31,30 @@ public class GetAllPatientsQueryValidatorTests : SchedulingValidatorTestBase
     }
 
     [TestMethod]
+    public async Task Invalid_When_StatusIsInvalidValue()
+    {
+        // Arrange - Invalid SmartEnum value is now caught by validator
+        var query = new GetAllPatientsQuery
+        {
+            Status = "InvalidStatus"
+        };
+
+        // Act
+        StartStopwatch();
+        var result = await ValidatorFor<GetAllPatientsQuery>().ValidateAsync(query);
+        StopStopwatch();
+
+        // Assert
+        result.Errors.ShouldContainValidation(nameof(GetAllPatientsQuery.Status), ErrorCode.InvalidStatus.Value);
+        result.Errors.Count.ShouldBe(1);
+        ElapsedSeconds().ShouldBeLessThan(0.1M);
+    }
+
+    [TestMethod]
     public async Task Valid_When_StatusIsActive()
     {
         // Arrange
-        var query = new GetAllPatientsQuery { Status = PatientStatus.Active };
+        var query = new GetAllPatientsQuery { Status = PatientStatus.Active.Name };
 
         // Act
         var result = await ValidatorFor<GetAllPatientsQuery>().ValidateAsync(query);
@@ -47,7 +67,7 @@ public class GetAllPatientsQueryValidatorTests : SchedulingValidatorTestBase
     public async Task Valid_When_StatusIsInactive()
     {
         // Arrange
-        var query = new GetAllPatientsQuery { Status = PatientStatus.Inactive };
+        var query = new GetAllPatientsQuery { Status = PatientStatus.Inactive.Name };
 
         // Act
         var result = await ValidatorFor<GetAllPatientsQuery>().ValidateAsync(query);
@@ -60,7 +80,7 @@ public class GetAllPatientsQueryValidatorTests : SchedulingValidatorTestBase
     public async Task Valid_When_StatusIsSuspended()
     {
         // Arrange
-        var query = new GetAllPatientsQuery { Status = PatientStatus.Suspended };
+        var query = new GetAllPatientsQuery { Status = PatientStatus.Suspended.Name };
 
         // Act
         var result = await ValidatorFor<GetAllPatientsQuery>().ValidateAsync(query);

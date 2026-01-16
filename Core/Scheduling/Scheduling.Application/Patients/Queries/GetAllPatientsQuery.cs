@@ -9,7 +9,7 @@ namespace Scheduling.Application.Patients.Queries
 {
     public record GetAllPatientsQuery : Query<IEnumerable<PatientDto>>
     {
-        public PatientStatus Status { get; init; }
+        public string Status { get; init; }
     }
 
     #region Validators
@@ -18,7 +18,7 @@ namespace Scheduling.Application.Patients.Queries
         public GetAllPatientsQueryValidator()
         {
             RuleFor(q => q.Status)
-                .NotNull()
+                .Must(s => PatientStatus.TryFromName(s, out _))
                 .WithErrorCode(ErrorCode.InvalidStatus.Value)
                 .WithMessage(ErrorCode.InvalidStatus.Message);
         }
