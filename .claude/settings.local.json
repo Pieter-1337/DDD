@@ -25,7 +25,8 @@
       "WebFetch(domain:www.nuget.org)",
       "Bash(dotnet new:*)",
       "Bash(dotnet add:*)",
-      "Bash(git mv:*)"
+      "Bash(git mv:*)",
+      "Bash(cat:*)"
     ]
   }
 }
