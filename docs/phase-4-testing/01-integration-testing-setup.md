@@ -88,7 +88,7 @@ Location: `BuildingBlocks.Tests/ValidatorTestBase.cs`
 ```csharp
 using System.Diagnostics;
 using System.Globalization;
-using BuildingBlocks.Application;
+using BuildingBlocks.Application.Interfaces;
 using FluentValidation;
 using FluentValidation.Results;
 using Microsoft.Extensions.DependencyInjection;
@@ -231,7 +231,7 @@ This base class **inherits from `ValidatorTestBase`** and adds real database sup
 Location: `BuildingBlocks.Tests/TestBase.cs`
 
 ```csharp
-using BuildingBlocks.Application;
+using BuildingBlocks.Application.Interfaces;
 using BuildingBlocks.Domain;
 using BuildingBlocks.Infrastructure;
 using System.Text.RegularExpressions;
@@ -372,7 +372,7 @@ For fast validator unit tests with mocked repositories.
 Location: `Core/Scheduling/Scheduling.Domain.Tests/SchedulingValidatorTestBase.cs`
 
 ```csharp
-using BuildingBlocks.Application;
+using BuildingBlocks.Application.Interfaces;
 using BuildingBlocks.Tests;
 using Microsoft.Extensions.DependencyInjection;
 using Moq;
@@ -446,6 +446,7 @@ public class SchedulingDbTestBase : TestBase<SchedulingDbContext>
 Validator tests use `SchedulingValidatorTestBase` with mocked repositories:
 
 ```csharp
+using BuildingBlocks.Enumerations;
 using BuildingBlocks.Tests;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Scheduling.Application.Patients.Commands;
@@ -467,6 +468,7 @@ public class CreatePatientCommandValidatorTests : SchedulingValidatorTestBase
         var result = await ValidatorFor<CreatePatientCommand>().ValidateAsync(command);
 
         // Assert
+        // Built-in FluentValidation rule - use constant
         result.Errors.ShouldContainValidation(nameof(CreatePatientCommand.Patient), VALIDATION_NOT_NULL_VALIDATOR);
         result.Errors.Count.ShouldBe(1);
     }
@@ -486,15 +488,20 @@ public class CreatePatientCommandValidatorTests : SchedulingValidatorTestBase
         // Act
         var result = await ValidatorFor<CreatePatientCommand>().ValidateAsync(command);
 
-        // Assert
-        result.Errors.ShouldContainValidation(nameof(CreatePatientRequest.FirstName), VALIDATION_NOT_EMPTY_VALIDATOR);
-        result.Errors.ShouldContainValidation(nameof(CreatePatientRequest.LastName), VALIDATION_NOT_EMPTY_VALIDATOR);
-        result.Errors.ShouldContainValidation(nameof(CreatePatientRequest.Email), VALIDATION_NOT_EMPTY_VALIDATOR);
+        // Assert - Custom ErrorCodes use ErrorCode.X.Value
+        result.Errors.ShouldContainValidation(nameof(CreatePatientRequest.FirstName), ErrorCode.FirstNameRequired.Value);
+        result.Errors.ShouldContainValidation(nameof(CreatePatientRequest.LastName), ErrorCode.LastNameRequired.Value);
+        result.Errors.ShouldContainValidation(nameof(CreatePatientRequest.Email), ErrorCode.EmailRequired.Value);
+        result.Errors.ShouldContainValidation(nameof(CreatePatientRequest.Email), ErrorCode.InvalidEmail.Value);
+        result.Errors.ShouldContainValidation(nameof(CreatePatientRequest.DateOfBirth), ErrorCode.DateOfBirthRequired.Value);
     }
 }
 ```
 
-**Note:** Use `nameof()` with `ShouldContainValidation()` for type-safe assertions.
+**Note:**
+- Use `nameof()` with `ShouldContainValidation()` for type-safe assertions
+- For custom error codes (set with `.WithErrorCode()`), use `ErrorCode.X.Value`
+- For built-in FluentValidation rules (like `NotNull()`), use the constants like `VALIDATION_NOT_NULL_VALIDATOR`
 
 ---
 
@@ -503,11 +510,12 @@ public class CreatePatientCommandValidatorTests : SchedulingValidatorTestBase
 Handler tests use `SchedulingDbTestBase` with real database:
 
 ```csharp
+using BuildingBlocks.Tests;
+using FizzWare.NBuilder;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Scheduling.Application.Patients.Commands;
 using Scheduling.Domain.Patients;
 using Shouldly;
-using FizzWare.NBuilder;
 
 namespace Scheduling.Tests.ApplicationTests.HandlerTests;
 
@@ -523,6 +531,7 @@ public class CreatePatientCommandHandlerTests : SchedulingDbTestBase
             .With(p => p.LastName = "Doe")
             .With(p => p.Email = "john.doe@example.com")
             .With(p => p.DateOfBirth = new DateTime(1990, 1, 15))
+            .With(p => p.PhoneNumber = "+1234567890")
             .Build();
 
         var command = new CreatePatientCommand(request);
@@ -535,12 +544,15 @@ public class CreatePatientCommandHandlerTests : SchedulingDbTestBase
         // Assert
         response.ShouldNotBeNull();
         response.Success.ShouldBeTrue();
+        response.Message.ShouldNotBeNullOrEmpty();
+        response.PatientDto.ShouldNotBeNull();
         response.PatientDto.Id.ShouldNotBe(default);
 
         // Verify persistence
         var reloaded = await Uow.RepositoryFor<Patient>().GetByIdAsync(response.PatientDto.Id);
         reloaded.ShouldNotBeNull();
-        reloaded.FirstName.ShouldBe("John");
+        reloaded!.FirstName.ShouldBe("John");
+        reloaded.Status.ShouldBe(PatientStatus.Active);
 
         ElapsedSeconds().ShouldBeLessThan(1M);
     }
@@ -639,8 +651,11 @@ VALIDATION_ENUM_VALIDATOR
 ### ShouldContainValidation Extension
 
 ```csharp
-// Assert validation error exists with property name and error code
-result.Errors.ShouldContainValidation(nameof(CreatePatientRequest.Email), VALIDATION_EMAIL_VALIDATOR);
+// For custom error codes (set with .WithErrorCode())
+result.Errors.ShouldContainValidation(nameof(CreatePatientRequest.Email), ErrorCode.InvalidEmail.Value);
+
+// For built-in FluentValidation rules (no custom error code)
+result.Errors.ShouldContainValidation(nameof(CreatePatientCommand.Patient), VALIDATION_NOT_NULL_VALIDATOR);
 ```
 
 ---
