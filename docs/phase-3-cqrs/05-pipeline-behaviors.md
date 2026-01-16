@@ -989,7 +989,7 @@ You now have a complete CQRS implementation:
 - **Commands** - Write operations with domain logic
 - **Queries** - Read operations with DTOs
 - **Validation** - FluentValidation for input validation
-- **Pipeline Behaviors** - Cross-cutting concerns (logging, performance, exception handling)
+- **Pipeline Behaviors** - Cross-cutting concerns (transactions, logging, validation, performance, exception handling)
 
 **Next: Phase 4 - Event-Driven Architecture**
 
