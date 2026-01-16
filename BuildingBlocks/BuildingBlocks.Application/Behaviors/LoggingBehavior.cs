@@ -1,38 +1,39 @@
 ﻿using MediatR;
 using Microsoft.Extensions.Logging;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace BuildingBlocks.Application.Behaviors
 {
     public class LoggingBehavior<TRequest, TResponse> : IPipelineBehavior<TRequest, TResponse> where TRequest : notnull
     {
-        private readonly ILogger<LoggingBehavior<TRequest, TResponse>> _logger;
+        protected readonly ILogger<LoggingBehavior<TRequest, TResponse>> Logger;
 
         public LoggingBehavior(ILogger<LoggingBehavior<TRequest, TResponse>> logger)
         {
-            _logger = logger;
+            Logger = logger;
         }
-        public async Task<TResponse> Handle(TRequest request, RequestHandlerDelegate<TResponse> next, CancellationToken cancellationToken)
+        public virtual async Task<TResponse> Handle(TRequest request, RequestHandlerDelegate<TResponse> next, CancellationToken cancellationToken)
         {
             var requestName = typeof(TRequest).Name;
-
-            _logger.LogInformation("Handling {RequestName}", requestName);
+            OnHandling(requestName, request); 
 
             try
             {
                 var response = await next();
-                _logger.LogInformation("Handled {RequestName}", requestName);
+                OnHandled(requestName, request);
+                return response;
             }
             catch (Exception ex) 
             {
-                _logger.LogError(ex, "Error handling {RequestName}", requestName);
+                OnError(requestName, ex);
                 throw;
-            
             }
         }
+
+        protected virtual void OnHandling(string requestName, TRequest request)
+                => Logger.LogInformation("Handling {RequestName}", requestName);
+        protected virtual void OnHandled(string requestName, TRequest request)
+                => Logger.LogInformation("Handled {RequestName}", requestName);
+        protected virtual void OnError(string requestName, Exception ex)
+                => Logger.LogError(ex, "Error handling {RequestName}", requestName);
     }
 }

@@ -507,62 +507,73 @@ public async Task Validate_InvalidEmail_ReturnsError()
 
 ## Optional: Validation Pipeline Integration
 
-The validators above are registered but not automatically invoked by MediatR. To automatically validate all requests before they reach handlers, implement a pre-processor that runs validation.
+The validators above are registered but not automatically invoked by MediatR. To automatically validate all requests before they reach handlers, implement a pipeline behavior that runs validation.
 
-### Step 8: Create RequestValidationProcessor (Optional)
+### Step 8: Create ValidationBehavior (Optional)
 
-This pre-processor runs before each MediatR request handler, executing all registered validators.
+This behavior runs before each MediatR request handler, executing all registered validators.
 
-Location: `Core/Scheduling/Scheduling.Application/Pipeline/RequestValidationProcessor.cs`
+**Note:** This is covered in detail in [05-pipeline-behaviors.md](./05-pipeline-behaviors.md). The behavior lives in `BuildingBlocks.Application/Behaviors/` alongside other cross-cutting behaviors.
+
+Location: `BuildingBlocks/BuildingBlocks.Application/Behaviors/ValidationBehavior.cs`
 
 ```csharp
 using FluentValidation;
 using FluentValidation.Results;
-using MediatR.Pipeline;
+using MediatR;
 
-namespace Scheduling.Application.Pipeline;
+namespace BuildingBlocks.Application.Behaviors;
 
-public class RequestValidationProcessor<TRequest> : IRequestPreProcessor<TRequest>
+public class ValidationBehavior<TRequest, TResponse> : IPipelineBehavior<TRequest, TResponse>
     where TRequest : notnull
 {
-    private readonly IValidator<TRequest>[] _validators;
+    protected readonly IEnumerable<IValidator<TRequest>> Validators;
 
-    public RequestValidationProcessor(IValidator<TRequest>[] validators)
+    public ValidationBehavior(IEnumerable<IValidator<TRequest>> validators)
     {
-        _validators = validators;
+        Validators = validators;
     }
 
-    public async Task Process(TRequest request, CancellationToken cancellationToken)
+    public virtual async Task<TResponse> Handle(
+        TRequest request,
+        RequestHandlerDelegate<TResponse> next,
+        CancellationToken cancellationToken)
     {
-        if (_validators.Length == 0)
-            return;
-
-        var validationContext = new ValidationContext<TRequest>(request);
-        var validationFailures = new List<ValidationFailure>();
-
-        foreach (var validator in _validators)
+        if (Validators.Any())
         {
-            var validationResult = await validator.ValidateAsync(validationContext, cancellationToken);
-
-            if (!validationResult.IsValid)
-            {
-                validationFailures.AddRange(validationResult.Errors.Where(f => f is not null));
-            }
+            await ValidateAsync(request, cancellationToken);
         }
 
-        if (validationFailures.Count > 0)
+        return await next();
+    }
+
+    protected virtual async Task ValidateAsync(TRequest request, CancellationToken cancellationToken)
+    {
+        var context = new ValidationContext<TRequest>(request);
+        var failures = new List<ValidationFailure>();
+
+        foreach (var validator in Validators)
         {
-            throw new ValidationException(validationFailures);
+            var result = await validator.ValidateAsync(context, cancellationToken);
+            failures.AddRange(result.Errors.Where(f => f is not null));
+        }
+
+        if (failures.Count > 0)
+        {
+            OnValidationFailure(request, failures);
         }
     }
+
+    protected virtual void OnValidationFailure(TRequest request, List<ValidationFailure> failures)
+        => throw new ValidationException(failures);
 }
 ```
 
 **Key points:**
-- Uses `IRequestPreProcessor<TRequest>` (runs before handler)
+- Uses `IPipelineBehavior<TRequest, TResponse>` (consistent with other behaviors)
 - Uses FluentValidation's built-in `ValidationException` (no custom exception needed)
 - Collects failures from all validators before throwing
-- Early exit if no validators registered
+- `virtual` methods allow web apps to override behavior (see 05-pipeline-behaviors.md)
 
 ### Step 9: Create ExceptionToJsonFilter (Optional)
 
@@ -857,7 +868,7 @@ RuleFor(c => c)
 - [x] `GetAllPatientsQueryValidator` created with IsInEnum
 - [x] Validators registered in DI with `AddValidatorsFromAssembly`
 - [x] Email validation uses `EmailValidationMode.AspNetCoreCompatible`
-- [ ] `RequestValidationProcessor` pre-processor (optional)
+- [ ] `ValidationBehavior` in BuildingBlocks.Application/Behaviors (see 05-pipeline-behaviors.md)
 - [ ] `ExceptionToJsonFilter` for exception handling (optional)
 - [ ] `ValidationErrorWrapper` for structured error responses (optional)
 
@@ -868,8 +879,6 @@ RuleFor(c => c)
 ```
 Core/Scheduling/
 +-- Scheduling.Application/
-    +-- Pipeline/                             <- Optional
-    |   +-- RequestValidationProcessor.cs
     +-- Patients/
     |   +-- Commands/
     |   |   +-- CreatePatientCommand.cs       <- Command + Request + Response + Validators
@@ -888,11 +897,16 @@ Core/Scheduling/
     +-- ServiceCollectionExtensions.cs
 BuildingBlocks/
 +-- BuildingBlocks.Application/
+    +-- Behaviors/                                    <- See 05-pipeline-behaviors.md
+    |   +-- ValidationBehavior.cs                     <- Runs validators before handler
+    +-- Validators/
+    |   +-- UserValidator.cs                          <- Base validator class
+    +-- Interfaces/
+    |   +-- IUnitOfWork.cs
+    |   +-- IRepository.cs
+    +-- Dtos/
+    |   +-- SuccessOrFailureDto.cs
     +-- BuildingBlocksServiceCollectionExtensions.cs  <- Shared DI registration
-    +-- UserValidator.cs                              <- Base validator class
-    +-- IUnitOfWork.cs
-    +-- IRepository.cs
-    +-- SuccessOrFailureDto.cs
 WebApi/
 +-- Filters/                                  <- Optional
     +-- ExceptionToJsonFilter.cs
