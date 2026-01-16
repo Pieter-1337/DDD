@@ -1,3 +1,4 @@
+using BuildingBlocks.Enumerations;
 using BuildingBlocks.Tests;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Scheduling.Application.Patients.Queries;
@@ -23,7 +24,7 @@ public class GetPatientQueryValidatorTests : SchedulingValidatorTestBase
         StopStopwatch();
 
         // Assert
-        result.Errors.ShouldContainValidation(nameof(GetPatientQuery.Id), VALIDATION_ASYNCPREDICATE_VALIDATOR);
+        result.Errors.ShouldContainValidation(nameof(GetPatientQuery.Id), ErrorCode.NotFound.Value);
         result.Errors.Count.ShouldBe(1);
         ElapsedSeconds().ShouldBeLessThan(0.1M);
     }

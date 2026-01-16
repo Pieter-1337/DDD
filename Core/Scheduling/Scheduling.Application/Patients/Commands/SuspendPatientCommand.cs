@@ -2,6 +2,7 @@ using BuildingBlocks.Application.Dtos;
 using BuildingBlocks.Application.Interfaces;
 using BuildingBlocks.Application.Messaging;
 using BuildingBlocks.Application.Validators;
+using BuildingBlocks.Enumerations;
 using FluentValidation;
 using Scheduling.Domain.Patients;
 
@@ -25,7 +26,8 @@ namespace Scheduling.Application.Patients.Commands
 
             RuleFor(c => c.Id)
                 .MustAsync(BeAValidPatientAsync)
-                .WithMessage("Patient not found");
+                .WithErrorCode(ErrorCode.NotFound.Value)
+                .WithMessage(ErrorCode.NotFound.Message);
         }
 
         private async Task<bool> BeAValidPatientAsync(Guid id, CancellationToken ct)

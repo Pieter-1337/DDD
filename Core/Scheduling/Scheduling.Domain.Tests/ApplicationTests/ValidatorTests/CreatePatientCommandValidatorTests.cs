@@ -1,3 +1,4 @@
+using BuildingBlocks.Enumerations;
 using BuildingBlocks.Tests;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Scheduling.Application.Patients.Commands;
@@ -44,11 +45,11 @@ public class CreatePatientCommandValidatorTests : SchedulingValidatorTestBase
         StopStopwatch();
 
         // Assert
-        result.Errors.ShouldContainValidation(nameof(CreatePatientRequest.FirstName), VALIDATION_NOT_EMPTY_VALIDATOR);
-        result.Errors.ShouldContainValidation(nameof(CreatePatientRequest.LastName), VALIDATION_NOT_EMPTY_VALIDATOR);
-        result.Errors.ShouldContainValidation(nameof(CreatePatientRequest.Email), VALIDATION_NOT_EMPTY_VALIDATOR);
-        result.Errors.ShouldContainValidation(nameof(CreatePatientRequest.Email), VALIDATION_EMAIL_VALIDATOR);
-        result.Errors.ShouldContainValidation(nameof(CreatePatientRequest.DateOfBirth), VALIDATION_NOT_EMPTY_VALIDATOR);
+        result.Errors.ShouldContainValidation(nameof(CreatePatientRequest.FirstName), ErrorCode.FirstNameRequired.Value);
+        result.Errors.ShouldContainValidation(nameof(CreatePatientRequest.LastName), ErrorCode.LastNameRequired.Value);
+        result.Errors.ShouldContainValidation(nameof(CreatePatientRequest.Email), ErrorCode.EmailRequired.Value);
+        result.Errors.ShouldContainValidation(nameof(CreatePatientRequest.Email), ErrorCode.InvalidEmail.Value);
+        result.Errors.ShouldContainValidation(nameof(CreatePatientRequest.DateOfBirth), ErrorCode.DateOfBirthRequired.Value);
 
         ElapsedSeconds().ShouldBeLessThan(0.1M);
     }
@@ -69,7 +70,7 @@ public class CreatePatientCommandValidatorTests : SchedulingValidatorTestBase
         var result = await ValidatorFor<CreatePatientCommand>().ValidateAsync(command);
 
         // Assert
-        result.Errors.ShouldContainValidation(nameof(CreatePatientRequest.Email), VALIDATION_EMAIL_VALIDATOR);
+        result.Errors.ShouldContainValidation(nameof(CreatePatientRequest.Email), ErrorCode.InvalidEmail.Value);
         result.Errors.Count.ShouldBe(1);
     }
 

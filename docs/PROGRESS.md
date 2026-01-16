@@ -140,12 +140,14 @@ This allows using `nameof(GetPatientAsync)` in `CreatedAtAction` calls.
 ### JSON Serialization
 
 ```csharp
-// Program.cs - Serialize enums as strings
+// Program.cs - Serialize SmartEnums as their name strings
 .AddJsonOptions(options =>
 {
-    options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter());
+    options.JsonSerializerOptions.Converters.Add(new SmartEnumJsonConverterFactory());
 });
 ```
+
+**Note:** We use `SmartEnumJsonConverterFactory` instead of `JsonStringEnumConverter` because all enums in this project use Ardalis.SmartEnum.
 
 ---
 

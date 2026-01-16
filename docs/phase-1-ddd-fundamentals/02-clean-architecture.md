@@ -300,13 +300,8 @@ using Scheduling.Infrastructure;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Add controllers with JSON configuration
-builder.Services.AddControllers()
-    .AddJsonOptions(options =>
-    {
-        // Serialize enums as strings (e.g., "Active" instead of 0)
-        options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter());
-    });
+// Add controllers
+builder.Services.AddControllers();
 
 builder.Services.AddOpenApi();
 
@@ -335,7 +330,6 @@ app.Run();
 ```
 
 **Key configuration:**
-- `JsonStringEnumConverter` - Serializes enums as readable strings in JSON responses
 - `AddSchedulingInfrastructure` - Registers DbContext and UnitOfWork
 - `AddSchedulingApplication` - Registers MediatR handlers
 
@@ -359,7 +353,6 @@ After completing the steps, verify:
 - [ ] `Scheduling.Application.csproj` references `Scheduling.Domain` and has MediatR
 - [ ] `Scheduling.Infrastructure.csproj` references Domain, Application, and `BuildingBlocks.Infrastructure`
 - [ ] `Directory.Packages.props` exists at solution root
-- [ ] `WebApi/Program.cs` has `JsonStringEnumConverter` configured
 - [ ] Solution builds successfully
 
 ---

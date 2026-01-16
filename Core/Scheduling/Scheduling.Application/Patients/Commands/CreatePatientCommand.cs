@@ -1,6 +1,7 @@
 using BuildingBlocks.Application.Dtos;
 using BuildingBlocks.Application.Messaging;
 using BuildingBlocks.Application.Validators;
+using BuildingBlocks.Enumerations;
 using FluentValidation;
 using FluentValidation.Validators;
 using Scheduling.Application.Patients.Dtos;
@@ -40,24 +41,28 @@ namespace Scheduling.Application.Patients.Commands
     {
         public CreatePatientRequestValidator()
         {
-          
             RuleFor(p => p.FirstName)
                 .NotEmpty()
-                .WithMessage("FirstName cannot be empty");
+                .WithErrorCode(ErrorCode.FirstNameRequired.Value)
+                .WithMessage(ErrorCode.FirstNameRequired.Message);
 
             RuleFor(p => p.LastName)
                 .NotEmpty()
-                .WithMessage("LastName cannot be empty");
+                .WithErrorCode(ErrorCode.LastNameRequired.Value)
+                .WithMessage(ErrorCode.LastNameRequired.Message);
 
             RuleFor(p => p.Email)
                 .NotEmpty()
-                .WithMessage("Email cannot be empty")
+                .WithErrorCode(ErrorCode.EmailRequired.Value)
+                .WithMessage(ErrorCode.EmailRequired.Message)
                 .EmailAddress(EmailValidationMode.AspNetCoreCompatible)
-                .WithMessage("Invalid email address");
+                .WithErrorCode(ErrorCode.InvalidEmail.Value)
+                .WithMessage(ErrorCode.InvalidEmail.Message);
 
             RuleFor(p => p.DateOfBirth)
                 .NotEmpty()
-                .WithMessage("Date of birth cannot be empty");  
+                .WithErrorCode(ErrorCode.DateOfBirthRequired.Value)
+                .WithMessage(ErrorCode.DateOfBirthRequired.Message);
         }
     }
     #endregion Validators

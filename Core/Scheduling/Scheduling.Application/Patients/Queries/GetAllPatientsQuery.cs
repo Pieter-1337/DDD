@@ -1,5 +1,6 @@
 using BuildingBlocks.Application.Messaging;
 using BuildingBlocks.Application.Validators;
+using BuildingBlocks.Enumerations;
 using FluentValidation;
 using Scheduling.Application.Patients.Dtos;
 using Scheduling.Domain.Patients;
@@ -17,8 +18,9 @@ namespace Scheduling.Application.Patients.Queries
         public GetAllPatientsQueryValidator()
         {
             RuleFor(q => q.Status)
-                .IsInEnum()
-                .WithMessage("Invalid patient status");
+                .NotNull()
+                .WithErrorCode(ErrorCode.InvalidStatus.Value)
+                .WithMessage(ErrorCode.InvalidStatus.Message);
         }
     }
     #endregion Validators

@@ -1,8 +1,8 @@
 using BuildingBlocks.Application;
 using BuildingBlocks.WebApplications.Filters;
+using BuildingBlocks.WebApplications.Json;
 using Scheduling.Application;
 using Scheduling.Infrastructure;
-using System.Text.Json.Serialization;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -14,7 +14,7 @@ builder.Services.AddControllers(options =>
     options.Filters.Add<ExceptionToJsonFilter>();
 }).AddJsonOptions(options =>
 {
-    options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter());
+    options.JsonSerializerOptions.Converters.Add(new SmartEnumJsonConverterFactory());
 });
 
 // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi

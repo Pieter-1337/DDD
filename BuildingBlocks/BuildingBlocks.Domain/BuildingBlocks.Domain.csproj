@@ -10,4 +10,8 @@
     <PackageReference Include="MediatR" />
   </ItemGroup>
 
+  <ItemGroup>
+    <ProjectReference Include="..\BuildingBlocks.Enumerations\BuildingBlocks.Enumerations.csproj" />
+  </ItemGroup>
+
 </Project>

@@ -1,6 +1,7 @@
 using BuildingBlocks.Application.Interfaces;
 using BuildingBlocks.Application.Messaging;
 using BuildingBlocks.Application.Validators;
+using BuildingBlocks.Enumerations;
 using FluentValidation;
 using Scheduling.Application.Patients.Dtos;
 using Scheduling.Domain.Patients;
@@ -23,7 +24,8 @@ internal class GetPatientQueryValidator : UserValidator<GetPatientQuery>
 
         RuleFor(q => q.Id)
             .MustAsync(BeAValidPatientAsync)
-            .WithMessage("Patient not found");
+            .WithErrorCode(ErrorCode.NotFound.Value)
+            .WithMessage(ErrorCode.NotFound.Message);
     }
 
     private async Task<bool> BeAValidPatientAsync(Guid id, CancellationToken ct)

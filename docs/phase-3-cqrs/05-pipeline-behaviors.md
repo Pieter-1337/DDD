@@ -549,9 +549,9 @@ The web application decides which behaviors to use. WebApi already gets `Buildin
 ```csharp
 using BuildingBlocks.Application;
 using BuildingBlocks.WebApplications.Filters;
+using BuildingBlocks.WebApplications.Json;
 using Scheduling.Application;
 using Scheduling.Infrastructure;
-using System.Text.Json.Serialization;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -561,7 +561,7 @@ builder.Services.AddControllers(options =>
     options.Filters.Add<ExceptionToJsonFilter>();
 }).AddJsonOptions(options =>
 {
-    options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter());
+    options.JsonSerializerOptions.Converters.Add(new SmartEnumJsonConverterFactory());
 });
 
 // Register bounded contexts

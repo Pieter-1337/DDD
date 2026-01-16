@@ -38,7 +38,9 @@ namespace Scheduling.Infrastructure.Persistence.Configurations
             #region Conversions
             builder.Property(p => p.Status)
                 .IsRequired()
-                .HasConversion<string>()  // Store enum as string
+                .HasConversion(
+                    status => status.Name,                           // To database: store as string
+                    value => PatientStatus.FromName(value, false))   // From database: parse string
                 .HasMaxLength(20);
             #endregion Conversions
         }

@@ -27,8 +27,18 @@ Commands carry user input. Before passing to handlers, we should validate:
 
 ```csharp
 // FluentValidation - preconditions (CAN we do this?)
-RuleFor(x => x.Email).NotEmpty().EmailAddress(EmailValidationMode.AspNetCoreCompatible);
-RuleFor(x => x.Id).MustAsync(BeAValidPatientAsync).WithMessage("Patient not found");
+RuleFor(x => x.Email)
+    .NotEmpty()
+    .WithErrorCode(ErrorCode.EmailRequired.Value)
+    .WithMessage(ErrorCode.EmailRequired.Message)
+    .EmailAddress(EmailValidationMode.AspNetCoreCompatible)
+    .WithErrorCode(ErrorCode.InvalidEmail.Value)
+    .WithMessage(ErrorCode.InvalidEmail.Message);
+
+RuleFor(x => x.Id)
+    .MustAsync(BeAValidPatientAsync)
+    .WithErrorCode(ErrorCode.NotFound.Value)
+    .WithMessage(ErrorCode.NotFound.Message);
 
 // Domain - rules (HOW do we do this?)
 public void Suspend()
@@ -81,22 +91,81 @@ public abstract class UserValidator<T> : AbstractValidator<T>
 - Can be extended later for role-based validation
 - All command/query validators inherit from this
 
-### Step 3: Create Validators Inline with Commands
+### Step 3: Create ErrorCode Enumeration
+
+Error codes provide consistent, machine-readable error identifiers. We use the same SmartEnum pattern as domain enumerations.
+
+Location: `BuildingBlocks/BuildingBlocks.Enumerations/ErrorCode.cs`
+
+```csharp
+using Ardalis.SmartEnum;
+
+namespace BuildingBlocks.Enumerations;
+
+/// <summary>
+/// Base class for custom error codes. Inherit from this in bounded contexts to define domain-specific errors.
+/// </summary>
+public abstract class ErrorCodeBase<TEnum> : SmartEnum<TEnum, string>
+    where TEnum : SmartEnum<TEnum, string>
+{
+    public string Message { get; }
+
+    protected ErrorCodeBase(string code, string message)
+        : base(code, code)
+    {
+        Message = message;
+    }
+}
+
+/// <summary>
+/// Common error codes shared across all bounded contexts.
+/// </summary>
+public sealed class ErrorCode : ErrorCodeBase<ErrorCode>
+{
+    // General errors
+    public static readonly ErrorCode NotFound = new("NOT_FOUND", "The requested resource was not found");
+    public static readonly ErrorCode InvalidInput = new("INVALID_INPUT", "The provided input is invalid");
+    public static readonly ErrorCode Conflict = new("CONFLICT", "The operation conflicts with the current state");
+    public static readonly ErrorCode Unauthorized = new("UNAUTHORIZED", "Authentication is required");
+    public static readonly ErrorCode Forbidden = new("FORBIDDEN", "You do not have permission to perform this action");
+    public static readonly ErrorCode ValidationFailed = new("VALIDATION_FAILED", "One or more validation errors occurred");
+
+    // Field validation errors
+    public static readonly ErrorCode FirstNameRequired = new("FIRSTNAME_REQUIRED", "First name is required");
+    public static readonly ErrorCode LastNameRequired = new("LASTNAME_REQUIRED", "Last name is required");
+    public static readonly ErrorCode EmailRequired = new("EMAIL_REQUIRED", "Email is required");
+    public static readonly ErrorCode InvalidEmail = new("INVALID_EMAIL", "Invalid email address");
+    public static readonly ErrorCode DateOfBirthRequired = new("DOB_REQUIRED", "Date of birth is required");
+    public static readonly ErrorCode InvalidStatus = new("INVALID_STATUS", "Invalid status");
+
+    private ErrorCode(string code, string message) : base(code, message) { }
+}
+```
+
+**Key points:**
+- `ErrorCodeBase<T>` allows bounded contexts to define their own error codes if needed
+- `ErrorCode` contains common codes shared across all contexts
+- Each code has a machine-readable `Value` (e.g., `"NOT_FOUND"`) and human-readable `Message`
+
+### Step 4: Create Validators Inline with Commands
 
 Validators are defined in the same file as their command, using `#region` to organize:
 
 Location: `Core/Scheduling/Scheduling.Application/Patients/Commands/CreatePatientCommand.cs`
 
 ```csharp
-using BuildingBlocks.Application;
+using BuildingBlocks.Application.Dtos;
+using BuildingBlocks.Application.Messaging;
+using BuildingBlocks.Application.Validators;
+using BuildingBlocks.Enumerations;
 using FluentValidation;
 using FluentValidation.Validators;
-using MediatR;
 using Scheduling.Application.Patients.Dtos;
+using Scheduling.Domain.Patients;
 
 namespace Scheduling.Application.Patients.Commands;
 
-public record CreatePatientCommand(CreatePatientRequest Patient) : IRequest<CreatePatientCommandResponse>;
+public record CreatePatientCommand(CreatePatientRequest Patient) : Command<CreatePatientCommandResponse>;
 
 public class CreatePatientRequest
 {
@@ -105,6 +174,7 @@ public class CreatePatientRequest
     public string Email { get; set; }
     public DateTime DateOfBirth { get; set; }
     public string? PhoneNumber { get; set; }
+    public PatientStatus Status { get; set; }
 }
 
 public class CreatePatientCommandResponse : SuccessOrFailureDto
@@ -129,21 +199,26 @@ internal class CreatePatientRequestValidator : AbstractValidator<CreatePatientRe
     {
         RuleFor(p => p.FirstName)
             .NotEmpty()
-            .WithMessage("FirstName cannot be empty");
+            .WithErrorCode(ErrorCode.FirstNameRequired.Value)
+            .WithMessage(ErrorCode.FirstNameRequired.Message);
 
         RuleFor(p => p.LastName)
             .NotEmpty()
-            .WithMessage("LastName cannot be empty");
+            .WithErrorCode(ErrorCode.LastNameRequired.Value)
+            .WithMessage(ErrorCode.LastNameRequired.Message);
 
         RuleFor(p => p.Email)
             .NotEmpty()
-            .WithMessage("Email cannot be empty")
+            .WithErrorCode(ErrorCode.EmailRequired.Value)
+            .WithMessage(ErrorCode.EmailRequired.Message)
             .EmailAddress(EmailValidationMode.AspNetCoreCompatible)
-            .WithMessage("Invalid email address");
+            .WithErrorCode(ErrorCode.InvalidEmail.Value)
+            .WithMessage(ErrorCode.InvalidEmail.Message);
 
         RuleFor(p => p.DateOfBirth)
             .NotEmpty()
-            .WithMessage("Date of birth cannot be empty");
+            .WithErrorCode(ErrorCode.DateOfBirthRequired.Value)
+            .WithMessage(ErrorCode.DateOfBirthRequired.Message);
     }
 }
 #endregion Validators
@@ -152,26 +227,30 @@ internal class CreatePatientRequestValidator : AbstractValidator<CreatePatientRe
 **Key points:**
 - Validators are `internal` classes in the same file
 - Use `#region Validators` to organize
+- Use `.WithErrorCode(ErrorCode.X.Value).WithMessage(ErrorCode.X.Message)` for consistent error codes
 - Use `EmailAddress(EmailValidationMode.AspNetCoreCompatible)` for email validation (not the obsolete regex mode)
 - Nested DTOs get their own validator, composed with `SetValidator()`
 
-### Step 4: Entity Existence Validation with ExistsAsync
+### Step 5: Entity Existence Validation with ExistsAsync
 
 For commands that operate on existing entities, validate existence using the repository:
 
 Location: `Core/Scheduling/Scheduling.Application/Patients/Commands/SuspendPatientCommand.cs`
 
 ```csharp
-using BuildingBlocks.Application;
+using BuildingBlocks.Application.Dtos;
+using BuildingBlocks.Application.Interfaces;
+using BuildingBlocks.Application.Messaging;
+using BuildingBlocks.Application.Validators;
+using BuildingBlocks.Enumerations;
 using FluentValidation;
-using MediatR;
 using Scheduling.Domain.Patients;
 
 namespace Scheduling.Application.Patients.Commands;
 
-public class SuspendPatientCommand : IRequest<SuspendPatientCommandResponse>
+public record SuspendPatientCommand : Command<SuspendPatientCommandResponse>
 {
-    public Guid Id { get; set; }
+    public Guid Id { get; init; }
 }
 
 public class SuspendPatientCommandResponse : SuccessOrFailureDto { }
@@ -187,7 +266,8 @@ internal class SuspendPatientCommandValidator : UserValidator<SuspendPatientComm
 
         RuleFor(c => c.Id)
             .MustAsync(BeAValidPatientAsync)
-            .WithMessage("Patient not found");
+            .WithErrorCode(ErrorCode.NotFound.Value)
+            .WithMessage(ErrorCode.NotFound.Message);
     }
 
     private async Task<bool> BeAValidPatientAsync(Guid id, CancellationToken ct)
@@ -201,27 +281,30 @@ internal class SuspendPatientCommandValidator : UserValidator<SuspendPatientComm
 **Key points:**
 - Inject `IUnitOfWork` into the validator
 - Use `MustAsync` for async validation rules
+- Use `.WithErrorCode(ErrorCode.NotFound.Value).WithMessage(ErrorCode.NotFound.Message)` for entity not found errors
 - Call `ExistsAsync` on the repository (not `GetByIdAsync`)
 - No need for `NotEmpty()` check - `ExistsAsync` returns false for empty Guid
 
-### Step 5: Query Validation
+### Step 6: Query Validation
 
 Queries can also have validators for input validation:
 
 Location: `Core/Scheduling/Scheduling.Application/Patients/Queries/GetPatientQuery.cs`
 
 ```csharp
-using BuildingBlocks.Application;
+using BuildingBlocks.Application.Interfaces;
+using BuildingBlocks.Application.Messaging;
+using BuildingBlocks.Application.Validators;
+using BuildingBlocks.Enumerations;
 using FluentValidation;
-using MediatR;
 using Scheduling.Application.Patients.Dtos;
 using Scheduling.Domain.Patients;
 
 namespace Scheduling.Application.Patients.Queries;
 
-public class GetPatientQuery : IRequest<PatientDto?>
+public record GetPatientQuery : Query<PatientDto?>
 {
-    public Guid Id { get; set; }
+    public Guid Id { get; init; }
 }
 
 #region Validators
@@ -235,7 +318,8 @@ internal class GetPatientQueryValidator : UserValidator<GetPatientQuery>
 
         RuleFor(q => q.Id)
             .MustAsync(BeAValidPatientAsync)
-            .WithMessage("Patient not found");
+            .WithErrorCode(ErrorCode.NotFound.Value)
+            .WithMessage(ErrorCode.NotFound.Message);
     }
 
     private async Task<bool> BeAValidPatientAsync(Guid id, CancellationToken ct)
@@ -246,24 +330,25 @@ internal class GetPatientQueryValidator : UserValidator<GetPatientQuery>
 #endregion Validators
 ```
 
-### Step 6: Enum Validation
+### Step 7: SmartEnum Validation
 
-For enum parameters, use `IsInEnum()`:
+For SmartEnum parameters, use `.NotNull()` instead of `.IsInEnum()`. Invalid SmartEnum values fail at JSON deserialization, so the validator only needs to check for null:
 
 Location: `Core/Scheduling/Scheduling.Application/Patients/Queries/GetAllPatientsQuery.cs`
 
 ```csharp
-using BuildingBlocks.Application;
+using BuildingBlocks.Application.Messaging;
+using BuildingBlocks.Application.Validators;
+using BuildingBlocks.Enumerations;
 using FluentValidation;
-using MediatR;
 using Scheduling.Application.Patients.Dtos;
 using Scheduling.Domain.Patients;
 
 namespace Scheduling.Application.Patients.Queries;
 
-public class GetAllPatientsQuery : IRequest<IEnumerable<PatientDto>>
+public record GetAllPatientsQuery : Query<IEnumerable<PatientDto>>
 {
-    public PatientStatus Status { get; set; }
+    public PatientStatus Status { get; init; }
 }
 
 #region Validators
@@ -272,14 +357,20 @@ internal class GetAllPatientsQueryValidator : UserValidator<GetAllPatientsQuery>
     public GetAllPatientsQueryValidator()
     {
         RuleFor(q => q.Status)
-            .IsInEnum()
-            .WithMessage("Invalid patient status");
+            .NotNull()
+            .WithErrorCode(ErrorCode.InvalidStatus.Value)
+            .WithMessage(ErrorCode.InvalidStatus.Message);
     }
 }
 #endregion Validators
 ```
 
-### Step 7: Register Validators in DI
+**Why NotNull instead of IsInEnum?**
+- SmartEnum is a class, not a C# enum
+- Invalid values (like `"InvalidStatus"` or `999`) throw during JSON deserialization
+- The validator only catches missing/null values
+
+### Step 8: Register Validators in DI
 
 The `AddBoundedContext` extension method in `BuildingBlocks.Application` handles the common registration for all bounded contexts:
 
@@ -509,7 +600,7 @@ public async Task Validate_InvalidEmail_ReturnsError()
 
 The validators above are registered but not automatically invoked by MediatR. To automatically validate all requests before they reach handlers, implement a pipeline behavior that runs validation.
 
-### Step 8: Create ValidationBehavior (Optional)
+### Step 9: Create ValidationBehavior (Optional)
 
 This behavior runs before each MediatR request handler, executing all registered validators.
 
@@ -575,7 +666,7 @@ public class ValidationBehavior<TRequest, TResponse> : IPipelineBehavior<TReques
 - Collects failures from all validators before throwing
 - `virtual` methods allow web apps to override behavior (see 05-pipeline-behaviors.md)
 
-### Step 9: Create ExceptionToJsonFilter (Optional)
+### Step 10: Create ExceptionToJsonFilter (Optional)
 
 This MVC filter catches exceptions and transforms them into structured JSON responses. It implements both `IExceptionFilter` and `IActionFilter`:
 
@@ -665,7 +756,7 @@ public class ExceptionToJsonFilter : IExceptionFilter, IActionFilter
 }
 ```
 
-### Step 10: Create ValidationErrorWrapper (Optional)
+### Step 11: Create ValidationErrorWrapper (Optional)
 
 This class transforms FluentValidation failures into a structured API response with separate errors and warnings.
 
@@ -764,13 +855,14 @@ public class ValidationErrorWrapper
 - Supports custom HTTP status code via error code (e.g., `"403"` for Forbidden)
 - Default status is 400 Bad Request
 
-### Step 11: Register Filter and Behaviors
+### Step 12: Register Filter and Behaviors
 
 Update `WebApi/Program.cs`:
 
 ```csharp
 using BuildingBlocks.Application;
 using BuildingBlocks.WebApplications.Filters;
+using BuildingBlocks.WebApplications.Json;
 
 // Register the exception filter globally
 builder.Services.AddControllers(options =>
@@ -780,7 +872,7 @@ builder.Services.AddControllers(options =>
 })
 .AddJsonOptions(options =>
 {
-    options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter());
+    options.JsonSerializerOptions.Converters.Add(new SmartEnumJsonConverterFactory());
 });
 
 // ... other registrations ...
@@ -797,7 +889,7 @@ builder.Services.AddDefaultPipelineBehaviors();
 - `AddDefaultPipelineBehaviors()` registers `ValidationBehavior` which throws `ValidationException` when validation fails.
 - WebApi needs to reference `BuildingBlocks.WebApplications` for the filter.
 
-### Step 12: Using Custom Error Codes and Severity
+### Step 13: Using Custom Error Codes and Severity
 
 Example validator with custom codes and warnings:
 
@@ -856,10 +948,11 @@ RuleFor(c => c)
 
 - [x] FluentValidation package added to Application project
 - [x] `UserValidator<T>` base class created in BuildingBlocks.Application
-- [x] `CreatePatientCommandValidator` and `CreatePatientRequestValidator` created (inline)
-- [x] `SuspendPatientCommandValidator` created with ExistsAsync pattern
-- [x] `GetPatientQueryValidator` created with ExistsAsync pattern
-- [x] `GetAllPatientsQueryValidator` created with IsInEnum
+- [x] `ErrorCode` and `ErrorCodeBase<T>` created in BuildingBlocks.Enumerations
+- [x] `CreatePatientCommandValidator` uses `.WithErrorCode().WithMessage()` with ErrorCode
+- [x] `SuspendPatientCommandValidator` uses `.WithErrorCode(ErrorCode.NotFound.Value)`
+- [x] `GetPatientQueryValidator` uses `.WithErrorCode(ErrorCode.NotFound.Value)`
+- [x] `GetAllPatientsQueryValidator` uses `.NotNull()` for SmartEnum validation
 - [x] Validators registered in DI with `AddValidatorsFromAssembly`
 - [x] Email validation uses `EmailValidationMode.AspNetCoreCompatible`
 - [ ] `ValidationBehavior` in BuildingBlocks.Application/Behaviors (see 05-pipeline-behaviors.md)
@@ -890,6 +983,8 @@ Core/Scheduling/
     |       +-- PatientCreatedEventHandler.cs
     +-- ServiceCollectionExtensions.cs
 BuildingBlocks/
++-- BuildingBlocks.Enumerations/
+|   +-- ErrorCode.cs                                  <- ErrorCodeBase<T> + common ErrorCode
 +-- BuildingBlocks.Application/
 |   +-- Behaviors/                                    <- See 05-pipeline-behaviors.md
 |   |   +-- LoggingBehavior.cs
@@ -906,8 +1001,10 @@ BuildingBlocks/
 |   +-- BuildingBlocksServiceCollectionExtensions.cs  <- AddBoundedContext + AddDefaultPipelineBehaviors
 +-- BuildingBlocks.WebApplications/
     +-- Filters/
-        +-- ExceptionToJsonFilter.cs                  <- Optional
-        +-- ValidationErrorWrapper.cs                 <- Optional
+    |   +-- ExceptionToJsonFilter.cs                  <- Optional
+    |   +-- ValidationErrorWrapper.cs                 <- Optional
+    +-- Json/
+        +-- SmartEnumJsonConverterFactory.cs          <- Generic SmartEnum JSON serialization
 ```
 
 ---

@@ -8,6 +8,10 @@
     </PropertyGroup>
 
     <ItemGroup>
+        <PackageReference Include="Ardalis.SmartEnum.EFCore" />
+    </ItemGroup>
+
+    <ItemGroup>
         <ProjectReference Include="..\Scheduling.Domain\Scheduling.Domain.csproj" />
         <ProjectReference Include="..\Scheduling.Application\Scheduling.Application.csproj" />
         <ProjectReference Include="..\..\..\BuildingBlocks\BuildingBlocks.Infrastructure\BuildingBlocks.Infrastructure.csproj" />

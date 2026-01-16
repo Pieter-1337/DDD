@@ -1,3 +1,4 @@
+using BuildingBlocks.Enumerations;
 using BuildingBlocks.Tests;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Scheduling.Application.Patients.Queries;
@@ -10,12 +11,12 @@ namespace Scheduling.Tests.ApplicationTests.ValidatorTests;
 public class GetAllPatientsQueryValidatorTests : SchedulingValidatorTestBase
 {
     [TestMethod]
-    public async Task Invalid_When_StatusIsInvalidEnum()
+    public async Task Invalid_When_StatusIsNull()
     {
-        // Arrange
+        // Arrange - With SmartEnum, invalid values fail at deserialization, so we test null
         var query = new GetAllPatientsQuery
         {
-            Status = (PatientStatus)999
+            Status = null!
         };
 
         // Act
@@ -24,7 +25,7 @@ public class GetAllPatientsQueryValidatorTests : SchedulingValidatorTestBase
         StopStopwatch();
 
         // Assert
-        result.Errors.ShouldContainValidation(nameof(GetAllPatientsQuery.Status), VALIDATION_ENUM_VALIDATOR);
+        result.Errors.ShouldContainValidation(nameof(GetAllPatientsQuery.Status), ErrorCode.InvalidStatus.Value);
         result.Errors.Count.ShouldBe(1);
         ElapsedSeconds().ShouldBeLessThan(0.1M);
     }

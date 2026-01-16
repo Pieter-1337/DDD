@@ -1,3 +1,4 @@
+using BuildingBlocks.Enumerations;
 using BuildingBlocks.Tests;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Scheduling.Application.Patients.Commands;
@@ -23,7 +24,7 @@ public class SuspendPatientCommandValidatorTests : SchedulingValidatorTestBase
         StopStopwatch();
 
         // Assert
-        result.Errors.ShouldContainValidation(nameof(SuspendPatientCommand.Id), VALIDATION_ASYNCPREDICATE_VALIDATOR);
+        result.Errors.ShouldContainValidation(nameof(SuspendPatientCommand.Id), ErrorCode.NotFound.Value);
         result.Errors.Count.ShouldBe(1);
         ElapsedSeconds().ShouldBeLessThan(0.1M);
     }
