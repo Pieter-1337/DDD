@@ -9,10 +9,10 @@ using Scheduling.Infrastructure.Persistence;
 
 #nullable disable
 
-namespace Scheduling.Infrastructure.Persistence.Migrations
+namespace Scheduling.Infrastructure.Migrations
 {
     [DbContext(typeof(SchedulingDbContext))]
-    [Migration("20260106154624_InitialCreate")]
+    [Migration("20260116222802_InitialCreate")]
     partial class InitialCreate
     {
         /// <inheritdoc />
@@ -36,22 +36,18 @@ namespace Scheduling.Infrastructure.Persistence.Migrations
 
                     b.Property<string>("Email")
                         .IsRequired()
-                        .HasMaxLength(255)
-                        .HasColumnType("nvarchar(255)");
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("FirstName")
                         .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("nvarchar(100)");
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("LastName")
                         .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("nvarchar(100)");
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("PhoneNumber")
-                        .HasMaxLength(20)
-                        .HasColumnType("nvarchar(20)");
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("Status")
                         .IsRequired()
@@ -59,9 +55,6 @@ namespace Scheduling.Infrastructure.Persistence.Migrations
                         .HasColumnType("nvarchar(20)");
 
                     b.HasKey("Id");
-
-                    b.HasIndex("Email")
-                        .IsUnique();
 
                     b.ToTable("Patients", (string)null);
                 });

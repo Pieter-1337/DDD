@@ -17,8 +17,4 @@
         <ProjectReference Include="..\..\..\BuildingBlocks\BuildingBlocks.Infrastructure\BuildingBlocks.Infrastructure.csproj" />
     </ItemGroup>
 
-    <ItemGroup>
-      <Folder Include="Persistence\Migrations\" />
-    </ItemGroup>
-
 </Project>

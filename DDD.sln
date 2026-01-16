@@ -71,8 +71,6 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "BuildingBlocks.Application"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "BuildingBlocks.WebApplications", "BuildingBlocks\BuildingBlocks.WebApplications\BuildingBlocks.WebApplications.csproj", "{D9027A09-4193-4865-AF35-48426F7BC1B9}"
 EndProject
-Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "BuildingBlocks", "BuildingBlocks", "{3C02B4C9-425D-49C5-8743-62453FABFB06}"
-EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "BuildingBlocks.Enumerations", "BuildingBlocks\BuildingBlocks.Enumerations\BuildingBlocks.Enumerations.csproj", "{670B1385-E0DC-4409-A78C-43FFB338FBE4}"
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "phase-4-testing", "phase-4-testing", "{4D6C5961-0651-4312-97B2-732460FCAAEA}"

@@ -24,7 +24,7 @@ Location: `DDD/appsettings.json`
 ```json
 {
   "ConnectionStrings": {
-    "DefaultConnection": "Server=(localdb)\\mssqllocaldb;Database=SchedulingDb;Trusted_Connection=True;MultipleActiveResultSets=true"
+    "DefaultConnection": "Server=(localdb)\\mssqllocaldb;Database=DDD;Trusted_Connection=True;MultipleActiveResultSets=true"
   },
   "Logging": {
     "LogLevel": {
@@ -128,7 +128,7 @@ This creates the database and tables.
 In Visual Studio:
 1. View → SQL Server Object Explorer
 2. Expand (localdb)\MSSQLLocalDB
-3. Databases → SchedulingDb → Tables
+3. Databases → DDD → Tables
 4. You should see `dbo.Patients`
 
 ---
@@ -207,7 +207,7 @@ Each context's migrations are tracked separately, allowing them to evolve indepe
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                      SchedulingDb                            │
+│                          DDD                                 │
 ├─────────────────────────────────────────────────────────────┤
 │                                                              │
 │  SchedulingDbContext        BillingDbContext                │
