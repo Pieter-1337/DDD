@@ -16,6 +16,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Core\Scheduling\Scheduling.Infrastructure\Scheduling.Infrastructure.csproj" />
+    <ProjectReference Include="..\BuildingBlocks\BuildingBlocks.WebApplications\BuildingBlocks.WebApplications.csproj" />
   </ItemGroup>
 
 </Project>

@@ -16,7 +16,8 @@
       "WebSearch",
       "Bash(rm:*)",
       "Bash(mv:*)",
-      "Bash(dotnet nuget search:*)"
+      "Bash(dotnet nuget search:*)",
+      "Bash(dotnet restore:*)"
     ]
   }
 }

@@ -52,17 +52,22 @@ public async Task<Guid> Handle(CreatePatientCommand cmd, CancellationToken ct)
 
 ## Where Do Behaviors Live?
 
-Pipeline behaviors are **cross-cutting concerns** - they apply identically to all bounded contexts. Therefore, they belong in `BuildingBlocks.Application`, not in individual bounded context projects.
+Pipeline behaviors are **cross-cutting concerns** - they apply identically to all bounded contexts. They live in `BuildingBlocks.Application/Behaviors/`.
 
 ```
-BuildingBlocks.Application/          <- Cross-cutting concerns
-├── Behaviors/
+BuildingBlocks.Application/
+├── Behaviors/                       <- Cross-cutting pipeline behaviors
 │   ├── LoggingBehavior.cs
 │   ├── PerformanceBehavior.cs
 │   ├── TransactionBehavior.cs       <- Uses IUnitOfWork (generic)
 │   ├── UnhandledExceptionBehavior.cs
 │   └── ValidationBehavior.cs        <- Uses IValidator<T> (generic)
-└── BuildingBlocksServiceCollectionExtensions.cs
+├── Interfaces/
+│   ├── IUnitOfWork.cs
+│   └── IRepository.cs
+├── Validators/
+│   └── UserValidator.cs
+└── BuildingBlocksServiceCollectionExtensions.cs  <- AddBoundedContext() + AddDefaultPipelineBehaviors()
 
 Scheduling.Application/              <- Bounded context handlers only
 ├── Patients/
@@ -71,8 +76,14 @@ Scheduling.Application/              <- Bounded context handlers only
 └── ServiceCollectionExtensions.cs   <- Just calls AddBoundedContext()
 ```
 
+**Why in BuildingBlocks.Application?**
+- Behaviors use abstractions (`IUnitOfWork`, `ILogger`) that are already in this project
+- Bounded contexts reference `BuildingBlocks.Application` anyway, so they get behaviors transitively
+- Web apps don't need additional project references - `AddDefaultPipelineBehaviors()` is available through the transitive dependency
+- Keeps the solution simpler (fewer projects)
+
 **Rule of thumb:**
-- All pipeline behaviors use abstractions (`IUnitOfWork`, `ILogger`) → `BuildingBlocks.Application`
+- All cross-cutting concerns (behaviors, interfaces, base classes) → `BuildingBlocks.Application`
 - Bounded contexts contain only their handlers, validators, and DTOs
 
 ---
@@ -81,14 +92,14 @@ Scheduling.Application/              <- Bounded context handlers only
 
 ### Prerequisites
 
-Add the logging abstractions package to `BuildingBlocks.Application.csproj`:
+Ensure `BuildingBlocks.Application.csproj` has the logging abstractions package:
 
 ```xml
 <ItemGroup>
     <PackageReference Include="FluentValidation" />
     <PackageReference Include="FluentValidation.DependencyInjectionExtensions" />
     <PackageReference Include="MediatR" />
-    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />  <!-- ADD THIS -->
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />  <!-- For ILogger<T> -->
 </ItemGroup>
 ```
 
@@ -100,8 +111,8 @@ This provides `ILogger<T>` without pulling in the full ASP.NET Core dependency. 
 
 | Behavior | Purpose | Applies To | Overridable Methods |
 |----------|---------|------------|---------------------|
-| `UnhandledExceptionBehavior` | Catches & logs all exceptions | All requests | `OnException` |
-| `LoggingBehavior` | Logs request start/end | All requests | `OnHandling`, `OnHandled`, `OnError` |
+| `LoggingBehavior` | Logs request start/end/error | All requests (skips ValidationException) | `OnHandling`, `OnHandled`, `OnError` |
+| `UnhandledExceptionBehavior` | Catches & logs exceptions | All requests (skips ValidationException) | `OnException` |
 | `PerformanceBehavior` | Warns on slow requests (>500ms) | All requests | `ThresholdMilliseconds`, `OnSlowRequest` |
 | `ValidationBehavior` | Validates input, throws on failure | All requests | `ValidateAsync`, `OnValidationFailure` |
 | `TransactionBehavior` | Wraps in DB transaction | Commands only | `ShouldApplyTransaction` |
@@ -124,15 +135,18 @@ This provides `ILogger<T>` without pulling in the full ASP.NET Core dependency. 
 [INF] Handled CreatePatientCommand
 ```
 
-Or on failure:
+On failure (system error):
 ```
 [INF] Handling CreatePatientCommand
 [ERR] Error handling CreatePatientCommand - System.InvalidOperationException: ...
 ```
 
+**Note:** `ValidationException` is NOT logged as an error - it's an expected client input error, not a system error. Only unexpected exceptions are logged.
+
 Location: `BuildingBlocks/BuildingBlocks.Application/Behaviors/LoggingBehavior.cs`
 
 ```csharp
+using FluentValidation;
 using MediatR;
 using Microsoft.Extensions.Logging;
 
@@ -154,15 +168,12 @@ public class LoggingBehavior<TRequest, TResponse> : IPipelineBehavior<TRequest, 
         CancellationToken cancellationToken)
     {
         var requestName = typeof(TRequest).Name;
-
         OnHandling(requestName, request);
 
         try
         {
             var response = await next();
-
             OnHandled(requestName, request);
-
             return response;
         }
         catch (Exception ex)
@@ -179,7 +190,12 @@ public class LoggingBehavior<TRequest, TResponse> : IPipelineBehavior<TRequest, 
         => Logger.LogInformation("Handled {RequestName}", requestName);
 
     protected virtual void OnError(string requestName, TRequest request, Exception ex)
-        => Logger.LogError(ex, "Error handling {RequestName}", requestName);
+    {
+        // ValidationException is expected (client input error), not a system error
+        if (ex is ValidationException) return;
+
+        Logger.LogError(ex, "Error handling {RequestName}", requestName);
+    }
 }
 ```
 
@@ -202,7 +218,7 @@ public class LoggingBehavior<TRequest, TResponse> : IPipelineBehavior<TRequest, 
 
 **Tip:** You can make the threshold configurable via `IOptions<PerformanceSettings>` for different environments.
 
-Location: `BuildingBlocks/BuildingBlocks.Application/Behaviors/PerformanceBehavior.cs`
+Location: `BuildingBlocks/BuildingBlocks.Application.Behaviors/PerformanceBehavior.cs`
 
 ```csharp
 using System.Diagnostics;
@@ -265,7 +281,6 @@ public class PerformanceBehavior<TRequest, TResponse> : IPipelineBehavior<TReque
 - Ensures ALL exceptions are logged with context (request name + request data)
 - Uses structured logging (`{@Request}`) to serialize the entire request object
 - Acts as a safety net - even if other error handling fails, this captures it
-- Registered first (outermost) so it catches exceptions from all inner behaviors
 
 **Example log output:**
 ```
@@ -274,11 +289,14 @@ public class PerformanceBehavior<TRequest, TResponse> : IPipelineBehavior<TReque
          at Scheduling.Application.Patients.Commands.CreatePatientCommandHandler.Handle(...)
 ```
 
-**Note:** This behavior re-throws the exception after logging. The `ExceptionToJsonFilter` (in WebApplications) then converts it to an HTTP response.
+**Note:**
+- `ValidationException` is NOT logged - it's an expected client input error, not a system error
+- This behavior re-throws the exception after logging. The `ExceptionToJsonFilter` (in WebApplications) then converts it to an HTTP response.
 
 Location: `BuildingBlocks/BuildingBlocks.Application/Behaviors/UnhandledExceptionBehavior.cs`
 
 ```csharp
+using FluentValidation;
 using MediatR;
 using Microsoft.Extensions.Logging;
 
@@ -312,10 +330,15 @@ public class UnhandledExceptionBehavior<TRequest, TResponse> : IPipelineBehavior
     }
 
     protected virtual void OnException(string requestName, TRequest request, Exception ex)
-        => Logger.LogError(ex,
+    {
+        // ValidationException is expected (client input error), not unhandled
+        if (ex is ValidationException) return;
+
+        Logger.LogError(ex,
             "Unhandled exception for request {RequestName}: {@Request}",
             requestName,
             request);
+    }
 }
 ```
 
@@ -340,7 +363,7 @@ Request arrives
       → Invalid? → Throw ValidationException (caught by ExceptionToJsonFilter)
 ```
 
-Location: `BuildingBlocks/BuildingBlocks.Application/Behaviors/ValidationBehavior.cs`
+Location: `BuildingBlocks/BuildingBlocks.Application.Behaviors/ValidationBehavior.cs`
 
 ```csharp
 using FluentValidation;
@@ -398,20 +421,16 @@ public class ValidationBehavior<TRequest, TResponse> : IPipelineBehavior<TReques
 
 ---
 
-### Step 4: Register Behaviors in BuildingBlocks
+### Step 4: Register Behaviors
 
-The registration is split into two concerns:
-1. **`AddBoundedContext()`** - Registers handlers and validators only
-2. **`AddDefaultPipelineBehaviors()`** - Registers the default behaviors (web app decides)
-
-Update `BuildingBlocks/BuildingBlocks.Application/BuildingBlocksServiceCollectionExtensions.cs`:
+Both methods live in `BuildingBlocks/BuildingBlocks.Application/BuildingBlocksServiceCollectionExtensions.cs`:
 
 ```csharp
-using System.Reflection;
 using BuildingBlocks.Application.Behaviors;
 using FluentValidation;
 using MediatR;
 using Microsoft.Extensions.DependencyInjection;
+using System.Reflection;
 
 namespace BuildingBlocks.Application;
 
@@ -438,16 +457,17 @@ public static class BuildingBlocksServiceCollectionExtensions
     }
 
     /// <summary>
-    /// Registers the default pipeline behaviors. Call this from your web app's Program.cs.
-    /// Web apps can skip this and register custom behaviors instead.
+    /// Registers the default pipeline behaviors from BuildingBlocks.
+    /// Call this after AddMediatR to add cross-cutting behaviors.
+    /// Order matters: behaviors execute in the order they are registered.
     /// </summary>
     public static IServiceCollection AddDefaultPipelineBehaviors(this IServiceCollection services)
     {
-        // Order matters! First registered = outermost in pipeline
-        services.AddTransient(typeof(IPipelineBehavior<,>), typeof(UnhandledExceptionBehavior<,>));
+        // Order: Logging -> Validation -> Performance -> UnhandledException -> Handler
         services.AddTransient(typeof(IPipelineBehavior<,>), typeof(LoggingBehavior<,>));
-        services.AddTransient(typeof(IPipelineBehavior<,>), typeof(PerformanceBehavior<,>));
         services.AddTransient(typeof(IPipelineBehavior<,>), typeof(ValidationBehavior<,>));
+        services.AddTransient(typeof(IPipelineBehavior<,>), typeof(PerformanceBehavior<,>));
+        services.AddTransient(typeof(IPipelineBehavior<,>), typeof(UnhandledExceptionBehavior<,>));
 
         return services;
     }
@@ -502,27 +522,56 @@ public static class ServiceCollectionExtensions
 
 ### Step 6: Web App Registration
 
-The web application decides which behaviors to use:
+The web application decides which behaviors to use. WebApi already gets `BuildingBlocks.Application` transitively through Scheduling references, so no additional project references are needed for behaviors.
+
+**WebApi/WebApi.csproj:**
+```xml
+<ItemGroup>
+  <ProjectReference Include="..\Core\Scheduling\Scheduling.Infrastructure\Scheduling.Infrastructure.csproj" />
+  <ProjectReference Include="..\BuildingBlocks\BuildingBlocks.WebApplications\BuildingBlocks.WebApplications.csproj" />
+</ItemGroup>
+```
 
 **WebApi/Program.cs - Using defaults:**
 ```csharp
+using BuildingBlocks.Application;
+using BuildingBlocks.WebApplications.Filters;
+using Scheduling.Application;
+using Scheduling.Infrastructure;
+using System.Text.Json.Serialization;
+
+var builder = WebApplication.CreateBuilder(args);
+
+// Register the exception filter globally (converts ValidationException to proper JSON response)
+builder.Services.AddControllers(options =>
+{
+    options.Filters.Add<ExceptionToJsonFilter>();
+}).AddJsonOptions(options =>
+{
+    options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter());
+});
+
 // Register bounded contexts
 builder.Services.AddSchedulingApplication();
-builder.Services.AddBillingApplication();  // if you have more
 
 // Register default pipeline behaviors
 builder.Services.AddDefaultPipelineBehaviors();
 ```
 
+**Important:** The `ExceptionToJsonFilter` is required to convert `ValidationException` (thrown by `ValidationBehavior`) into proper 400 responses. Without it, validation failures return 500 errors.
+
 **AdminApi/Program.cs - Using custom behaviors:**
 ```csharp
+using BuildingBlocks.Application.Behaviors;
+using MediatR;
+
 // Register bounded contexts
 builder.Services.AddSchedulingApplication();
 
 // Register custom behaviors (instead of defaults)
 builder.Services.AddTransient(typeof(IPipelineBehavior<,>), typeof(AdminLoggingBehavior<,>));
 builder.Services.AddTransient(typeof(IPipelineBehavior<,>), typeof(PerformanceBehavior<,>));
-builder.Services.AddTransient(typeof(IPipelineBehavior<,>), typeof(ValidationBehavior<>));
+builder.Services.AddTransient(typeof(IPipelineBehavior<,>), typeof(ValidationBehavior<,>));
 ```
 
 ### Step 7: Override Behaviors in Web Apps (Optional)
@@ -638,7 +687,7 @@ Command arrives
       → Exception? → RollbackAsync() → Re-throw
 ```
 
-Location: `BuildingBlocks/BuildingBlocks.Application/Behaviors/TransactionBehavior.cs`
+Location: `BuildingBlocks/BuildingBlocks.Application.Behaviors/TransactionBehavior.cs`
 
 ```csharp
 using BuildingBlocks.Application.Interfaces;
@@ -796,13 +845,16 @@ public class ValidationBehaviorTests
 - [ ] `LoggingBehavior` created with `virtual` methods in BuildingBlocks.Application/Behaviors
 - [ ] `PerformanceBehavior` created with `virtual` methods in BuildingBlocks.Application/Behaviors
 - [ ] `UnhandledExceptionBehavior` created with `virtual` methods in BuildingBlocks.Application/Behaviors
+- [ ] `ValidationBehavior` created with `virtual` methods in BuildingBlocks.Application/Behaviors
 - [ ] `TransactionBehavior` created with `virtual` methods in BuildingBlocks.Application/Behaviors (optional)
-- [ ] `AddBoundedContext()` registers handlers and validators only (no behaviors)
-- [ ] `AddDefaultPipelineBehaviors()` registers the default behaviors
-- [ ] WebApi calls both `AddSchedulingApplication()` and `AddDefaultPipelineBehaviors()`
-- [ ] Validation failures return proper error responses
-- [ ] Slow requests are logged as warnings
+- [ ] `AddBoundedContext()` in BuildingBlocks.Application registers handlers and validators only
+- [ ] `AddDefaultPipelineBehaviors()` in BuildingBlocks.Application registers the default behaviors
 - [ ] BuildingBlocks.Application.csproj has Microsoft.Extensions.Logging.Abstractions package
+- [ ] WebApi references BuildingBlocks.WebApplications for the exception filter
+- [ ] WebApi registers `ExceptionToJsonFilter` in controller options
+- [ ] WebApi calls both `AddSchedulingApplication()` and `AddDefaultPipelineBehaviors()`
+- [ ] Validation failures return proper 400 responses with structured JSON
+- [ ] Slow requests are logged as warnings
 - [ ] (Optional) Custom behaviors can inherit and override specific methods
 
 ---
@@ -811,23 +863,26 @@ public class ValidationBehaviorTests
 
 ```
 BuildingBlocks/
-└── BuildingBlocks.Application/
-    ├── Behaviors/                              <- Base behaviors (virtual methods)
-    │   ├── LoggingBehavior.cs                  <- OnHandling, OnHandled, OnError
-    │   ├── PerformanceBehavior.cs              <- ThresholdMilliseconds, OnSlowRequest
-    │   ├── TransactionBehavior.cs              <- ShouldApplyTransaction (optional)
-    │   ├── UnhandledExceptionBehavior.cs       <- OnException
-    │   └── ValidationBehavior.cs               <- ValidateAsync, OnValidationFailure
-    ├── Dtos/
-    │   └── SuccessOrFailureDto.cs
-    ├── Interfaces/
-    │   ├── IRepository.cs
-    │   └── IUnitOfWork.cs
-    ├── Validators/
-    │   └── UserValidator.cs
-    └── BuildingBlocksServiceCollectionExtensions.cs
-            ├── AddBoundedContext()             <- Handlers + validators only
-            └── AddDefaultPipelineBehaviors()   <- Default behaviors (opt-in)
+├── BuildingBlocks.Application/
+│   ├── Behaviors/                              <- Cross-cutting behaviors
+│   │   ├── LoggingBehavior.cs                  <- OnHandling, OnHandled, OnError
+│   │   ├── PerformanceBehavior.cs              <- ThresholdMilliseconds, OnSlowRequest
+│   │   ├── TransactionBehavior.cs              <- ShouldApplyTransaction (optional)
+│   │   ├── UnhandledExceptionBehavior.cs       <- OnException
+│   │   └── ValidationBehavior.cs               <- ValidateAsync, OnValidationFailure
+│   ├── Dtos/
+│   │   └── SuccessOrFailureDto.cs
+│   ├── Interfaces/
+│   │   ├── IRepository.cs
+│   │   └── IUnitOfWork.cs
+│   ├── Validators/
+│   │   └── UserValidator.cs
+│   └── BuildingBlocksServiceCollectionExtensions.cs  <- AddBoundedContext() + AddDefaultPipelineBehaviors()
+│
+└── BuildingBlocks.WebApplications/
+    └── Filters/
+        ├── ExceptionToJsonFilter.cs
+        └── ValidationErrorWrapper.cs
 
 Core/Scheduling/
 └── Scheduling.Application/
@@ -838,6 +893,7 @@ Core/Scheduling/
     └── ServiceCollectionExtensions.cs          <- Calls AddBoundedContext()
 
 WebApi/
+├── WebApi.csproj                               <- References Scheduling.Infrastructure (gets BuildingBlocks.Application transitively)
 └── Program.cs                                  <- Calls AddDefaultPipelineBehaviors()
 
 AdminApi/                                       <- Optional: Custom behaviors

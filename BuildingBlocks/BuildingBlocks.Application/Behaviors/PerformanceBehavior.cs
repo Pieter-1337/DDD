@@ -1,10 +1,10 @@
-﻿using MediatR;
+using MediatR;
 using Microsoft.Extensions.Logging;
 using System.Diagnostics;
 
 namespace BuildingBlocks.Application.Behaviors
 {
-    public class PerformanceBehavior<TRequest, TResponse> : IPipelineBehavior<TRequest, TRequest> where TRequest : notnull
+    public class PerformanceBehavior<TRequest, TResponse> : IPipelineBehavior<TRequest, TResponse> where TRequest : notnull
     {
         protected readonly ILogger Logger;
         protected readonly Stopwatch Timer;
@@ -16,7 +16,8 @@ namespace BuildingBlocks.Application.Behaviors
         }
 
         protected virtual int ThresholdMilliseconds => 500;
-        public virtual async Task<TRequest> Handle(TRequest request, RequestHandlerDelegate<TRequest> next, CancellationToken cancellationToken)
+
+        public virtual async Task<TResponse> Handle(TRequest request, RequestHandlerDelegate<TResponse> next, CancellationToken cancellationToken)
         {
             Timer.Start();
 
@@ -25,7 +26,7 @@ namespace BuildingBlocks.Application.Behaviors
             Timer.Stop();
 
             var elapsedMilliseconds = Timer.ElapsedMilliseconds;
-            if (elapsedMilliseconds > ThresholdMilliseconds) 
+            if (elapsedMilliseconds > ThresholdMilliseconds)
             {
                 var requestName = typeof(TRequest).Name;
                 OnSlowRequest(requestName, request, elapsedMilliseconds);
@@ -34,7 +35,7 @@ namespace BuildingBlocks.Application.Behaviors
             return response;
         }
 
-        protected virtual void OnSlowRequest(string requestName, TRequest request, long elapsedMilliseconds) 
-            => Logger.LogWarning("Long running request: {RequestName} ({ElapsedMilliseconds})", requestName, elapsedMilliseconds);
+        protected virtual void OnSlowRequest(string requestName, TRequest request, long elapsedMilliseconds)
+            => Logger.LogWarning("Long running request: {RequestName} ({ElapsedMilliseconds}ms)", requestName, elapsedMilliseconds);
     }
 }

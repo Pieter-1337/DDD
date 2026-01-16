@@ -1,3 +1,5 @@
+using BuildingBlocks.Application;
+using BuildingBlocks.WebApplications.Filters;
 using Scheduling.Application;
 using Scheduling.Infrastructure;
 using System.Text.Json.Serialization;
@@ -9,6 +11,7 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddControllers(options =>
 {
     options.SuppressAsyncSuffixInActionNames = false;
+    options.Filters.Add<ExceptionToJsonFilter>();
 }).AddJsonOptions(options =>
 {
     options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter());
@@ -21,6 +24,7 @@ builder.Services.AddOpenApi();
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection") ?? throw new InvalidOperationException("Connection string 'DefaultConnection' not found.");
 builder.Services.AddSchedulingInfrastructure(connectionString);
 builder.Services.AddSchedulingApplication();
+builder.Services.AddDefaultPipelineBehaviors();
 
 var app = builder.Build();
 

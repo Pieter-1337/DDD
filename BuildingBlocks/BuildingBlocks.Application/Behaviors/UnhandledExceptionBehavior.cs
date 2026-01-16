@@ -1,4 +1,5 @@
-﻿using MediatR;
+using FluentValidation;
+using MediatR;
 using Microsoft.Extensions.Logging;
 
 namespace BuildingBlocks.Application.Behaviors
@@ -11,6 +12,7 @@ namespace BuildingBlocks.Application.Behaviors
         {
             Logger = logger;
         }
+
         public virtual async Task<TResponse> Handle(TRequest request, RequestHandlerDelegate<TResponse> next, CancellationToken cancellationToken)
         {
             try
@@ -26,9 +28,14 @@ namespace BuildingBlocks.Application.Behaviors
         }
 
         protected virtual void OnException(string requestName, TRequest request, Exception ex)
-            => Logger.LogError(ex,
+        {
+            // ValidationException is expected (client input error), not unhandled
+            if (ex is ValidationException) return;
+
+            Logger.LogError(ex,
                 "Unhandled exception for request {RequestName}: {@Request}",
                 requestName,
                 request);
+        }
     }
 }

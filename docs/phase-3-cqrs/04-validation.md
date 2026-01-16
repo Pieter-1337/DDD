@@ -582,7 +582,7 @@ This MVC filter catches exceptions and transforms them into structured JSON resp
 - **IExceptionFilter**: Catches exceptions and formats error responses
 - **IActionFilter**: Captures request arguments before execution for logging when errors occur
 
-Location: `WebApi/Filters/ExceptionToJsonFilter.cs`
+Location: `BuildingBlocks/BuildingBlocks.WebApplications/ExceptionToJsonFilter.cs`
 
 ```csharp
 using FluentValidation;
@@ -590,7 +590,7 @@ using Microsoft.AspNetCore.Http.Extensions;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Filters;
 
-namespace WebApi.Filters;
+namespace BuildingBlocks.WebApplications;
 
 public class ExceptionToJsonFilter : IExceptionFilter, IActionFilter
 {
@@ -669,13 +669,13 @@ public class ExceptionToJsonFilter : IExceptionFilter, IActionFilter
 
 This class transforms FluentValidation failures into a structured API response with separate errors and warnings.
 
-Location: `WebApi/Filters/ValidationErrorWrapper.cs`
+Location: `BuildingBlocks/BuildingBlocks.WebApplications/ValidationErrorWrapper.cs`
 
 ```csharp
 using FluentValidation;
 using System.Text.Json.Serialization;
 
-namespace WebApi.Filters;
+namespace BuildingBlocks.WebApplications;
 
 public class ValidationErrorWrapper
 {
@@ -764,12 +764,13 @@ public class ValidationErrorWrapper
 - Supports custom HTTP status code via error code (e.g., `"403"` for Forbidden)
 - Default status is 400 Bad Request
 
-### Step 11: Register Filter and Pre-Processor (Optional)
+### Step 11: Register Filter and Behaviors
 
 Update `WebApi/Program.cs`:
 
 ```csharp
-using WebApi.Filters;
+using BuildingBlocks.Application;
+using BuildingBlocks.WebApplications.Filters;
 
 // Register the exception filter globally
 builder.Services.AddControllers(options =>
@@ -781,27 +782,20 @@ builder.Services.AddControllers(options =>
 {
     options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter());
 });
+
+// ... other registrations ...
+
+// Register bounded contexts (handlers + validators)
+builder.Services.AddSchedulingApplication();
+
+// Register default pipeline behaviors (includes ValidationBehavior)
+builder.Services.AddDefaultPipelineBehaviors();
 ```
 
-To add the pre-processor behavior, update `BuildingBlocks.Application/BuildingBlocksServiceCollectionExtensions.cs`:
-
-```csharp
-public static IServiceCollection AddBoundedContext(this IServiceCollection services, Assembly boundedContextAssembly)
-{
-    SetFluentValidationDefaults();
-
-    services.AddMediatR(cfg =>
-    {
-        cfg.RegisterServicesFromAssembly(boundedContextAssembly);
-        cfg.AddOpenBehavior(typeof(RequestPreProcessorBehavior<,>));
-    });
-    services.AddValidatorsFromAssembly(boundedContextAssembly, includeInternalTypes: true);
-
-    return services;
-}
-```
-
-This enables the pre-processor for all bounded contexts automatically.
+**Important:**
+- `ExceptionToJsonFilter` converts `ValidationException` into proper 400 responses. Without it, validation failures return 500 errors.
+- `AddDefaultPipelineBehaviors()` registers `ValidationBehavior` which throws `ValidationException` when validation fails.
+- WebApi needs to reference `BuildingBlocks.WebApplications` for the filter.
 
 ### Step 12: Using Custom Error Codes and Severity
 
@@ -869,8 +863,8 @@ RuleFor(c => c)
 - [x] Validators registered in DI with `AddValidatorsFromAssembly`
 - [x] Email validation uses `EmailValidationMode.AspNetCoreCompatible`
 - [ ] `ValidationBehavior` in BuildingBlocks.Application/Behaviors (see 05-pipeline-behaviors.md)
-- [ ] `ExceptionToJsonFilter` for exception handling (optional)
-- [ ] `ValidationErrorWrapper` for structured error responses (optional)
+- [ ] `ExceptionToJsonFilter` registered in WebApi (required for proper validation error responses)
+- [ ] `ValidationErrorWrapper` in BuildingBlocks.WebApplications (used by ExceptionToJsonFilter)
 
 ---
 
@@ -897,20 +891,23 @@ Core/Scheduling/
     +-- ServiceCollectionExtensions.cs
 BuildingBlocks/
 +-- BuildingBlocks.Application/
-    +-- Behaviors/                                    <- See 05-pipeline-behaviors.md
-    |   +-- ValidationBehavior.cs                     <- Runs validators before handler
-    +-- Validators/
-    |   +-- UserValidator.cs                          <- Base validator class
-    +-- Interfaces/
-    |   +-- IUnitOfWork.cs
-    |   +-- IRepository.cs
-    +-- Dtos/
-    |   +-- SuccessOrFailureDto.cs
-    +-- BuildingBlocksServiceCollectionExtensions.cs  <- Shared DI registration
-WebApi/
-+-- Filters/                                  <- Optional
-    +-- ExceptionToJsonFilter.cs
-    +-- ValidationErrorWrapper.cs
+|   +-- Behaviors/                                    <- See 05-pipeline-behaviors.md
+|   |   +-- LoggingBehavior.cs
+|   |   +-- PerformanceBehavior.cs
+|   |   +-- UnhandledExceptionBehavior.cs
+|   |   +-- ValidationBehavior.cs                     <- Runs validators before handler
+|   +-- Validators/
+|   |   +-- UserValidator.cs                          <- Base validator class
+|   +-- Interfaces/
+|   |   +-- IUnitOfWork.cs
+|   |   +-- IRepository.cs
+|   +-- Dtos/
+|   |   +-- SuccessOrFailureDto.cs
+|   +-- BuildingBlocksServiceCollectionExtensions.cs  <- AddBoundedContext + AddDefaultPipelineBehaviors
++-- BuildingBlocks.WebApplications/
+    +-- Filters/
+        +-- ExceptionToJsonFilter.cs                  <- Optional
+        +-- ValidationErrorWrapper.cs                 <- Optional
 ```
 
 ---
