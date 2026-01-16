@@ -5,9 +5,9 @@
 Pipeline behaviors are **cross-cutting concerns** that run for every request. They wrap handlers like middleware:
 
 ```
-Request → Behavior 1 → Behavior 2 → Behavior 3 → Handler → Response
-              ↓            ↓            ↓
-          Logging    Validation    Performance
+Request → Behavior 1 → Behavior 2 → Behavior 3 → Behavior 4 → Behavior 5 → Handler → Response
+              ↓            ↓            ↓            ↓            ↓
+         Transaction   Logging    Validation   Performance  UnhandledException
 ```
 
 Think of them as "middleware for MediatR."
