@@ -371,7 +371,7 @@ namespace Scheduling.Application.Patients.Queries;
 
 public record GetAllPatientsQuery : Query<IEnumerable<PatientDto>>
 {
-    public string Status { get; init; }  // String, not SmartEnum
+    public string Status { get; init; }  // String
 }
 
 #region Validators
