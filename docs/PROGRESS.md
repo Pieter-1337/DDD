@@ -6,7 +6,7 @@
 |-------|--------|---------|-----------|
 | Phase 1: DDD Fundamentals | Complete | 2026-01-05 | 2026-01-05 |
 | Phase 2: EF Core Persistence | Complete | 2026-01-05 | 2026-01-07 |
-| Phase 3: CQRS Pattern | In Progress | 2026-01-07 | - |
+| Phase 3: CQRS Pattern | Complete | 2026-01-07 | 2026-01-16 |
 | Phase 4: Integration Testing | In Progress | 2026-01-09 | - |
 | Phase 5: Event-Driven | Not Started | - | - |
 | Phase 6: Integration | Not Started | - | - |
@@ -87,7 +87,7 @@
 - [x] Queries and Query Handlers (read side)
 - [x] DTOs for query responses
 - [x] Command validation with FluentValidation
-- [ ] MediatR pipeline behaviors (documented, not implemented)
+- [x] MediatR pipeline behaviors
 
 ### Implementation Progress
 
@@ -100,10 +100,14 @@
 - [x] Create command validators (inline with commands)
 - [x] Create query validators (inline with queries)
 - [x] Update controller to use MediatR
-- [ ] Implement ValidationBehavior (optional)
-- [ ] Implement LoggingBehavior (optional)
-- [ ] Implement PerformanceBehavior (optional)
-- [ ] Add exception handling middleware (optional)
+- [x] Implement ValidationBehavior
+- [x] Implement LoggingBehavior
+- [x] Implement PerformanceBehavior
+- [x] Implement TransactionBehavior
+- [x] Implement UnhandledExceptionBehavior
+- [x] Add ExceptionToJsonFilter for error responses
+- [x] Implement SmartEnum for PatientStatus
+- [x] Implement ErrorCode with SmartEnum pattern
 
 ### Key Decisions Made
 
@@ -112,6 +116,8 @@
 3. **ExistsAsync for entity validation** - Efficient existence check without loading entire entity
 4. **EmailValidationMode.AspNetCoreCompatible** - Use ASP.NET Core compatible email validation (not obsolete regex)
 5. **SuppressAsyncSuffixInActionNames = false** - Keep "Async" suffix in action names for `nameof()` compatibility
+6. **SmartEnum for enumerations** - Using Ardalis.SmartEnum instead of C# enums for type safety
+7. **ErrorCode with SmartEnum** - Consistent error codes with machine-readable values and human-readable messages
 
 ### Docs Available
 
