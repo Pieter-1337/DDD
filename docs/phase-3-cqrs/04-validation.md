@@ -103,15 +103,36 @@ using Ardalis.SmartEnum;
 namespace BuildingBlocks.Enumerations;
 
 /// <summary>
-/// Base class for custom error codes. Inherit from this in bounded contexts to define domain-specific errors.
+/// Base class for custom error codes. Automatically prefixes codes with "ERR_".
+/// Inherit from this in bounded contexts to define domain-specific errors.
 /// </summary>
 public abstract class ErrorCodeBase<TEnum> : SmartEnum<TEnum, string>
     where TEnum : SmartEnum<TEnum, string>
 {
+    private const string Prefix = "ERR_";
+
     public string Message { get; }
 
     protected ErrorCodeBase(string code, string message)
-        : base(code, code)
+        : base(Prefix + code, Prefix + code)
+    {
+        Message = message;
+    }
+}
+
+/// <summary>
+/// Base class for custom warning codes. Automatically prefixes codes with "WRN_".
+/// Inherit from this in bounded contexts to define domain-specific warnings.
+/// </summary>
+public abstract class WarningCodeBase<TEnum> : SmartEnum<TEnum, string>
+    where TEnum : SmartEnum<TEnum, string>
+{
+    private const string Prefix = "WRN_";
+
+    public string Message { get; }
+
+    protected WarningCodeBase(string code, string message)
+        : base(Prefix + code, Prefix + code)
     {
         Message = message;
     }
@@ -143,9 +164,11 @@ public sealed class ErrorCode : ErrorCodeBase<ErrorCode>
 ```
 
 **Key points:**
-- `ErrorCodeBase<T>` allows bounded contexts to define their own error codes if needed
+- `ErrorCodeBase<T>` **automatically prefixes** codes with `"ERR_"` (e.g., `"NOT_FOUND"` becomes `"ERR_NOT_FOUND"`)
+- `WarningCodeBase<T>` **automatically prefixes** codes with `"WRN_"` for warning-level validations
 - `ErrorCode` contains common codes shared across all contexts
-- Each code has a machine-readable `Value` (e.g., `"NOT_FOUND"`) and human-readable `Message`
+- Each code has a machine-readable `Value` (e.g., `"ERR_NOT_FOUND"`) and human-readable `Message`
+- The `ValidationErrorWrapper` filters by prefix to only show custom codes in API responses
 
 ### Step 4: Create Validators Inline with Commands
 
