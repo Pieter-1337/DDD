@@ -200,7 +200,11 @@ This allows using `nameof(GetPatientAsync)` in `CreatedAtAction` calls.
 
 ### Docs Available
 
-- `phase-4-testing/01-integration-testing-setup.md` - Full setup guide for test infrastructure
+- `phase-4-testing/01-testing-overview.md` - Why testing, test types, when to use which
+- `phase-4-testing/02-test-infrastructure.md` - BuildingBlocks.Tests, base classes
+- `phase-4-testing/03-validator-tests.md` - Writing validator unit tests
+- `phase-4-testing/04-handler-tests.md` - Writing handler integration tests
+- `phase-4-testing/05-domain-tests.md` - Writing domain entity tests
 
 ---
 
