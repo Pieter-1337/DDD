@@ -26,7 +26,8 @@
       "Bash(dotnet new:*)",
       "Bash(dotnet add:*)",
       "Bash(git mv:*)",
-      "Bash(cat:*)"
+      "Bash(cat:*)",
+      "Bash(head:*)"
     ]
   }
 }
