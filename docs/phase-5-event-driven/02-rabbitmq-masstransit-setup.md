@@ -128,6 +128,58 @@ volumes:
   sqlserver_data:
 ```
 
+### What About Data Persistence?
+
+Will you lose your messages (including DLQ) if Docker stops or you restart your PC?
+
+**No** - the `volumes` in docker-compose.yml persist data to disk:
+
+```
+WITHOUT volumes:                    WITH volumes (our setup):
+────────────────                    ─────────────────────────
+
+┌─────────────┐                     ┌─────────────┐
+│  Container  │                     │  Container  │
+│  (RabbitMQ) │                     │  (RabbitMQ) │
+│             │                     │      │      │
+│  [messages] │ ← Lost on stop      │      │      │
+└─────────────┘                     └──────┼──────┘
+                                           │
+                                           ▼
+                                    ┌─────────────┐
+                                    │   Volume    │ ← Persists on disk
+                                    │(rabbitmq_   │
+                                    │   data)     │
+                                    └─────────────┘
+```
+
+This line in docker-compose.yml saves RabbitMQ data:
+```yaml
+volumes:
+  - rabbitmq_data:/var/lib/rabbitmq
+```
+
+**When is data preserved vs lost?**
+
+| Action | Messages Preserved? |
+|--------|---------------------|
+| Restart PC | Yes |
+| `docker-compose stop` | Yes |
+| `docker-compose down` | Yes |
+| `docker-compose down -v` | **No** (the `-v` deletes volumes) |
+
+**Verify your volumes exist:**
+
+```bash
+# List volumes
+docker volume ls
+# DRIVER    VOLUME NAME
+# local     ddd_rabbitmq_data
+
+# See where it's stored on disk
+docker volume inspect ddd_rabbitmq_data
+```
+
 ### Start Services
 
 ```bash
