@@ -43,11 +43,55 @@ await _publishEndpoint.Publish(new PatientCreatedIntegrationEvent { ... });
 
 ---
 
-## Docker Setup
+## Running RabbitMQ - Three Options
+
+You have three options for running RabbitMQ:
+
+| Option | Pros | Cons |
+|--------|------|------|
+| **Docker** | Isolated, easy cleanup, matches prod | Need to learn Docker basics |
+| **Windows Installer** | Native, no Docker needed | Installs Erlang system-wide, harder cleanup |
+| **Cloud (CloudAMQP)** | No local install, free tier | Requires internet, slight latency |
+
+Choose what works for you. All three work with MassTransit.
+
+---
+
+## Option 1: Docker (Recommended)
+
+### What is Docker?
+
+Docker runs applications in isolated "containers" - like lightweight virtual machines.
+
+```
+Without Docker:                    With Docker:
+───────────────                    ────────────
+Install Erlang on Windows          docker-compose up
+Install RabbitMQ on Windows        (Downloads and runs everything)
+Configure environment variables
+Start RabbitMQ service             docker-compose down
+Uninstall when done (messy)        (Clean removal, nothing left behind)
+```
+
+**Key concepts:**
+- **Image** - A template (like `rabbitmq:3-management`)
+- **Container** - A running instance of an image
+- **docker-compose** - Tool to run multiple containers together
+
+### Install Docker Desktop
+
+1. Download from https://www.docker.com/products/docker-desktop/
+2. Install and restart Windows
+3. Open Docker Desktop (it runs in the background)
+4. Verify in terminal:
+   ```bash
+   docker --version
+   # Docker version 24.x.x
+   ```
 
 ### docker-compose.yml
 
-Add RabbitMQ to your docker-compose:
+Create a `docker-compose.yml` file in your solution root:
 
 ```yaml
 services:
@@ -101,6 +145,117 @@ docker-compose logs rabbitmq
 # Username: guest
 # Password: guest
 ```
+
+### Docker Commands Cheat Sheet
+
+```bash
+# Start containers (runs in background)
+docker-compose up -d
+
+# Stop containers (keeps data)
+docker-compose stop
+
+# Stop and remove containers (keeps data in volumes)
+docker-compose down
+
+# Stop, remove containers AND delete data
+docker-compose down -v
+
+# View running containers
+docker-compose ps
+
+# View logs
+docker-compose logs rabbitmq
+docker-compose logs -f rabbitmq  # Follow/stream logs
+
+# Restart a specific service
+docker-compose restart rabbitmq
+```
+
+---
+
+## Option 2: Windows Installer (No Docker)
+
+If you prefer not to use Docker, install RabbitMQ directly on Windows.
+
+### Step 1: Install Erlang
+
+RabbitMQ requires Erlang (the language it's built with).
+
+1. Download from https://www.erlang.org/downloads
+2. Run installer, accept defaults
+3. Verify in new terminal:
+   ```bash
+   erl -version
+   # Erlang (SMP,ASYNC_THREADS) (BEAM) emulator version 13.x
+   ```
+
+### Step 2: Install RabbitMQ
+
+1. Download from https://www.rabbitmq.com/install-windows.html
+2. Run installer
+3. RabbitMQ runs as a Windows service (starts automatically)
+
+### Step 3: Enable Management UI
+
+Open RabbitMQ Command Prompt (from Start menu) and run:
+
+```bash
+rabbitmq-plugins enable rabbitmq_management
+```
+
+### Step 4: Access Management UI
+
+- URL: http://localhost:15672
+- Username: `guest`
+- Password: `guest`
+
+### Uninstalling Later
+
+1. Uninstall RabbitMQ from Windows Settings > Apps
+2. Uninstall Erlang from Windows Settings > Apps
+3. Delete `C:\Users\{you}\AppData\Roaming\RabbitMQ` (data folder)
+
+---
+
+## Option 3: Cloud Service (CloudAMQP)
+
+No local installation needed. CloudAMQP offers a free tier.
+
+### Step 1: Create Account
+
+1. Go to https://www.cloudamqp.com/
+2. Sign up (free tier: "Little Lemur")
+3. Create a new instance (choose region close to you)
+
+### Step 2: Get Connection Details
+
+From your instance dashboard, copy:
+- **Host**: `something.rmq.cloudamqp.com`
+- **Username**: (shown in dashboard)
+- **Password**: (shown in dashboard)
+- **Virtual Host**: (usually same as username)
+
+### Step 3: Configure appsettings.json
+
+```json
+{
+  "RabbitMQ": {
+    "Host": "sparrow.rmq.cloudamqp.com",
+    "VirtualHost": "your-vhost",
+    "Username": "your-username",
+    "Password": "your-password"
+  }
+}
+```
+
+### Free Tier Limits
+
+- 1 million messages/month
+- 20 concurrent connections
+- Limited queues
+
+Fine for learning, but consider Docker for unlimited local development.
 
 ---
 
@@ -408,12 +563,13 @@ public async Task Should_Consume_PatientCreated_Event()
 
 ## Verification Checklist
 
-- [ ] Docker Compose file with RabbitMQ service
-- [ ] RabbitMQ container running (`docker-compose ps`)
-- [ ] RabbitMQ Management UI accessible at `http://localhost:15672`
+- [ ] RabbitMQ running (Docker, Windows service, or CloudAMQP)
+- [ ] RabbitMQ Management UI accessible (http://localhost:15672 or cloud dashboard)
+- [ ] Can log into Management UI with credentials
 - [ ] MassTransit NuGet packages installed
 - [ ] `IntegrationEvent` base class created
 - [ ] MassTransit configured with RabbitMQ transport
+- [ ] appsettings.json has correct RabbitMQ connection details
 - [ ] Health check for RabbitMQ (optional but recommended)
 - [ ] Test publish endpoint working
 - [ ] Messages visible in RabbitMQ Management UI
