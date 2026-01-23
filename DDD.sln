@@ -84,6 +84,16 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "phase-4-testing", "phase-4-
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "BuildingBlocks.Tests", "BuildingBlocks\BuildingBlocks.Tests\BuildingBlocks.Tests.csproj", "{8F55C869-990D-449F-8C83-F47D686BF06D}"
 EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "phase-5-event-driven", "phase-5-event-driven", "{B60C9093-3B09-451F-B304-0FEB189EC6FB}"
+	ProjectSection(SolutionItems) = preProject
+		docs\phase-5-event-driven\01-event-driven-overview.md = docs\phase-5-event-driven\01-event-driven-overview.md
+		docs\phase-5-event-driven\02-rabbitmq-masstransit-setup.md = docs\phase-5-event-driven\02-rabbitmq-masstransit-setup.md
+		docs\phase-5-event-driven\03-integration-events.md = docs\phase-5-event-driven\03-integration-events.md
+		docs\phase-5-event-driven\04-idempotency-error-handling.md = docs\phase-5-event-driven\04-idempotency-error-handling.md
+		docs\phase-5-event-driven\05-sagas-orchestration.md = docs\phase-5-event-driven\05-sagas-orchestration.md
+		docs\phase-5-event-driven\06-event-versioning.md = docs\phase-5-event-driven\06-event-versioning.md
+	EndProjectSection
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -247,6 +257,7 @@ Global
 		{670B1385-E0DC-4409-A78C-43FFB338FBE4} = {7266C4A9-E384-DC00-0EB6-47F6002CFBA7}
 		{4D6C5961-0651-4312-97B2-732460FCAAEA} = {68ECA03B-0FF4-4C25-A648-C83FCB98C045}
 		{8F55C869-990D-449F-8C83-F47D686BF06D} = {7266C4A9-E384-DC00-0EB6-47F6002CFBA7}
+		{B60C9093-3B09-451F-B304-0FEB189EC6FB} = {68ECA03B-0FF4-4C25-A648-C83FCB98C045}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {C211A4F3-E9B4-4BC3-9EE5-6536CAAF6F04}
