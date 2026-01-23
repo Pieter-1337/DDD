@@ -100,6 +100,45 @@ x.AddConsumer<PatientCreatedEventConsumer>();
 
 No subscription = event is published but nobody receives it.
 
+### One Handler but "Something Happened"?
+
+What if you have only one subscriber, but it's semantically a fact/notification?
+
+**Use the intent, not the handler count, to decide:**
+
+```
+"PatientCreated" - only Billing subscribes today
+
+As Event (Publish):                    As Message (Send):
+─────────────────────                  ────────────────────
+"A patient was created,                "Billing, set up
+ whoever needs to know"                 this patient"
+
+     ┌─────────┐                           ┌─────────┐
+     │Exchange │ ──> Billing               │  Queue  │ ──> Billing
+     └─────────┘                           └─────────┘
+           │
+           └──> Easy to add more           Need to change
+                subscribers later          publisher to add more
+```
+
+| Question | Event | Message |
+|----------|-------|---------|
+| Is it a notification/fact? | Yes | No, it's an instruction |
+| Might add subscribers later? | Easy | Requires publisher change |
+| Should publisher be decoupled? | Yes | Doesn't matter |
+
+**Rule of thumb:** If it "happened" → use Event, even with one subscriber.
+
+```csharp
+// These describe the same outcome, but different intent:
+
+"PatientCreated"        → Event (notifying)
+"CreateBillingProfile"  → Message (instructing)
+```
+
+When in doubt, default to events for looser coupling.
+
 ### In This Project
 
 - **Domain Events** → In-memory within a context (MediatR)
