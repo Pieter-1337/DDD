@@ -250,6 +250,62 @@ public class PatientCreatedEventHandler : INotificationHandler<PatientCreatedEve
 }
 ```
 
+### Why Domain Events? Why Not Just Call Directly?
+
+You could skip domain events and call things directly from the command handler:
+
+```csharp
+// Direct approach - no domain events
+public async Task Handle(CreatePatientCommand command)
+{
+    var patient = Patient.Create(...);
+    _repository.Add(patient);
+    await _unitOfWork.SaveChanges();
+
+    // Directly call side effects
+    await _readModelUpdater.Update(patient);
+    await _publishEndpoint.Publish(new PatientCreatedIntegrationEvent(...));
+    await _auditLogger.Log("Patient created", patient.Id);
+}
+```
+
+This works, but the handler now knows about all side effects. Domain events decouple this:
+
+```
+WITHOUT domain events:              WITH domain events:
+──────────────────────              ───────────────────
+
+CommandHandler                      CommandHandler
+      │                                   │
+      ├─> Save                            └─> Save (event raised internally)
+      ├─> Update read model                        │
+      ├─> Publish integration event                ▼
+      └─> Audit log                       PatientCreatedEvent
+                                                   │
+Handler knows everything            ┌──────────────┼──────────────┐
+                                    ▼              ▼              ▼
+                                ReadModel    Integration      Audit
+                                Updater      Publisher         Logger
+
+                                Handlers react independently
+```
+
+**When to use domain events:**
+
+| Scenario | Direct calls | Domain events |
+|----------|--------------|---------------|
+| One simple side effect | Fine | Overkill |
+| Multiple side effects | Handler bloats | Clean separation |
+| Side effects change often | Modify handler each time | Add/remove handlers |
+| Want Open/Closed principle | No | Yes |
+
+**When direct calls are fine:**
+- Simple context with few side effects
+- You prefer explicit flow over indirection
+- Just starting out (add events later when needed)
+
+Domain events add indirection but enable adding new reactions without modifying the command handler.
+
 ### Integration Events
 
 Integration events represent **facts that other bounded contexts need to know**:
