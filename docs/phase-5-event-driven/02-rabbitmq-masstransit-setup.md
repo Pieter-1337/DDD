@@ -6,6 +6,29 @@ This document covers setting up the messaging infrastructure:
 - **RabbitMQ** - The message broker (runs in Docker)
 - **MassTransit** - .NET abstraction over message brokers
 
+### Key Architectural Decisions
+
+This setup uses THREE distinct projects for messaging:
+
+| Project | Purpose | Contains |
+|---------|---------|----------|
+| **BuildingBlocks.Messaging** | Reusable abstractions | `IntegrationEventBase`, `IIntegrationEvent`, MassTransit helpers |
+| **Contracts** | Integration event definitions | `AppointmentScheduledIntegrationEvent`, `PatientCreatedIntegrationEvent` |
+| **[BC].Infrastructure** | BC-specific implementation | MassTransit configuration, publishers, consumers |
+
+**Why this separation?**
+- **BuildingBlocks.Messaging** = Technical infrastructure you could reuse in ANY domain
+- **Contracts** = Your healthcare domain's public API between bounded contexts
+- **Bounded contexts don't reference each other**, only the shared Contracts project
+- Clear separation: reusable abstractions vs domain-specific events
+
+**Think of it this way:**
+```
+BuildingBlocks.Messaging = Generic envelope system (tracking numbers, timestamps)
+Contracts = The actual letters (healthcare events)
+Scheduling/Billing/MedicalRecords = The people writing and reading the letters
+```
+
 ---
 
 ## Project Structure for Messaging
@@ -236,6 +259,94 @@ dotnet add reference ../../Contracts
 - EF Core interceptors
 - Persistence-related helpers
 - Unit of Work pattern
+
+---
+
+## Understanding the Architecture: A Learning Perspective
+
+Let's solidify why we separate BuildingBlocks.Messaging from Contracts with a practical example.
+
+**Question: Why not just put all events in BuildingBlocks.Messaging?**
+
+**Problem with putting events in BuildingBlocks:**
+
+```csharp
+// BAD: BuildingBlocks.Messaging/Events/PatientCreatedIntegrationEvent.cs
+// This creates problems:
+
+namespace BuildingBlocks.Messaging.Events;
+
+public record PatientCreatedIntegrationEvent : IntegrationEventBase
+{
+    public Guid PatientId { get; init; }
+    public string Email { get; init; } = string.Empty;
+    // ... healthcare-specific properties
+}
+```
+
+**Why this is wrong:**
+1. BuildingBlocks now contains healthcare domain concepts (Patient, Email)
+2. You can't reuse BuildingBlocks in a different domain (e-commerce, banking, etc.)
+3. BuildingBlocks becomes a "God project" that contains everything
+4. Violates the principle: "BuildingBlocks = reusable infrastructure, NOT domain content"
+
+**Correct approach with Contracts:**
+
+```csharp
+// GOOD: BuildingBlocks.Messaging/Abstractions/IntegrationEventBase.cs
+// Reusable in ANY domain
+
+namespace BuildingBlocks.Messaging.Abstractions;
+
+public abstract record IntegrationEventBase
+{
+    public Guid EventId { get; init; } = Guid.NewGuid();
+    public DateTime OccurredAt { get; init; } = DateTime.UtcNow;
+    public string? CorrelationId { get; init; }
+}
+
+// GOOD: Contracts/IntegrationEvents/Scheduling/PatientCreatedIntegrationEvent.cs
+// Healthcare-specific
+
+namespace Contracts.IntegrationEvents.Scheduling;
+
+public record PatientCreatedIntegrationEvent : IntegrationEventBase
+{
+    public Guid PatientId { get; init; }
+    public string Email { get; init; } = string.Empty;
+    // ... healthcare-specific properties
+}
+```
+
+**Why this is correct:**
+1. BuildingBlocks.Messaging = Pure technical infrastructure (EventId, CorrelationId, MassTransit setup)
+2. Contracts = Your healthcare domain's public API between bounded contexts
+3. If you start a new project (e-commerce), you copy BuildingBlocks.Messaging, but write new Contracts
+4. Clear separation of concerns: technical vs domain
+
+**Real-World Analogy:**
+
+Think of BuildingBlocks.Messaging as a **generic envelope system**:
+- The envelope provides structure: sender, recipient, timestamp, tracking number
+- The letter inside (Contracts) contains the actual message content
+- You can use the same envelope system for love letters, business letters, or legal documents
+- But you wouldn't put specific letter content into the envelope manufacturing company's catalog!
+
+**This is a .NET Learning Project:**
+
+We use a single Contracts project (not per-BC Contracts, not NuGet packages, not schema registry) because:
+- You're working in a monolithic .NET solution (all code compiles together)
+- Simple structure helps you focus on DDD concepts, not deployment complexity
+- Easy to navigate: all integration events in one place
+- When you move to microservices (Phase 6 or beyond), you can:
+  - Split Contracts into per-BC projects
+  - Publish as NuGet packages
+  - Migrate to a schema registry (if going polyglot)
+
+**Key Takeaway:**
+- BuildingBlocks = "I could use this in ANY project"
+- Contracts = "This is specific to MY healthcare domain"
+- Bounded Contexts = "This is specific to MY scheduling/billing/records concerns"
 
 ---
 
@@ -729,73 +840,97 @@ src/
 
 ### Where to Put Integration Events?
 
-For this learning project, we'll use a **hybrid approach**:
+For this learning project, we use a **Contracts project approach**:
 
-**Approach: Application/IntegrationEvents + BuildingBlocks.Messaging base class**
+**Our Approach: Contracts Project (Shared Integration Events)**
 
 ```
 BuildingBlocks.Messaging/
 └── Abstractions/
-    └── IntegrationEvent.cs                 # Base class (shared across all BCs)
+    └── IntegrationEventBase.cs             # Base class (provides EventId, CorrelationId, etc.)
 
-Scheduling.Application/
+Contracts/
 └── IntegrationEvents/
-    └── PatientCreatedIntegrationEvent.cs   # Published by Scheduling
+    ├── Scheduling/
+    │   ├── AppointmentScheduledIntegrationEvent.cs
+    │   └── PatientCreatedIntegrationEvent.cs
+    ├── Billing/
+    │   └── PaymentProcessedIntegrationEvent.cs
+    └── MedicalRecords/
+        └── RecordUpdatedIntegrationEvent.cs
 
-Billing.Application/
-└── IntegrationEvents/
-    └── PatientCreatedIntegrationEvent.cs   # Billing's copy (subscribes to it)
+Scheduling.Infrastructure → References Contracts (publishes and consumes events)
+Billing.Infrastructure → References Contracts (publishes and consumes events)
 ```
 
-**Benefits:**
-- Base `IntegrationEvent` class is shared (provides EventId, CorrelationId, etc.)
-- Each BC defines the events it publishes in its Application layer
-- Subscribing BCs copy event contracts or reference the publisher's Application assembly
-- Clear ownership (Scheduling owns PatientCreatedIntegrationEvent)
-- Explicit dependencies (Billing references Scheduling.Application to consume its events)
+**Why This Approach?**
+
+| Benefit | Explanation |
+|---------|-------------|
+| **Clean Separation** | BuildingBlocks = technical abstractions, Contracts = business events |
+| **No Coupling** | Bounded contexts don't reference each other, only the shared Contracts |
+| **Single Source of Truth** | Each event defined once, used by multiple BCs |
+| **Simple for Learning** | All events in one place, easy to navigate |
+| **Polyglot-Ready** | If you move to other languages later, Contracts can become a schema registry |
+| **DDD-Aligned** | Events are the public API between bounded contexts |
 
 **Alternative Approaches (for reference):**
 
-**Option A: Contracts Projects (Enterprise Pattern)**
+**Option A: Per-BC Contracts Projects (Enterprise Pattern)**
 ```
 Scheduling.Contracts/
 └── PatientCreatedIntegrationEvent.cs
 
+Billing.Contracts/
+└── PaymentProcessedIntegrationEvent.cs
+
 Each BC publishes a NuGet package with its contracts.
-Other BCs reference the Contracts package.
+Other BCs install the NuGet packages they need.
 
 + Production-ready pattern
-+ Explicit versioning via NuGet
++ Independent versioning per BC
++ Can evolve contracts independently
 - More ceremony for a learning project
+- Overkill for a monolithic .NET solution
 ```
 
-**Option B: Shared Events Project (Simple but Coupling-Prone)**
+**Option B: Each BC Owns Events in Application Layer**
 ```
-BuildingBlocks.Messaging/
-└── Events/
-    ├── PatientCreatedIntegrationEvent.cs
-    ├── AppointmentScheduledIntegrationEvent.cs
-    └── ...
+Scheduling.Application/IntegrationEvents/
+└── PatientCreatedIntegrationEvent.cs
 
-All events in one place.
+Billing.Application → References Scheduling.Application to consume events
 
-+ Simple to find events
-+ Easy to implement initially
-- Tight coupling between BCs
-- Violates bounded context autonomy
-- Hard to version independently
++ Clear ownership (Scheduling owns PatientCreatedIntegrationEvent)
++ Events live with the BC that publishes them
+- Creates coupling (Billing references Scheduling)
+- Violates bounded context independence
+- Hard to evolve independently
 ```
 
-**Our Choice:** Application/IntegrationEvents (hybrid approach) balances learning clarity with DDD principles.
+**Option C: Schema Registry (Polyglot Microservices)**
+```
+Events defined in JSON Schema, Avro, or Protobuf
+Stored in a schema registry (Confluent, AWS Glue, etc.)
+Code generated in each language (C#, Java, Python)
+
++ Language-agnostic
++ Production-grade microservices pattern
++ Strong versioning support
+- Overkill for a .NET learning project
+- Adds complexity with code generation
+```
+
+**Our Choice:** Single Contracts project balances simplicity (all events in one place) with good DDD practices (no BC-to-BC coupling). Perfect for a .NET monolithic learning project. If you move to polyglot microservices later, migrate to Option C (schema registry).
 
 ---
 
 ## Base Integration Event
 
-Create a base class in `BuildingBlocks.Messaging` that all integration events will inherit from. This lives in the shared messaging project because all bounded contexts need these common properties.
+Create a base class in `BuildingBlocks.Messaging` that all integration events will inherit from. This base class contains ONLY technical infrastructure concerns, NOT domain-specific content.
 
 ```csharp
-// BuildingBlocks.Messaging/Abstractions/IntegrationEvent.cs
+// BuildingBlocks.Messaging/Abstractions/IntegrationEventBase.cs
 namespace BuildingBlocks.Messaging.Abstractions;
 
 /// <summary>
@@ -803,13 +938,16 @@ namespace BuildingBlocks.Messaging.Abstractions;
 /// Integration events cross bounded context boundaries via message broker.
 /// </summary>
 /// <remarks>
-/// This class is part of the Shared Kernel - it's intentionally shared across all bounded contexts.
-/// Properties like EventId and CorrelationId are essential for distributed system patterns:
+/// This class is part of the Shared Kernel (abstractions only).
+/// It provides technical infrastructure for distributed messaging:
 /// - EventId enables idempotent message handling
 /// - OccurredAt provides event ordering and auditing
 /// - CorrelationId enables distributed tracing across bounded contexts
+///
+/// IMPORTANT: This class should contain NO domain-specific logic.
+/// Actual event definitions belong in the Contracts project.
 /// </remarks>
-public abstract record IntegrationEvent
+public abstract record IntegrationEventBase
 {
     /// <summary>
     /// Unique identifier for this event instance.
@@ -835,20 +973,24 @@ public abstract record IntegrationEvent
 
 **Why This Lives in BuildingBlocks.Messaging:**
 
-- All bounded contexts need to inherit from this base class
-- Provides cross-cutting concerns (idempotency, tracing, auditing)
-- Part of the messaging Shared Kernel
+- Provides reusable technical infrastructure for ALL integration events
+- Contains NO domain-specific content (could work in any domain)
+- Part of the messaging Shared Kernel (abstractions only)
 - Changes to this class affect all BCs (should be rare and carefully managed)
 
 **Usage Example:**
 
 ```csharp
-// Scheduling.Application/IntegrationEvents/PatientCreatedIntegrationEvent.cs
+// Contracts/IntegrationEvents/Scheduling/PatientCreatedIntegrationEvent.cs
 using BuildingBlocks.Messaging.Abstractions;
 
-namespace Scheduling.Application.IntegrationEvents;
+namespace Contracts.IntegrationEvents.Scheduling;
 
-public record PatientCreatedIntegrationEvent : IntegrationEvent
+/// <summary>
+/// Published when a new patient is created in the Scheduling bounded context.
+/// Consumed by Billing and MedicalRecords bounded contexts.
+/// </summary>
+public record PatientCreatedIntegrationEvent : IntegrationEventBase
 {
     public Guid PatientId { get; init; }
     public string Email { get; init; } = string.Empty;
@@ -856,6 +998,12 @@ public record PatientCreatedIntegrationEvent : IntegrationEvent
     public DateTime DateOfBirth { get; init; }
 }
 ```
+
+**Key Insight:**
+- `IntegrationEventBase` (BuildingBlocks.Messaging) = Reusable technical abstraction
+- `PatientCreatedIntegrationEvent` (Contracts) = Your specific domain event
+- BuildingBlocks could be reused in an e-commerce project, a banking project, etc.
+- Contracts are specific to your healthcare domain
 
 ---
 
@@ -946,6 +1094,8 @@ Create a minimal endpoint to test publishing:
 
 ```csharp
 // In a controller or minimal API
+using Contracts.IntegrationEvents.Scheduling;
+
 app.MapPost("/test-publish", async (IPublishEndpoint publishEndpoint) =>
 {
     await publishEndpoint.Publish(new PatientCreatedIntegrationEvent
@@ -953,7 +1103,7 @@ app.MapPost("/test-publish", async (IPublishEndpoint publishEndpoint) =>
         PatientId = Guid.NewGuid(),
         Email = "test@example.com",
         FullName = "Test Patient",
-        CreatedAt = DateTime.UtcNow
+        DateOfBirth = new DateTime(1985, 6, 15)
     });
 
     return Results.Ok("Message published");
@@ -973,7 +1123,7 @@ MassTransit uses conventions for queue/exchange naming:
 
 ```
 Event: PatientCreatedIntegrationEvent
-  └── Exchange: Scheduling.Application.IntegrationEvents:PatientCreatedIntegrationEvent
+  └── Exchange: Contracts.IntegrationEvents.Scheduling:PatientCreatedIntegrationEvent
       └── Queue: patient-created-integration-event (for each consumer)
 ```
 
@@ -1034,6 +1184,8 @@ services.AddMassTransitTestHarness(x =>
 Usage in tests:
 
 ```csharp
+using Contracts.IntegrationEvents.Scheduling;
+
 [TestMethod]
 public async Task Should_Consume_PatientCreated_Event()
 {
@@ -1044,7 +1196,9 @@ public async Task Should_Consume_PatientCreated_Event()
     var @event = new PatientCreatedIntegrationEvent
     {
         PatientId = Guid.NewGuid(),
-        Email = "test@test.com"
+        Email = "test@test.com",
+        FullName = "Test Patient",
+        DateOfBirth = new DateTime(1985, 6, 15)
     };
 
     // Act
@@ -1062,13 +1216,61 @@ public async Task Should_Consume_PatientCreated_Event()
 - [ ] RabbitMQ running (Docker, Windows service, or CloudAMQP)
 - [ ] RabbitMQ Management UI accessible (http://localhost:15672 or cloud dashboard)
 - [ ] Can log into Management UI with credentials
-- [ ] MassTransit NuGet packages installed
-- [ ] `IntegrationEvent` base class created
+- [ ] **BuildingBlocks.Messaging** project created with abstractions only
+- [ ] **Contracts** project created for integration event definitions
+- [ ] MassTransit NuGet packages installed in BuildingBlocks.Messaging
+- [ ] `IntegrationEventBase` base class created in BuildingBlocks.Messaging/Abstractions
+- [ ] Contracts project references BuildingBlocks.Messaging
+- [ ] Bounded context Infrastructure projects reference both BuildingBlocks.Messaging and Contracts
 - [ ] MassTransit configured with RabbitMQ transport
 - [ ] appsettings.json has correct RabbitMQ connection details
 - [ ] Health check for RabbitMQ (optional but recommended)
 - [ ] Test publish endpoint working
 - [ ] Messages visible in RabbitMQ Management UI
+
+---
+
+## Summary: Project Structure Recap
+
+**Three-Project Messaging Architecture:**
+
+```
+1. BuildingBlocks.Messaging (Abstractions)
+   - IntegrationEventBase class
+   - MassTransit configuration helpers
+   - NO domain-specific content
+   - Could be reused in any domain (e-commerce, banking, etc.)
+
+2. Contracts (Integration Event Definitions)
+   - AppointmentScheduledIntegrationEvent
+   - PatientCreatedIntegrationEvent
+   - PaymentProcessedIntegrationEvent
+   - The public API between bounded contexts
+   - Domain-specific (healthcare)
+
+3. [BoundedContext].Infrastructure (Implementation)
+   - MassTransit setup
+   - Event publishers
+   - Event consumers
+   - References both BuildingBlocks.Messaging and Contracts
+```
+
+**Key Rules:**
+1. BuildingBlocks.Messaging = Reusable technical infrastructure ONLY
+2. Contracts = Domain-specific integration events
+3. Bounded contexts communicate via Contracts, NOT by referencing each other
+4. This keeps bounded contexts autonomous and loosely coupled
+
+**Why This Matters:**
+- **Separation of Concerns**: Technical vs domain concerns are explicitly separated
+- **Reusability**: BuildingBlocks can be reused across different domains
+- **No Coupling**: Bounded contexts remain independent
+- **Clear Public API**: Contracts define the integration interface between BCs
+- **Easy to Navigate**: All integration events in one place (for this learning project)
+
+**Future Evolution:**
+- Phase 6: Multiple microservices will all reference the same Contracts project
+- Beyond: Can migrate to per-BC Contracts (NuGet packages) or schema registry (polyglot)
 
 ---
 
