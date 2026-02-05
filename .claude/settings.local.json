@@ -27,7 +27,13 @@
       "Bash(dotnet add:*)",
       "Bash(git mv:*)",
       "Bash(cat:*)",
-      "Bash(head:*)"
+      "Bash(head:*)",
+      "Bash(if not exist \"C:\\\\Users\\\\Pieter\\\\.claude\" mkdir \"C:\\\\Users\\\\Pieter\\\\.claude\")",
+      "Bash(powershell -Command \"if \\(!\\(Test-Path ''C:\\\\Users\\\\Pieter\\\\.claude''\\)\\) { New-Item -ItemType Directory -Path ''C:\\\\Users\\\\Pieter\\\\.claude'' -Force }\")",
+      "Bash(powershell:*)",
+      "Bash(echo:*)",
+      "Bash(if not exist \"C:\\\\Users\\\\piete\\\\.claude\\\\agents\" mkdir \"C:\\\\Users\\\\piete\\\\.claude\\\\agents\")",
+      "Bash(tree:*)"
     ]
   }
 }

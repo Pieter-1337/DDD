@@ -357,6 +357,290 @@ public class PatientCreatedIntegrationEventConsumer : IConsumer<PatientCreatedIn
 
 ---
 
+## Intra-Domain Messaging: Asynchronous Processing Within a Single Context
+
+While domain events handle in-memory reactions and integration events cross context boundaries, there's a third pattern: **using messages within a single bounded context for asynchronous processing**.
+
+### The Problem: Not Everything Should Be Synchronous
+
+CQRS encourages commands (synchronous write operations) and queries (synchronous reads). But sometimes, even within a single domain, you need asynchronous processing:
+
+```csharp
+// Synchronous command - blocks until all 100,000 records are processed
+public class MigratePatientRecordsCommand : IRequest
+{
+    public List<Guid> PatientIds { get; init; } // 100,000 IDs
+}
+
+public class MigratePatientRecordsCommandHandler : IRequestHandler<MigratePatientRecordsCommand>
+{
+    public async Task Handle(MigratePatientRecordsCommand command, CancellationToken ct)
+    {
+        // This will take a LONG time and block the caller
+        foreach (var patientId in command.PatientIds) // 100,000 iterations
+        {
+            var patient = await _repository.GetById(patientId);
+            patient.Migrate();
+            await _repository.Update(patient);
+        }
+
+        await _unitOfWork.SaveChanges();
+        // Caller is blocked for minutes/hours
+    }
+}
+```
+
+**Problems:**
+- **Long-running** - Caller waits for all 100,000 records to process
+- **No parallelism** - Processes one record at a time
+- **Poor error handling** - If record 50,000 fails, you lose all progress
+- **Resource contention** - Holds database connections for the entire duration
+- **No retry logic** - Can't retry individual failures
+
+### The Solution: Intra-Domain Messages
+
+Instead of processing everything in one synchronous command, publish a message for each unit of work:
+
+```csharp
+// Step 1: Command initiates migration
+public class InitiatePatientMigrationCommand : IRequest
+{
+    public List<Guid> PatientIds { get; init; }
+}
+
+public class InitiatePatientMigrationCommandHandler : IRequestHandler<InitiatePatientMigrationCommand>
+{
+    private readonly IPublishEndpoint _publishEndpoint;
+
+    public async Task Handle(InitiatePatientMigrationCommand command, CancellationToken ct)
+    {
+        // Quickly publish a message for each patient
+        foreach (var patientId in command.PatientIds)
+        {
+            await _publishEndpoint.Publish(new MigratePatientMessage
+            {
+                PatientId = patientId
+            }, ct);
+        }
+
+        // Returns immediately - actual work happens asynchronously
+        _logger.LogInformation("Queued {Count} patients for migration", command.PatientIds.Count);
+    }
+}
+
+// Step 2: Consumer processes each patient independently
+public class MigratePatientMessageConsumer : IConsumer<MigratePatientMessage>
+{
+    public async Task Consume(ConsumeContext<MigratePatientMessage> context)
+    {
+        var patientId = context.Message.PatientId;
+
+        try
+        {
+            var patient = await _repository.GetById(patientId);
+            patient.Migrate();
+            await _repository.Update(patient);
+            await _unitOfWork.SaveChanges();
+
+            _logger.LogInformation("Migrated patient {PatientId}", patientId);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to migrate patient {PatientId}", patientId);
+            throw; // Retry handled by MassTransit
+        }
+    }
+}
+```
+
+**Benefits:**
+- **Non-blocking** - Caller returns immediately after queuing work
+- **Parallel processing** - Multiple consumers process records simultaneously
+- **Granular error handling** - Each record can retry independently
+- **Progress tracking** - See how many succeeded/failed in real-time
+- **Scalability** - Add more consumers to process faster
+- **Idempotency** - Can safely retry individual records
+
+### When to Use Intra-Domain Messages
+
+| Scenario | Use Synchronous Command | Use Intra-Domain Message |
+|----------|------------------------|--------------------------|
+| Create a single patient | Yes | No (overkill) |
+| Import 10,000 patients from CSV | No | Yes |
+| Update a patient record | Yes | No |
+| Migrate all patient records to new schema | No | Yes |
+| Process a single invoice | Yes | No |
+| Generate 50,000 monthly invoices | No | Yes |
+| Send one email | Yes (or use message) | Either works |
+| Send bulk emails to all patients | No | Yes |
+
+**Use intra-domain messages when:**
+- Processing many records (batch operations, migrations)
+- Work can be parallelized
+- Caller shouldn't wait for completion
+- Individual items can fail independently
+- You want retry logic per item
+
+**Use synchronous commands when:**
+- Single record operations
+- Caller needs immediate result
+- Work is fast and non-blocking
+- Transactional consistency required across items
+
+### Pattern: Queue Work, Process Asynchronously
+
+```
+┌──────────────────────────────────────────────────────────────┐
+│                 SAME BOUNDED CONTEXT                          │
+│                                                              │
+│  User/API                                                    │
+│     │                                                        │
+│     ▼                                                        │
+│  ┌─────────────────────────┐                                │
+│  │ InitiateMigrationCommand│                                │
+│  │      Handler            │                                │
+│  └──────────┬──────────────┘                                │
+│             │                                                │
+│             │ Publish 100,000 messages                       │
+│             ▼                                                │
+│      ┌─────────────┐                                         │
+│      │  RabbitMQ   │                                         │
+│      │   Queue     │                                         │
+│      └──────┬──────┘                                         │
+│             │                                                │
+│     ┌───────┴──────┬─────────┬──────────┐                   │
+│     ▼              ▼         ▼          ▼                   │
+│  Consumer 1    Consumer 2  Consumer 3  Consumer 4           │
+│  (processes    (processes  (processes  (processes           │
+│   patient      patient     patient     patient              │
+│   in parallel) in parallel)in parallel)in parallel)         │
+│                                                              │
+│  All within Scheduling context, no cross-context calls      │
+└──────────────────────────────────────────────────────────────┘
+```
+
+### Message vs Event for Intra-Domain Work
+
+For intra-domain asynchronous processing, you often use **messages** (point-to-point) rather than events:
+
+```csharp
+// MESSAGE - specific instruction to process this patient
+public record MigratePatientMessage
+{
+    public Guid PatientId { get; init; }
+}
+
+// One consumer handles the work
+public class MigratePatientMessageConsumer : IConsumer<MigratePatientMessage> { ... }
+```
+
+You could also use events if multiple handlers need to react:
+
+```csharp
+// EVENT - notify that migration was initiated for this patient
+public record PatientMigrationInitiatedEvent
+{
+    public Guid PatientId { get; init; }
+}
+
+// Multiple consumers could react
+public class MigrateDataConsumer : IConsumer<PatientMigrationInitiatedEvent> { ... }
+public class UpdateCacheConsumer : IConsumer<PatientMigrationInitiatedEvent> { ... }
+```
+
+**Choose based on intent:**
+- One specific task → Message
+- Multiple reactions → Event
+
+### Example: Real-World Use Cases
+
+**Batch Invoice Generation:**
+```csharp
+// Initiate: Publish a message per patient
+await _publishEndpoint.Publish(new GenerateMonthlyInvoiceMessage
+{
+    PatientId = patient.Id,
+    Month = DateTime.UtcNow.Month
+});
+
+// Process: Consumer handles each invoice
+public class GenerateMonthlyInvoiceConsumer : IConsumer<GenerateMonthlyInvoiceMessage>
+{
+    public async Task Consume(ConsumeContext<GenerateMonthlyInvoiceMessage> context)
+    {
+        // Generate invoice for this patient
+        // If it fails, only this patient's invoice retries
+    }
+}
+```
+
+**Data Migration:**
+```csharp
+// Initiate: Queue all records for migration
+foreach (var id in recordIds)
+{
+    await _publishEndpoint.Publish(new MigrateRecordMessage { RecordId = id });
+}
+
+// Process: Multiple consumers process in parallel
+public class MigrateRecordConsumer : IConsumer<MigrateRecordMessage>
+{
+    public async Task Consume(ConsumeContext<MigrateRecordMessage> context)
+    {
+        // Migrate this specific record
+        // Retries automatically if it fails
+    }
+}
+```
+
+**Bulk Email Campaign:**
+```csharp
+// Initiate: One message per recipient
+foreach (var patient in patients)
+{
+    await _publishEndpoint.Publish(new SendCampaignEmailMessage
+    {
+        PatientId = patient.Id,
+        CampaignId = campaignId
+    });
+}
+
+// Process: Email service consumes messages
+public class SendCampaignEmailConsumer : IConsumer<SendCampaignEmailMessage>
+{
+    public async Task Consume(ConsumeContext<SendCampaignEmailMessage> context)
+    {
+        // Send email to this patient
+        // Track delivery status per patient
+    }
+}
+```
+
+### Comparison: The Three Event/Message Types
+
+| Aspect | Domain Events | Integration Events | Intra-Domain Messages |
+|--------|---------------|-------------------|----------------------|
+| **Scope** | Within context | Between contexts | Within context |
+| **Transport** | In-memory (MediatR) | Message broker | Message broker |
+| **Purpose** | React to domain changes | Notify other contexts | Asynchronous processing |
+| **Timing** | Same transaction | After commit | After commit |
+| **Example** | PatientCreated (domain) | PatientCreated (integration) | MigratePatientRecord |
+| **When to use** | Side effects in domain | Cross-context facts | Batch work, long-running tasks |
+
+### Key Takeaway
+
+Not everything in a bounded context needs to be a synchronous CQRS command. When you have:
+- Batch processing
+- Long-running operations
+- Work that can be parallelized
+- Operations where individual failures should be retried
+
+Consider using **intra-domain messages** to queue work and process it asynchronously, even though both the publisher and consumer are in the same bounded context.
+
+This gives you the benefits of asynchronous processing (scalability, retry logic, non-blocking) without crossing context boundaries.
+
+---
+
 ## The Flow
 
 ```
