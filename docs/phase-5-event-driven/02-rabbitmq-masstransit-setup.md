@@ -98,6 +98,7 @@ services:
   rabbitmq:
     image: rabbitmq:3-management
     container_name: ddd-rabbitmq
+    restart: unless-stopped
     ports:
       - "5672:5672"    # AMQP port (messaging)
       - "15672:15672"  # Management UI
@@ -112,21 +113,11 @@ services:
       timeout: 5s
       retries: 5
 
-  sqlserver:
-    image: mcr.microsoft.com/mssql/server:2022-latest
-    container_name: ddd-sqlserver
-    environment:
-      - ACCEPT_EULA=Y
-      - SA_PASSWORD=YourStrong@Password
-    ports:
-      - "1433:1433"
-    volumes:
-      - sqlserver_data:/var/opt/mssql
-
 volumes:
   rabbitmq_data:
-  sqlserver_data:
 ```
+
+**Note**: This project uses SQL Server LocalDB (configured in Phase 2) for the database, not Docker. Only RabbitMQ runs in Docker.
 
 ### What About Data Persistence?
 
@@ -182,12 +173,25 @@ docker volume inspect ddd_rabbitmq_data
 
 ### Start Services
 
+**Important: Container Lifecycle**
+
+Containers stop when:
+- You restart your PC
+- You run `docker-compose stop` or `docker-compose down`
+- Docker Desktop is closed/restarted
+
+**You need to start containers manually after each PC restart**, unless you configure auto-start (see below).
+
+#### Basic Container Management
+
 ```bash
-# Start all services
+# Start all services (runs in background with -d flag)
 docker-compose up -d
 
-# Check status
+# Check if services are running
 docker-compose ps
+# OR
+docker ps
 
 # View RabbitMQ logs
 docker-compose logs rabbitmq
@@ -198,14 +202,220 @@ docker-compose logs rabbitmq
 # Password: guest
 ```
 
+#### Auto-Start Options
+
+**Option A: Docker Desktop Auto-Start**
+
+1. Open Docker Desktop
+2. Go to Settings → General
+3. Enable "Start Docker Desktop when you log in"
+4. Configure restart policy in docker-compose.yml (see Option B)
+
+**Option B: Container Restart Policy**
+
+Update your `docker-compose.yml` to automatically restart containers when Docker starts:
+
+```yaml
+services:
+  rabbitmq:
+    image: rabbitmq:3-management
+    container_name: ddd-rabbitmq
+    restart: unless-stopped  # ← Add this line
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    # ... rest of config
+```
+
+**Recommended: `unless-stopped`** - Containers restart when Docker starts, but respect manual stops.
+
+#### Making "F5 Just Work" - PowerShell Script Solution
+
+**The Problem**: You press F5 in Visual Studio, but RabbitMQ isn't running. Your app fails with connection errors.
+
+**The Solution**: A PowerShell script that checks and starts Docker containers before debugging.
+
+**Step 1: Create `scripts/ensure-docker.ps1`**
+
+Create this script in your solution root:
+
+```powershell
+# scripts/ensure-docker.ps1
+param(
+    [int]$TimeoutSeconds = 60
+)
+
+Write-Host "Ensuring Docker containers are running..." -ForegroundColor Cyan
+
+# Check if Docker Desktop is running
+$dockerProcess = Get-Process "Docker Desktop" -ErrorAction SilentlyContinue
+if (-not $dockerProcess) {
+    Write-Host "ERROR: Docker Desktop is not running." -ForegroundColor Red
+    Write-Host "Please start Docker Desktop and try again." -ForegroundColor Yellow
+    exit 1
+}
+
+# Check if RabbitMQ container is running
+$rabbitmqRunning = docker ps --filter "name=ddd-rabbitmq" --filter "status=running" --format "{{.Names}}"
+
+if ($rabbitmqRunning) {
+    Write-Host "RabbitMQ container already running." -ForegroundColor Green
+    exit 0
+}
+
+# Start RabbitMQ container
+Write-Host "Starting RabbitMQ container..." -ForegroundColor Yellow
+Push-Location $PSScriptRoot\..
+docker-compose up -d
+Pop-Location
+
+# Wait for RabbitMQ health check
+Write-Host "Waiting for RabbitMQ to be ready..." -ForegroundColor Yellow
+$elapsed = 0
+while ($elapsed -lt $TimeoutSeconds) {
+    $health = docker inspect --format="{{.State.Health.Status}}" ddd-rabbitmq 2>$null
+    if ($health -eq "healthy") {
+        Write-Host "RabbitMQ is ready!" -ForegroundColor Green
+        exit 0
+    }
+    Start-Sleep -Seconds 2
+    $elapsed += 2
+}
+
+Write-Host "ERROR: RabbitMQ health check timed out after $TimeoutSeconds seconds." -ForegroundColor Red
+exit 1
+```
+
+**Step 2: Update Your Existing Launch Profile**
+
+Modify your existing launch profile in `WebApi/Properties/launchSettings.json` to include the Docker startup script.
+
+**Before** (your current https profile):
+```json
+{
+  "profiles": {
+    "https": {
+      "commandName": "Project",
+      "dotnetRunMessages": true,
+      "launchBrowser": false,
+      "applicationUrl": "https://localhost:7082;http://localhost:5010",
+      "environmentVariables": {
+        "ASPNETCORE_ENVIRONMENT": "Development"
+      }
+    }
+  }
+}
+```
+
+**After** (add the `preLaunchTask`):
+```json
+{
+  "profiles": {
+    "https": {
+      "commandName": "Project",
+      "dotnetRunMessages": true,
+      "launchBrowser": false,
+      "applicationUrl": "https://localhost:7082;http://localhost:5010",
+      "environmentVariables": {
+        "ASPNETCORE_ENVIRONMENT": "Development"
+      },
+      "preLaunchTask": "ensure-docker"
+    }
+  }
+}
+```
+
+**Step 3: Create VS Code tasks.json (if using VS Code)**
+
+If you're using Visual Studio Code, create or update `.vscode/tasks.json`:
+
+```json
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "ensure-docker",
+      "type": "shell",
+      "command": "powershell",
+      "args": [
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "${workspaceFolder}/scripts/ensure-docker.ps1"
+      ],
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "panel": "new"
+      }
+    }
+  ]
+}
+```
+
+**Step 4: IDE-Specific Configuration**
+
+**For VS Code Users:**
+The `preLaunchTask` in launchSettings.json (Step 2) works with the tasks.json (Step 3). F5 will automatically run the Docker check.
+
+**For Visual Studio Users:**
+Visual Studio doesn't natively support `preLaunchTask` in launchSettings.json. This project is already configured with a pre-build event in WebApi.csproj:
+
+```xml
+<Target Name="PreBuild" BeforeTargets="PreBuildEvent">
+  <Exec Command="powershell -ExecutionPolicy Bypass -File &quot;$(SolutionDir)scripts\ensure-docker.ps1&quot;" />
+</Target>
+```
+
+When you press F5 in Visual Studio, the pre-build event runs automatically, checking and starting Docker containers before your app launches. No manual setup needed - it's already configured.
+
+**Step 5: Test It**
+
+Now when you press F5 in Visual Studio (or run the launch profile in VS Code), the Docker containers will be checked and started automatically if needed.
+
+**Future: .NET Aspire (Phase 6)**
+
+.NET Aspire is Microsoft's orchestration stack that automatically manages Docker containers, service discovery, and observability. We'll explore it in Phase 6 when working with multiple microservices. For now, the PowerShell script keeps things simple while you learn DDD/CQRS patterns.
+
+#### Checking if Services Are Already Running
+
+Before starting containers, check if they're already running:
+
+```bash
+# Check all running containers
+docker ps
+
+# Check specific services
+docker-compose ps
+
+# Expected output when running:
+# NAME            IMAGE                 STATUS
+# ddd-rabbitmq    rabbitmq:3-management Up 2 hours
+```
+
+If status shows "Up", RabbitMQ is already running - no need to start again.
+
+**Note**: You'll only see the RabbitMQ container here. SQL Server LocalDB (configured in Phase 2) runs as a Windows service, not in Docker.
+
 ### Docker Commands Cheat Sheet
 
 ```bash
-# Start containers (runs in background)
+# Start containers in background (detached mode)
 docker-compose up -d
+
+# Start containers in foreground (shows logs, blocks terminal)
+docker-compose up
+# Press Ctrl+C to stop containers
+
+# Check if containers are running
+docker-compose ps
+docker ps  # All containers, not just current project
 
 # Stop containers (keeps data)
 docker-compose stop
+
+# Start stopped containers
+docker-compose start
 
 # Stop and remove containers (keeps data in volumes)
 docker-compose down
@@ -213,16 +423,26 @@ docker-compose down
 # Stop, remove containers AND delete data
 docker-compose down -v
 
-# View running containers
-docker-compose ps
-
 # View logs
 docker-compose logs rabbitmq
-docker-compose logs -f rabbitmq  # Follow/stream logs
+docker-compose logs -f rabbitmq  # Follow/stream logs (real-time)
 
 # Restart a specific service
 docker-compose restart rabbitmq
+
+# Execute commands inside running container
+docker exec -it ddd-rabbitmq bash
 ```
+
+**Key Differences:**
+
+| Command | What Happens | Use When |
+|---------|--------------|----------|
+| `docker-compose up` | Starts containers, shows logs in terminal | Debugging, watching logs |
+| `docker-compose up -d` | Starts containers in background (detached) | Normal development (recommended) |
+| `docker-compose stop` | Stops containers, doesn't remove them | Temporarily stop services |
+| `docker-compose down` | Stops and removes containers, keeps volumes | Clean up when done for the day |
+| `docker-compose down -v` | Stops, removes containers AND deletes data | Complete reset (careful!) |
 
 ---
 

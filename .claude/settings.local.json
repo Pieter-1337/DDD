@@ -33,7 +33,16 @@
       "Bash(powershell:*)",
       "Bash(echo:*)",
       "Bash(if not exist \"C:\\\\Users\\\\piete\\\\.claude\\\\agents\" mkdir \"C:\\\\Users\\\\piete\\\\.claude\\\\agents\")",
-      "Bash(tree:*)"
+      "Bash(tree:*)",
+      "Bash(docker pull:*)",
+      "Bash(net stop com.docker.service)",
+      "Bash(net start com.docker.service)",
+      "Bash(docker info:*)",
+      "Bash(Select-String -Pattern \"Server Version|Operating System|OSType\")",
+      "Bash(wsl -e sudo ip link set dev eth0 mtu 1400:*)",
+      "Bash(wsl --list:*)",
+      "Bash(docker-compose up:*)",
+      "Bash(docker-compose down:*)"
     ]
   }
 }
