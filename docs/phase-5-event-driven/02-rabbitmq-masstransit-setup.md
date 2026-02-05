@@ -100,8 +100,8 @@ services:
     container_name: ddd-rabbitmq
     restart: unless-stopped
     ports:
-      - "5672:5672"    # AMQP port (messaging)
-      - "15672:15672"  # Management UI
+      - "0.0.0.0:5672:5672"    # AMQP port (messaging)
+      - "0.0.0.0:15672:15672"  # Management UI
     environment:
       - RABBITMQ_DEFAULT_USER=guest
       - RABBITMQ_DEFAULT_PASS=guest
@@ -116,6 +116,15 @@ services:
 volumes:
   rabbitmq_data:
 ```
+
+**Why `0.0.0.0:` prefix?**
+
+The `0.0.0.0:5672:5672` format explicitly binds container ports to all network interfaces on the Windows host. With Docker Desktop on Windows, this ensures the ports are accessible from:
+- Your .NET application (connecting via `localhost:5672`)
+- Other containers in the Docker network
+- External tools (like RabbitMQ clients or management tools)
+
+Without the `0.0.0.0:` prefix, Docker Desktop may bind to IPv6 (`::1`) or other interfaces, potentially causing connection issues from Windows applications.
 
 **Note**: This project uses SQL Server LocalDB (configured in Phase 2) for the database, not Docker. Only RabbitMQ runs in Docker.
 
@@ -222,22 +231,22 @@ services:
     container_name: ddd-rabbitmq
     restart: unless-stopped  # ← Add this line
     ports:
-      - "5672:5672"
-      - "15672:15672"
+      - "0.0.0.0:5672:5672"    # AMQP port
+      - "0.0.0.0:15672:15672"  # Management UI
     # ... rest of config
 ```
 
 **Recommended: `unless-stopped`** - Containers restart when Docker starts, but respect manual stops.
 
-#### Making "F5 Just Work" - PowerShell Script Solution
+#### Making "F5 Just Work" - Automatic Docker Startup in Visual Studio
 
 **The Problem**: You press F5 in Visual Studio, but RabbitMQ isn't running. Your app fails with connection errors.
 
-**The Solution**: A PowerShell script that checks and starts Docker containers before debugging.
+**The Solution**: This project uses MSBuild targets to automatically check and start Docker containers before every debug session.
 
 **Step 1: Create `scripts/ensure-docker.ps1`**
 
-Create this script in your solution root:
+This PowerShell script checks if Docker and RabbitMQ are running, starting them if needed. Create this file in your solution root:
 
 ```powershell
 # scripts/ensure-docker.ps1
@@ -286,130 +295,69 @@ Write-Host "ERROR: RabbitMQ health check timed out after $TimeoutSeconds seconds
 exit 1
 ```
 
-**Step 2: Update Your Existing Launch Profile**
+**Step 2: Create `Directory.Build.targets`**
 
-Modify your existing launch profile in `WebApi/Properties/launchSettings.json` to include the Docker startup script.
-
-**Before** (your current https profile):
-```json
-{
-  "profiles": {
-    "https": {
-      "commandName": "Project",
-      "dotnetRunMessages": true,
-      "launchBrowser": false,
-      "applicationUrl": "https://localhost:7082;http://localhost:5010",
-      "environmentVariables": {
-        "ASPNETCORE_ENVIRONMENT": "Development"
-      }
-    }
-  }
-}
-```
-
-**After** (add the `preLaunchTask`):
-```json
-{
-  "profiles": {
-    "https": {
-      "commandName": "Project",
-      "dotnetRunMessages": true,
-      "launchBrowser": false,
-      "applicationUrl": "https://localhost:7082;http://localhost:5010",
-      "environmentVariables": {
-        "ASPNETCORE_ENVIRONMENT": "Development"
-      },
-      "preLaunchTask": "ensure-docker"
-    }
-  }
-}
-```
-
-**Step 3: Create VS Code tasks.json (if using VS Code)**
-
-If you're using Visual Studio Code, create or update `.vscode/tasks.json`:
-
-```json
-{
-  "version": "2.0.0",
-  "tasks": [
-    {
-      "label": "ensure-docker",
-      "type": "shell",
-      "command": "powershell",
-      "args": [
-        "-ExecutionPolicy",
-        "Bypass",
-        "-File",
-        "${workspaceFolder}/scripts/ensure-docker.ps1"
-      ],
-      "problemMatcher": [],
-      "presentation": {
-        "reveal": "always",
-        "panel": "new"
-      }
-    }
-  ]
-}
-```
-
-**Step 4: IDE-Specific Configuration**
-
-**For VS Code Users:**
-The `preLaunchTask` in launchSettings.json (Step 2) works with the tasks.json (Step 3). F5 will automatically run the Docker check.
-
-**For Visual Studio Users:**
-Visual Studio doesn't natively support `preLaunchTask` in launchSettings.json. This project is configured with TWO MSBuild targets in a shared `Directory.Build.targets` file at the solution root that ensure Docker runs on EVERY F5:
+This project uses MSBuild targets to automatically run the Docker script. Create `Directory.Build.targets` in your solution root (same directory as the .sln file):
 
 ```xml
-<!-- Directory.Build.targets (in solution root) -->
 <Project>
-  <!-- Runs on builds when code changes (with timestamp caching) -->
-  <Target Name="EnsureDockerServices" BeforeTargets="Build" Inputs="$(MSBuildAllProjects)" Outputs="$(IntermediateOutputPath)ensure-docker.timestamp">
-    <Exec Command="powershell -ExecutionPolicy Bypass -File &quot;$(MSBuildThisFileDirectory)scripts\ensure-docker.ps1&quot;" />
-    <Touch Files="$(IntermediateOutputPath)ensure-docker.timestamp" AlwaysCreate="true" />
+
+  <!--
+    Docker startup targets for WebApi projects.
+    These targets ensure Docker services (RabbitMQ, SQL Server) are running before build/run.
+    Automatically inherited by all projects in the solution.
+
+    Strategy: Use a SINGLE target that runs on EVERY Build, even cached builds.
+    - We remove the Inputs/Outputs incremental build optimization
+    - The script itself is idempotent (fast exit if containers already running)
+    - This ensures F5 ALWAYS checks and starts containers if needed
+  -->
+
+  <Target Name="EnsureDockerServices" BeforeTargets="Build">
+    <Exec Command="powershell -ExecutionPolicy Bypass -File &quot;$(MSBuildThisFileDirectory)scripts\ensure-docker.ps1&quot;"
+          IgnoreExitCode="false" />
   </Target>
 
-  <!-- Runs EVERY F5, even on cached builds (no code changes) -->
-  <Target Name="EnsureDockerServicesOnRun" BeforeTargets="PrepareForRun">
-    <Exec Command="powershell -ExecutionPolicy Bypass -File &quot;$(MSBuildThisFileDirectory)scripts\ensure-docker.ps1&quot;" />
-  </Target>
 </Project>
 ```
 
-**Why Directory.Build.targets?**
+**How It Works**
 
-`Directory.Build.targets` is automatically imported by MSBuild into ALL projects in the solution tree. This means:
+`Directory.Build.targets` is automatically imported by MSBuild into ALL projects in the solution tree. This approach:
 
-| Approach | Scope | Maintenance |
-|----------|-------|-------------|
-| **Targets in WebApi.csproj** | Only WebApi project | Need to copy/paste to each new API project |
-| **Directory.Build.targets** | ALL projects in solution | Automatic inheritance - add once, works everywhere |
+| Feature | Benefit |
+|---------|---------|
+| **Automatic inheritance** | Works for ALL projects in the solution |
+| **No manual configuration** | Add once, works everywhere |
+| **Future-proof** | New microservices in Phase 6 inherit automatically |
+| **Visual Studio specific** | Uses MSBuild, the native build system |
 
-When you create additional microservices in Phase 6 (Billing.Api, MedicalRecords.Api), they'll automatically inherit these Docker startup checks without any configuration.
+**Why a Single Target?**
 
-**Why Two Targets?**
-
-| Target | When It Runs | Why Needed |
-|--------|--------------|------------|
-| `EnsureDockerServices` | Only when code changes trigger a build | Efficient for normal development (uses timestamp caching) |
-| `EnsureDockerServicesOnRun` | Every F5, even on cached builds | Ensures Docker is running when you restart after PC reboot or Docker stop |
+This implementation uses a single target that runs on **every** build:
+- No incremental build optimization (no Inputs/Outputs timestamp caching)
+- The PowerShell script itself is idempotent and exits quickly if containers are already running
+- Ensures Docker is always checked before every F5, even on cached builds
+- Simple and reliable approach for local development
 
 **Path Resolution: $(MSBuildThisFileDirectory)**
 
-Notice the targets use `$(MSBuildThisFileDirectory)` instead of `$(SolutionDir)`:
-- `$(MSBuildThisFileDirectory)` - Directory containing Directory.Build.targets (the solution root)
+The target uses `$(MSBuildThisFileDirectory)` instead of `$(SolutionDir)` because:
+- `$(MSBuildThisFileDirectory)` - Reliable path to Directory.Build.targets (the solution root)
 - `$(SolutionDir)` - Can be unreliable in some MSBuild scenarios (especially dotnet CLI builds)
 
-This dual-target approach guarantees Docker containers are always running when you debug, whether you made code changes or not. No manual setup needed - it's already configured and will automatically apply to all future API projects.
+**Step 3: Test It**
 
-**Step 5: Test It**
+1. Ensure Docker Desktop is running
+2. Press F5 in Visual Studio
+3. Watch the Build Output window - you'll see the Docker script output
+4. Your app will start with RabbitMQ already running
 
-Now when you press F5 in Visual Studio (or run the launch profile in VS Code), the Docker containers will be checked and started automatically if needed.
+This single-target approach guarantees Docker containers are always running when you debug, whether you made code changes or not. The configuration is complete and will automatically apply to all future API projects.
 
 **Future: .NET Aspire (Phase 6)**
 
-.NET Aspire is Microsoft's orchestration stack that automatically manages Docker containers, service discovery, and observability. We'll explore it in Phase 6 when working with multiple microservices. For now, the PowerShell script keeps things simple while you learn DDD/CQRS patterns.
+.NET Aspire is Microsoft's orchestration stack that automatically manages Docker containers, service discovery, and observability. We'll explore it in Phase 6 when working with multiple microservices. For now, the MSBuild approach keeps things simple while you learn DDD/CQRS patterns.
 
 #### Checking if Services Are Already Running
 
@@ -477,91 +425,6 @@ docker exec -it ddd-rabbitmq bash
 | `docker-compose stop` | Stops containers, doesn't remove them | Temporarily stop services |
 | `docker-compose down` | Stops and removes containers, keeps volumes | Clean up when done for the day |
 | `docker-compose down -v` | Stops, removes containers AND deletes data | Complete reset (careful!) |
-
----
-
-## Option 2: Windows Installer (No Docker)
-
-If you prefer not to use Docker, install RabbitMQ directly on Windows.
-
-### Step 1: Install Erlang
-
-RabbitMQ requires Erlang (the language it's built with).
-
-1. Download from https://www.erlang.org/downloads
-2. Run installer, accept defaults
-3. Verify in new terminal:
-   ```bash
-   erl -version
-   # Erlang (SMP,ASYNC_THREADS) (BEAM) emulator version 13.x
-   ```
-
-### Step 2: Install RabbitMQ
-
-1. Download from https://www.rabbitmq.com/install-windows.html
-2. Run installer
-3. RabbitMQ runs as a Windows service (starts automatically)
-
-### Step 3: Enable Management UI
-
-Open RabbitMQ Command Prompt (from Start menu) and run:
-
-```bash
-rabbitmq-plugins enable rabbitmq_management
-```
-
-### Step 4: Access Management UI
-
-- URL: http://localhost:15672
-- Username: `guest`
-- Password: `guest`
-
-### Uninstalling Later
-
-1. Uninstall RabbitMQ from Windows Settings > Apps
-2. Uninstall Erlang from Windows Settings > Apps
-3. Delete `C:\Users\{you}\AppData\Roaming\RabbitMQ` (data folder)
-
----
-
-## Option 3: Cloud Service (CloudAMQP)
-
-No local installation needed. CloudAMQP offers a free tier.
-
-### Step 1: Create Account
-
-1. Go to https://www.cloudamqp.com/
-2. Sign up (free tier: "Little Lemur")
-3. Create a new instance (choose region close to you)
-
-### Step 2: Get Connection Details
-
-From your instance dashboard, copy:
-- **Host**: `something.rmq.cloudamqp.com`
-- **Username**: (shown in dashboard)
-- **Password**: (shown in dashboard)
-- **Virtual Host**: (usually same as username)
-
-### Step 3: Configure appsettings.json
-
-```json
-{
-  "RabbitMQ": {
-    "Host": "sparrow.rmq.cloudamqp.com",
-    "VirtualHost": "your-vhost",
-    "Username": "your-username",
-    "Password": "your-password"
-  }
-}
-```
-
-### Free Tier Limits
-
-- 1 million messages/month
-- 20 concurrent connections
-- Limited queues
-
-Fine for learning, but consider Docker for unlimited local development.
 
 ---
 
