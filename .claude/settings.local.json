@@ -50,7 +50,8 @@
       "Bash(powershell.exe -ExecutionPolicy Bypass -File \"C:\\\\projects\\\\DDD\\\\DDD\\\\scripts\\\\ensure-docker.ps1\")",
       "Bash(docker ps:*)",
       "Bash(powershell.exe -Command \"Test-NetConnection -ComputerName localhost -Port 5672 | Select-Object -Property ComputerName, RemotePort, TcpTestSucceeded\")",
-      "Bash(powershell.exe -Command \"Test-NetConnection -ComputerName localhost -Port 15672 | Select-Object -Property ComputerName, RemotePort, TcpTestSucceeded\")"
+      "Bash(powershell.exe -Command \"Test-NetConnection -ComputerName localhost -Port 15672 | Select-Object -Property ComputerName, RemotePort, TcpTestSucceeded\")",
+      "Bash(curl:*)"
     ]
   }
 }
