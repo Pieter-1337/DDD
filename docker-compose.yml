@@ -3,8 +3,8 @@ services:
     image: rabbitmq:3-management
     container_name: ddd-rabbitmq
     ports:
-      - "5672:5672"    # AMQP port (messaging)
-      - "15672:15672"  # Management UI
+      - "0.0.0.0:5672:5672"    # AMQP port (messaging)
+      - "0.0.0.0:15672:15672"  # Management UI
     environment:
       - RABBITMQ_DEFAULT_USER=guest
       - RABBITMQ_DEFAULT_PASS=guest

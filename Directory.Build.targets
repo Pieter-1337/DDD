@@ -4,15 +4,16 @@
     Docker startup targets for WebApi projects.
     These targets ensure Docker services (RabbitMQ, SQL Server) are running before build/run.
     Automatically inherited by all projects in the solution.
+
+    Strategy: Use a SINGLE target that runs on EVERY Build, even cached builds.
+    - We remove the Inputs/Outputs incremental build optimization
+    - The script itself is idempotent (fast exit if containers already running)
+    - This ensures F5 ALWAYS checks and starts containers if needed
   -->
 
-  <Target Name="EnsureDockerServices" BeforeTargets="Build" Inputs="$(MSBuildAllProjects)" Outputs="$(IntermediateOutputPath)ensure-docker.timestamp">
-    <Exec Command="powershell -ExecutionPolicy Bypass -File &quot;$(MSBuildThisFileDirectory)scripts\ensure-docker.ps1&quot;" />
-    <Touch Files="$(IntermediateOutputPath)ensure-docker.timestamp" AlwaysCreate="true" />
-  </Target>
-
-  <Target Name="EnsureDockerServicesOnRun" BeforeTargets="PrepareForRun">
-    <Exec Command="powershell -ExecutionPolicy Bypass -File &quot;$(MSBuildThisFileDirectory)scripts\ensure-docker.ps1&quot;" />
+  <Target Name="EnsureDockerServices" BeforeTargets="Build">
+    <Exec Command="powershell -ExecutionPolicy Bypass -File &quot;$(MSBuildThisFileDirectory)scripts\ensure-docker.ps1&quot;"
+          IgnoreExitCode="false" />
   </Target>
 
 </Project>
