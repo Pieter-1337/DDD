@@ -1,0 +1,18 @@
+<Project>
+
+  <!--
+    Docker startup targets for WebApi projects.
+    These targets ensure Docker services (RabbitMQ, SQL Server) are running before build/run.
+    Automatically inherited by all projects in the solution.
+  -->
+
+  <Target Name="EnsureDockerServices" BeforeTargets="Build" Inputs="$(MSBuildAllProjects)" Outputs="$(IntermediateOutputPath)ensure-docker.timestamp">
+    <Exec Command="powershell -ExecutionPolicy Bypass -File &quot;$(MSBuildThisFileDirectory)scripts\ensure-docker.ps1&quot;" />
+    <Touch Files="$(IntermediateOutputPath)ensure-docker.timestamp" AlwaysCreate="true" />
+  </Target>
+
+  <Target Name="EnsureDockerServicesOnRun" BeforeTargets="PrepareForRun">
+    <Exec Command="powershell -ExecutionPolicy Bypass -File &quot;$(MSBuildThisFileDirectory)scripts\ensure-docker.ps1&quot;" />
+  </Target>
+
+</Project>

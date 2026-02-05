@@ -359,15 +359,49 @@ If you're using Visual Studio Code, create or update `.vscode/tasks.json`:
 The `preLaunchTask` in launchSettings.json (Step 2) works with the tasks.json (Step 3). F5 will automatically run the Docker check.
 
 **For Visual Studio Users:**
-Visual Studio doesn't natively support `preLaunchTask` in launchSettings.json. This project is already configured with a pre-build event in WebApi.csproj:
+Visual Studio doesn't natively support `preLaunchTask` in launchSettings.json. This project is configured with TWO MSBuild targets in a shared `Directory.Build.targets` file at the solution root that ensure Docker runs on EVERY F5:
 
 ```xml
-<Target Name="PreBuild" BeforeTargets="PreBuildEvent">
-  <Exec Command="powershell -ExecutionPolicy Bypass -File &quot;$(SolutionDir)scripts\ensure-docker.ps1&quot;" />
-</Target>
+<!-- Directory.Build.targets (in solution root) -->
+<Project>
+  <!-- Runs on builds when code changes (with timestamp caching) -->
+  <Target Name="EnsureDockerServices" BeforeTargets="Build" Inputs="$(MSBuildAllProjects)" Outputs="$(IntermediateOutputPath)ensure-docker.timestamp">
+    <Exec Command="powershell -ExecutionPolicy Bypass -File &quot;$(MSBuildThisFileDirectory)scripts\ensure-docker.ps1&quot;" />
+    <Touch Files="$(IntermediateOutputPath)ensure-docker.timestamp" AlwaysCreate="true" />
+  </Target>
+
+  <!-- Runs EVERY F5, even on cached builds (no code changes) -->
+  <Target Name="EnsureDockerServicesOnRun" BeforeTargets="PrepareForRun">
+    <Exec Command="powershell -ExecutionPolicy Bypass -File &quot;$(MSBuildThisFileDirectory)scripts\ensure-docker.ps1&quot;" />
+  </Target>
+</Project>
 ```
 
-When you press F5 in Visual Studio, the pre-build event runs automatically, checking and starting Docker containers before your app launches. No manual setup needed - it's already configured.
+**Why Directory.Build.targets?**
+
+`Directory.Build.targets` is automatically imported by MSBuild into ALL projects in the solution tree. This means:
+
+| Approach | Scope | Maintenance |
+|----------|-------|-------------|
+| **Targets in WebApi.csproj** | Only WebApi project | Need to copy/paste to each new API project |
+| **Directory.Build.targets** | ALL projects in solution | Automatic inheritance - add once, works everywhere |
+
+When you create additional microservices in Phase 6 (Billing.Api, MedicalRecords.Api), they'll automatically inherit these Docker startup checks without any configuration.
+
+**Why Two Targets?**
+
+| Target | When It Runs | Why Needed |
+|--------|--------------|------------|
+| `EnsureDockerServices` | Only when code changes trigger a build | Efficient for normal development (uses timestamp caching) |
+| `EnsureDockerServicesOnRun` | Every F5, even on cached builds | Ensures Docker is running when you restart after PC reboot or Docker stop |
+
+**Path Resolution: $(MSBuildThisFileDirectory)**
+
+Notice the targets use `$(MSBuildThisFileDirectory)` instead of `$(SolutionDir)`:
+- `$(MSBuildThisFileDirectory)` - Directory containing Directory.Build.targets (the solution root)
+- `$(SolutionDir)` - Can be unreliable in some MSBuild scenarios (especially dotnet CLI builds)
+
+This dual-target approach guarantees Docker containers are always running when you debug, whether you made code changes or not. No manual setup needed - it's already configured and will automatically apply to all future API projects.
 
 **Step 5: Test It**
 
