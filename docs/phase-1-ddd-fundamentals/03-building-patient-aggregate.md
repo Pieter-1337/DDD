@@ -405,12 +405,89 @@ public class PatientTests
 
 ### Step 7: Add FluentAssertions to test project
 
+#### Understanding Central Package Management (CPM)
+
+This project uses **Central Package Management (CPM)**, a feature introduced in NuGet 6.2 that centralizes package version management across your solution.
+
+**How CPM Works:**
+
+Instead of specifying versions in each project file, all package versions are defined in a single `Directory.Packages.props` file at the solution root:
+
+```xml
+<!-- Directory.Packages.props -->
+<Project>
+  <PropertyGroup>
+    <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Testing -->
+    <PackageVersion Include="FluentAssertions" Version="7.0.0" />
+    <PackageVersion Include="xUnit" Version="2.9.2" />
+    <PackageVersion Include="Moq" Version="4.20.72" />
+
+    <!-- MediatR (CQRS) -->
+    <PackageVersion Include="MediatR" Version="12.4.1" />
+
+    <!-- Entity Framework Core -->
+    <PackageVersion Include="Microsoft.EntityFrameworkCore" Version="9.0.0" />
+    <PackageVersion Include="Microsoft.EntityFrameworkCore.SqlServer" Version="9.0.0" />
+  </ItemGroup>
+</Project>
+```
+
+When you add a package to a project, you **do NOT specify a version**:
+
+```bash
+# Correct (CPM) - No version specified
+dotnet add package FluentAssertions
+
+# Incorrect (CPM) - Don't do this
+dotnet add package FluentAssertions --version 7.0.0
+```
+
+The project file references the package WITHOUT a version number:
+
+```xml
+<!-- Project.csproj -->
+<ItemGroup>
+  <PackageReference Include="FluentAssertions" />  <!-- No Version attribute -->
+</ItemGroup>
+```
+
+**Benefits of CPM:**
+
+1. **Single source of truth**: Update a package version once in `Directory.Packages.props`, and all projects get the updated version
+2. **Consistency**: Prevents version conflicts where different projects use different versions of the same package
+3. **Easier maintenance**: No need to hunt through dozens of .csproj files to update a package
+4. **Reduced merge conflicts**: Fewer version changes in individual project files
+5. **Cleaner project files**: Package references don't clutter project files with version attributes
+
+**Adding a New Package:**
+
+When adding a package for the first time to your solution:
+
+1. Add the package to your project (without version):
+   ```bash
+   dotnet add package FluentAssertions
+   ```
+
+2. Add the version to `Directory.Packages.props`:
+   ```xml
+   <PackageVersion Include="FluentAssertions" Version="7.0.0" />
+   ```
+
+**Now add FluentAssertions:**
+
 ```bash
 cd DDD/tests/Scheduling.Domain.Tests
 dotnet add package FluentAssertions
 ```
 
-**Note:** This project uses Central Package Management (CPM). Package versions are defined in `Directory.Packages.props` at the solution root, so you don't specify `--version` when adding packages.
+Ensure `Directory.Packages.props` contains the version:
+```xml
+<PackageVersion Include="FluentAssertions" Version="7.0.0" />
+```
 
 ### Step 8: Run Tests
 
