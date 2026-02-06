@@ -52,7 +52,10 @@
       "Bash(powershell.exe -Command \"Test-NetConnection -ComputerName localhost -Port 5672 | Select-Object -Property ComputerName, RemotePort, TcpTestSucceeded\")",
       "Bash(powershell.exe -Command \"Test-NetConnection -ComputerName localhost -Port 15672 | Select-Object -Property ComputerName, RemotePort, TcpTestSucceeded\")",
       "Bash(curl:*)",
-      "Bash(timeout:*)"
+      "Bash(timeout:*)",
+      "Bash(powershell.exe -Command \"New-Item -ItemType Directory -Force -Path ''C:\\\\ProgramData\\\\Docker\\\\config'' | Out-Null; Write-Host ''Directory created or already exists''\")",
+      "Bash(powershell.exe -Command \"$json = @''{  \"\"debug\"\": false,  \"\"experimental\"\": false}''@ | ConvertFrom-Json | ConvertTo-Json; [System.IO.File]::WriteAllText\\(''C:\\\\ProgramData\\\\Docker\\\\config\\\\daemon.json'', $json, [System.Text.UTF8Encoding]::new\\($false\\)\\); Write-Host ''Created daemon.json without BOM''\")",
+      "Bash(del \"C:\\\\projects\\\\DDD\\\\DDD\\\\fix-daemon.ps1\")"
     ]
   }
 }
