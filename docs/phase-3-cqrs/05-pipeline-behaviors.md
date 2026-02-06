@@ -664,7 +664,7 @@ Location: `BuildingBlocks/BuildingBlocks.Application/Behaviors/TransactionBehavi
 
 ```csharp
 using BuildingBlocks.Application.Interfaces;
-using BuildingBlocks.Application.Messaging;
+using BuildingBlocks.Application.Cqrs;
 using FluentValidation;
 using MediatR;
 
@@ -797,7 +797,7 @@ public abstract record OrchestrationCommand<TResponse> : Command<TResponse>
 ### Commands
 
 ```csharp
-using BuildingBlocks.Application.Messaging;
+using BuildingBlocks.Application.Cqrs;
 
 // Simple command (wrapped in transaction)
 public record SuspendPatientCommand : Command<SuspendPatientCommandResponse>
@@ -812,7 +812,7 @@ public record CreatePatientCommand(CreatePatientRequest Patient) : Command<Creat
 ### Queries
 
 ```csharp
-using BuildingBlocks.Application.Messaging;
+using BuildingBlocks.Application.Cqrs;
 
 // Simple query (no transaction)
 public record GetPatientQuery : Query<PatientDto?>
@@ -830,7 +830,7 @@ public record GetAllPatientsQuery : Query<IEnumerable<PatientDto>>
 ### Orchestration Commands
 
 ```csharp
-using BuildingBlocks.Application.Messaging;
+using BuildingBlocks.Application.Cqrs;
 
 // Coordinates multiple commands - no transaction wrapper
 public record TransferPatientCommand : OrchestrationCommand<TransferPatientResponse>

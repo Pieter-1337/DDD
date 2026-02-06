@@ -1,5 +1,5 @@
 using BuildingBlocks.Application.Interfaces;
-using BuildingBlocks.Application.Messaging;
+using BuildingBlocks.Application.Cqrs;
 using FluentValidation;
 using MediatR;
 

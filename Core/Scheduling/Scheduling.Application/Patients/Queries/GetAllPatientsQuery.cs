@@ -1,4 +1,4 @@
-using BuildingBlocks.Application.Messaging;
+using BuildingBlocks.Application.Cqrs;
 using BuildingBlocks.Application.Validators;
 using BuildingBlocks.Enumerations;
 using FluentValidation;

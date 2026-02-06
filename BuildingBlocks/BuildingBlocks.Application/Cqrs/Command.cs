@@ -1,7 +1,7 @@
 using MediatR;
 using System.Text.Json.Serialization;
 
-namespace BuildingBlocks.Application.Messaging
+namespace BuildingBlocks.Application.Cqrs
 {
     /// <summary>
     /// Base record for commands. Commands are wrapped in a database transaction by default.

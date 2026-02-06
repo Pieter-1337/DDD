@@ -1,6 +1,6 @@
 using MediatR;
 
-namespace BuildingBlocks.Application.Messaging
+namespace BuildingBlocks.Application.Cqrs
 {
     /// <summary>
     /// Base record for queries. Queries are NOT wrapped in a database transaction.

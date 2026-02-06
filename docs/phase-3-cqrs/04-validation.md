@@ -178,7 +178,7 @@ Location: `Core/Scheduling/Scheduling.Application/Patients/Commands/CreatePatien
 
 ```csharp
 using BuildingBlocks.Application.Dtos;
-using BuildingBlocks.Application.Messaging;
+using BuildingBlocks.Application.Cqrs;
 using BuildingBlocks.Application.Validators;
 using BuildingBlocks.Enumerations;
 using FluentValidation;
@@ -263,7 +263,7 @@ Location: `Core/Scheduling/Scheduling.Application/Patients/Commands/SuspendPatie
 ```csharp
 using BuildingBlocks.Application.Dtos;
 using BuildingBlocks.Application.Interfaces;
-using BuildingBlocks.Application.Messaging;
+using BuildingBlocks.Application.Cqrs;
 using BuildingBlocks.Application.Validators;
 using BuildingBlocks.Enumerations;
 using FluentValidation;
@@ -316,7 +316,7 @@ Location: `Core/Scheduling/Scheduling.Application/Patients/Queries/GetPatientQue
 
 ```csharp
 using BuildingBlocks.Application.Interfaces;
-using BuildingBlocks.Application.Messaging;
+using BuildingBlocks.Application.Cqrs;
 using BuildingBlocks.Application.Validators;
 using BuildingBlocks.Enumerations;
 using FluentValidation;
@@ -360,7 +360,7 @@ For SmartEnum parameters in DTOs, use `string` type and validate with `.Must(Sma
 Location: `Core/Scheduling/Scheduling.Application/Patients/Queries/GetAllPatientsQuery.cs`
 
 ```csharp
-using BuildingBlocks.Application.Messaging;
+using BuildingBlocks.Application.Cqrs;
 using BuildingBlocks.Application.Validators;
 using BuildingBlocks.Enumerations;
 using FluentValidation;

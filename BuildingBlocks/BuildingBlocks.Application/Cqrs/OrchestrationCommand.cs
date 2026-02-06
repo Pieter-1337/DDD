@@ -1,4 +1,4 @@
-namespace BuildingBlocks.Application.Messaging
+namespace BuildingBlocks.Application.Cqrs
 {
     /// <summary>
     /// Base record for orchestration commands. These coordinate multiple child commands
