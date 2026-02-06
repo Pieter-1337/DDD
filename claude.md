@@ -10,16 +10,6 @@ This is a comprehensive learning project to master Domain-Driven Design (DDD) an
 - **Azure Experience**: .NET, C#, Cosmos DB, SQL Server, Azure Service Bus, Azure App Configuration
 - **Goal**: Deep dive into DDD, event-driven architecture, RabbitMQ, SQL Server/EF Core, CQRS
 
-## Working Rules
-
-**Always use specialized agents for tasks:**
-- **documenter** - For all documentation tasks (creating, updating, reviewing docs)
-- **coder** - For C#/.NET implementation, Blazor components, ASP.NET Core APIs
-- **docker** - For Docker-related tasks, docker-compose, container troubleshooting
-- **reviewer** - For code reviews, finding bugs, security issues
-
-Do not perform these tasks directly - delegate to the appropriate agent.
-
 ## Project Structure & Learning Path
 
 ### Phase 1: DDD Fundamentals
