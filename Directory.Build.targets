@@ -2,18 +2,22 @@
 
   <!--
     Docker startup targets for WebApi projects.
-    These targets ensure Docker services (RabbitMQ, SQL Server) are running before build/run.
+    These targets ensure Docker services (RabbitMQ) are running before build/run.
     Automatically inherited by all projects in the solution.
 
     Strategy: Use a SINGLE target that runs on EVERY Build, even cached builds.
-    - We remove the Inputs/Outputs incremental build optimization
     - The script itself is idempotent (fast exit if containers already running)
     - This ensures F5 ALWAYS checks and starts containers if needed
+    - Timeout prevents indefinite hangs if Docker is not running
+
+    To temporarily disable: Set environment variable SKIP_DOCKER_CHECK=1
   -->
 
-  <Target Name="EnsureDockerServices" BeforeTargets="Build">
-    <Exec Command="powershell -ExecutionPolicy Bypass -File &quot;$(MSBuildThisFileDirectory)scripts\ensure-docker.ps1&quot;"
-          IgnoreExitCode="false" />
+  <Target Name="EnsureDockerServices" BeforeTargets="Build" Condition="'$(SKIP_DOCKER_CHECK)' != '1'">
+    <Exec Command="powershell -ExecutionPolicy Bypass -File &quot;$(MSBuildThisFileDirectory)scripts\ensure-docker.ps1&quot; -TimeoutSeconds 60"
+          IgnoreExitCode="false"
+          Timeout="90000" />
+    <!-- Timeout is in milliseconds: 90000ms = 90 seconds (script timeout 60s + 30s buffer) -->
   </Target>
 
 </Project>
