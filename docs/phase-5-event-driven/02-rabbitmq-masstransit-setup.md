@@ -262,6 +262,234 @@ dotnet add reference ../../Contracts
 
 ---
 
+## Clean Architecture Layer Dependencies
+
+### Which Layer References Which BuildingBlocks Project?
+
+Understanding the reference dependencies between Clean Architecture layers and BuildingBlocks projects is critical to maintaining proper separation of concerns and following the Dependency Inversion Principle.
+
+#### The Architecture Diagram
+
+```
+Scheduling.Domain
+    └── ❌ No BuildingBlocks references (pure domain)
+
+Scheduling.Application
+    └── ✅ BuildingBlocks.Messaging (IEventBus abstraction only)
+
+Scheduling.Infrastructure
+    ├── ✅ BuildingBlocks.Messaging (MassTransit implementation)
+    ├── ✅ BuildingBlocks.Infrastructure (EF Core, repositories)
+    └── Implements → IEventBus interface
+```
+
+#### Reference Table by Layer
+
+| Project | BuildingBlocks.Infrastructure | BuildingBlocks.Messaging | Contracts |
+|---------|------------------------------|-------------------------|-----------|
+| **{BC}.Domain** | ❌ No | ❌ No | ❌ No |
+| **{BC}.Application** | ❌ No | ✅ Yes (IEventBus interface) | ✅ Yes (for event DTOs) |
+| **{BC}.Infrastructure** | ✅ Yes (EF Core, Repository base) | ✅ Yes (MassTransit config) | ✅ Yes (publishers/consumers) |
+
+#### Why This Separation Exists
+
+This architecture follows Clean Architecture and Dependency Inversion Principle:
+
+**Domain Layer (Pure Business Logic)**
+- **References**: NONE
+- **Why**: Domain is the innermost layer with NO external dependencies
+- **Contains**: Entities, aggregates, value objects, domain events (NOT integration events)
+- **Rule**: Domain must remain pure and framework-agnostic
+
+**Application Layer (Use Cases / Orchestration)**
+- **References**: `BuildingBlocks.Messaging` (abstractions only)
+- **Why**: Application layer orchestrates use cases and may need to publish integration events
+- **Contains**: Command handlers, query handlers, DTOs, interfaces
+- **Key Point**: Application depends on `IEventBus` abstraction, NOT the implementation
+- **Example Usage**:
+  ```csharp
+  // Scheduling.Application/Commands/CreatePatientCommandHandler.cs
+  public class CreatePatientCommandHandler
+  {
+      private readonly IEventBus _eventBus; // ← Abstraction from BuildingBlocks.Messaging
+
+      public async Task<Result> Handle(CreatePatientCommand command)
+      {
+          // ... business logic ...
+
+          // Publish integration event (doesn't know HOW it's published)
+          await _eventBus.Publish(new PatientCreatedIntegrationEvent
+          {
+              PatientId = patient.Id,
+              Email = patient.Email.Value
+          });
+      }
+  }
+  ```
+
+**Infrastructure Layer (Implementations)**
+- **References**:
+  - `BuildingBlocks.Messaging` (implements IEventBus with MassTransit)
+  - `BuildingBlocks.Infrastructure` (uses EF Core base classes, repositories)
+  - `Contracts` (publishes and consumes integration events)
+- **Why**: Infrastructure provides concrete implementations for abstractions defined in inner layers
+- **Contains**:
+  - MassTransit configuration and setup
+  - Event publishers (implementing `IEventBus`)
+  - Event consumers (handlers for incoming integration events)
+  - EF Core DbContext, repository implementations
+  - External service integrations
+- **Example Usage**:
+  ```csharp
+  // Scheduling.Infrastructure/Messaging/MassTransitEventBus.cs
+  public class MassTransitEventBus : IEventBus // ← Implements abstraction
+  {
+      private readonly IPublishEndpoint _publishEndpoint; // ← MassTransit dependency
+
+      public async Task Publish<TEvent>(TEvent @event) where TEvent : IntegrationEventBase
+      {
+          await _publishEndpoint.Publish(@event); // ← MassTransit implementation detail
+      }
+  }
+  ```
+
+#### Dependency Flow Visualization
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                      Application Layer                      │
+│  ┌────────────────────────────────────────────────────┐     │
+│  │ CreatePatientCommandHandler                        │     │
+│  │                                                     │     │
+│  │ _eventBus.Publish(new PatientCreated...);         │     │
+│  │        ↓                                           │     │
+│  │  Depends on IEventBus (abstraction)               │     │
+│  └────────────────────────────────────────────────────┘     │
+│                           ↓                                  │
+│              References BuildingBlocks.Messaging             │
+│                    (IEventBus interface)                     │
+└─────────────────────────────────────────────────────────────┘
+                            ↓
+                   Dependency Inversion
+                            ↓
+┌─────────────────────────────────────────────────────────────┐
+│                   Infrastructure Layer                       │
+│  ┌────────────────────────────────────────────────────┐     │
+│  │ MassTransitEventBus : IEventBus                   │     │
+│  │                                                     │     │
+│  │ Implements → IEventBus interface                  │     │
+│  │ Uses → IPublishEndpoint (MassTransit)             │     │
+│  │ Configures → RabbitMQ connection                  │     │
+│  └────────────────────────────────────────────────────┘     │
+│                           ↓                                  │
+│              References BuildingBlocks.Messaging             │
+│            References BuildingBlocks.Infrastructure          │
+│                      References Contracts                    │
+└─────────────────────────────────────────────────────────────┘
+```
+
+#### Why This Justifies Two BuildingBlocks Projects
+
+**BuildingBlocks.Messaging (Abstractions)**
+- **Purpose**: Define interfaces and base classes for messaging
+- **Consumed by**: Application layer (abstractions), Infrastructure layer (implementations)
+- **Contains**: `IEventBus`, `IntegrationEventBase`, messaging interfaces
+- **Why separate**: Application layer needs messaging abstractions WITHOUT depending on implementation details
+
+**BuildingBlocks.Infrastructure (Persistence)**
+- **Purpose**: Define interfaces and base classes for persistence
+- **Consumed by**: Infrastructure layer ONLY (EF Core, repositories)
+- **Contains**: `IRepository<T>`, `IUnitOfWork`, EF Core base classes
+- **Why separate**: Application layer should NOT know about persistence implementation details
+
+**The Key Insight**
+
+```
+Application Layer Needs:
+  ✅ IEventBus (to publish events) → BuildingBlocks.Messaging
+  ❌ NOT DbContext, EF Core, repositories → BuildingBlocks.Infrastructure
+
+Infrastructure Layer Needs:
+  ✅ IEventBus (to implement it) → BuildingBlocks.Messaging
+  ✅ IRepository, DbContext base classes → BuildingBlocks.Infrastructure
+  ✅ Integration events to publish/consume → Contracts
+```
+
+If we merged BuildingBlocks.Messaging and BuildingBlocks.Infrastructure into a single project:
+- **Problem**: Application layer would need to reference the combined BuildingBlocks project
+- **Violation**: Application layer would now have access to EF Core, DbContext, and persistence details
+- **Result**: Breaks Clean Architecture principle that Application should NOT depend on Infrastructure concerns
+
+#### Real-World Example: Outbox Pattern
+
+The Outbox Pattern demonstrates WHY Infrastructure needs BOTH BuildingBlocks projects:
+
+```csharp
+// Scheduling.Infrastructure/Messaging/OutboxProcessor.cs
+public class OutboxProcessor
+{
+    private readonly ApplicationDbContext _dbContext;         // ← BuildingBlocks.Infrastructure (EF Core)
+    private readonly IPublishEndpoint _publishEndpoint;       // ← BuildingBlocks.Messaging (MassTransit)
+
+    public async Task ProcessOutboxMessages()
+    {
+        // 1. Read unpublished events from database (persistence concern)
+        var outboxMessages = await _dbContext.OutboxMessages
+            .Where(x => !x.IsPublished)
+            .ToListAsync();                                    // ← EF Core
+
+        // 2. Publish each event to message broker (messaging concern)
+        foreach (var message in outboxMessages)
+        {
+            var @event = JsonSerializer.Deserialize<IntegrationEventBase>(message.Payload);
+            await _publishEndpoint.Publish(@event);            // ← MassTransit
+
+            message.IsPublished = true;
+        }
+
+        // 3. Save changes back to database (persistence concern)
+        await _dbContext.SaveChangesAsync();                   // ← EF Core
+    }
+}
+```
+
+**Why this needs BOTH BuildingBlocks projects:**
+- Needs persistence (EF Core, DbContext) → BuildingBlocks.Infrastructure
+- Needs messaging (MassTransit, IPublishEndpoint) → BuildingBlocks.Messaging
+- Demonstrates that Infrastructure layer bridges persistence and messaging concerns
+- Application layer only sees `IEventBus.Publish()` - doesn't know about outbox pattern
+
+#### Benefits of This Architecture
+
+| Benefit | Description |
+|---------|-------------|
+| **Dependency Inversion** | Application depends on abstractions (`IEventBus`), not implementations (MassTransit) |
+| **Testability** | Application layer can be tested with a fake `IEventBus` implementation |
+| **Flexibility** | Can swap MassTransit for Azure Service Bus without changing Application layer |
+| **Clear Boundaries** | Application knows "what" (publish event), Infrastructure knows "how" (MassTransit + RabbitMQ) |
+| **Separation of Concerns** | Messaging abstractions (BuildingBlocks.Messaging) separate from persistence (BuildingBlocks.Infrastructure) |
+
+#### Summary: The Architecture Rules
+
+1. **Domain Layer**: No external dependencies. Period.
+2. **Application Layer**:
+   - References `BuildingBlocks.Messaging` for `IEventBus` abstraction
+   - Does NOT reference `BuildingBlocks.Infrastructure` (no persistence concerns)
+   - Calls `IEventBus.Publish(event)` without knowing the implementation
+3. **Infrastructure Layer**:
+   - References `BuildingBlocks.Messaging` (implements `IEventBus` with MassTransit)
+   - References `BuildingBlocks.Infrastructure` (implements repositories, uses EF Core)
+   - References `Contracts` (publishes and consumes integration events)
+   - Bridges persistence and messaging concerns (e.g., Outbox Pattern)
+
+This architecture ensures:
+- Application layer remains focused on business use cases, not infrastructure details
+- Infrastructure layer can change technology choices (swap MassTransit for Azure Service Bus) without affecting Application layer
+- Clean separation between messaging concerns (BuildingBlocks.Messaging) and persistence concerns (BuildingBlocks.Infrastructure)
+- Follows Clean Architecture and SOLID principles (especially Dependency Inversion)
+
+---
+
 ## Understanding the Architecture: A Learning Perspective
 
 Let's solidify why we separate BuildingBlocks.Messaging from Contracts with a practical example.
