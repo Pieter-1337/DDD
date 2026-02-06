@@ -55,7 +55,17 @@
       "Bash(timeout:*)",
       "Bash(powershell.exe -Command \"New-Item -ItemType Directory -Force -Path ''C:\\\\ProgramData\\\\Docker\\\\config'' | Out-Null; Write-Host ''Directory created or already exists''\")",
       "Bash(powershell.exe -Command \"$json = @''{  \"\"debug\"\": false,  \"\"experimental\"\": false}''@ | ConvertFrom-Json | ConvertTo-Json; [System.IO.File]::WriteAllText\\(''C:\\\\ProgramData\\\\Docker\\\\config\\\\daemon.json'', $json, [System.Text.UTF8Encoding]::new\\($false\\)\\); Write-Host ''Created daemon.json without BOM''\")",
-      "Bash(del \"C:\\\\projects\\\\DDD\\\\DDD\\\\fix-daemon.ps1\")"
+      "Bash(del \"C:\\\\projects\\\\DDD\\\\DDD\\\\fix-daemon.ps1\")",
+      "WebFetch(domain:masstransit.io)",
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "WebFetch(domain:github.com)",
+      "Bash(git reset:*)",
+      "Bash(cd:*)",
+      "Bash(git -C \"C:\\\\projects\\\\DDD\\\\DDD\" status)",
+      "Bash(git -C \"C:\\\\projects\\\\DDD\\\\DDD\" diff)",
+      "Bash(git -C \"C:\\\\projects\\\\DDD\\\\DDD\" log --oneline -5)",
+      "Bash(git -C \"C:\\\\projects\\\\DDD\\\\DDD\" checkout -- \"Core/Scheduling/Scheduling.Infrastructure/Scheduling.Infrastructure.csproj\")",
+      "Bash(git -C \"C:\\\\projects\\\\DDD\\\\DDD\" add \"BuildingBlocks/BuildingBlocks.Infrastructure.EfCore/BuildingBlocks.Infrastructure.EfCore.csproj\" \"DDD.sln\" \".claude/settings.local.json\")"
     ]
   }
 }
