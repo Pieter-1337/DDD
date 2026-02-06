@@ -216,10 +216,19 @@ dotnet sln add Shared/IntegrationEvents
 
 **Step 3: Add MassTransit Dependencies to BuildingBlocks.Messaging**
 
+This project uses Central Package Management (CPM). Package versions are defined in `Directory.Packages.props` at the solution root.
+
 ```bash
+# Add packages WITHOUT version numbers (versions come from Directory.Packages.props)
 cd BuildingBlocks/BuildingBlocks.Messaging
-dotnet add package MassTransit --version 8.*
-dotnet add package MassTransit.RabbitMQ --version 8.*
+dotnet add package MassTransit
+dotnet add package MassTransit.RabbitMQ
+```
+
+The versions are centrally defined in `Directory.Packages.props`:
+```xml
+<PackageVersion Include="MassTransit" Version="8.0.0" />
+<PackageVersion Include="MassTransit.RabbitMQ" Version="8.0.0" />
 ```
 
 **Step 4: Set Up Project References**
@@ -628,10 +637,10 @@ await _publishEndpoint.Publish(new PatientCreatedIntegrationEvent { ... });
 
 **For this learning project, use v8:**
 
-```bash
-# Use v8.x explicitly to stay on the open source version
-dotnet add package MassTransit --version 8.*
-dotnet add package MassTransit.RabbitMQ --version 8.*
+In `Directory.Packages.props`, pin to v8.x:
+```xml
+<PackageVersion Include="MassTransit" Version="8.*" />
+<PackageVersion Include="MassTransit.RabbitMQ" Version="8.*" />
 ```
 
 **Open source alternatives** if you need long-term free options:
@@ -1030,23 +1039,94 @@ docker exec -it ddd-rabbitmq bash
 
 ## NuGet Packages
 
-Add these packages to your Infrastructure project.
+**This project uses Central Package Management (CPM)** via `Directory.Packages.props` at the solution root. This ensures consistent package versions across all projects.
 
-**Important:** Use v8.x to stay on the open source version (v9+ requires commercial license).
+### How Central Package Management Works
 
-```bash
-# Core MassTransit (v8 - open source)
-dotnet add package MassTransit --version 8.*
+With CPM:
+1. **Package versions are defined ONCE** in `Directory.Packages.props`
+2. **Project files reference packages WITHOUT version numbers**
+3. **All projects automatically use the centrally-defined version**
 
-# RabbitMQ transport (v8 - open source)
-dotnet add package MassTransit.RabbitMQ --version 8.*
+**Example:**
+
+```xml
+<!-- Directory.Packages.props (at solution root) -->
+<Project>
+  <PropertyGroup>
+    <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageVersion Include="MassTransit" Version="8.0.0" />
+    <PackageVersion Include="MassTransit.RabbitMQ" Version="8.0.0" />
+  </ItemGroup>
+</Project>
 ```
 
-For the Application project (if you need abstractions):
+```xml
+<!-- YourProject.csproj -->
+<ItemGroup>
+  <!-- No version number - version comes from Directory.Packages.props -->
+  <PackageReference Include="MassTransit" />
+  <PackageReference Include="MassTransit.RabbitMQ" />
+</ItemGroup>
+```
+
+### Adding MassTransit Packages
+
+**Important:** This project uses **MassTransit v8.x** (open source, Apache 2.0). MassTransit v9+ requires a commercial license for production use.
+
+#### Step 1: Add Version to Directory.Packages.props
+
+The MassTransit packages are already defined in `Directory.Packages.props`:
+
+```xml
+<PackageVersion Include="MassTransit" Version="8.0.0" />
+<PackageVersion Include="MassTransit.RabbitMQ" Version="8.0.0" />
+```
+
+If you need to add a new version or update:
 
 ```bash
-# Only if you need IBus/IPublishEndpoint interfaces
-dotnet add package MassTransit.Abstractions --version 8.*
+# Open Directory.Packages.props and add/update the PackageVersion entries
+```
+
+#### Step 2: Reference in Your Project (WITHOUT Version)
+
+Add to your Infrastructure project:
+
+```bash
+# BuildingBlocks.Messaging project
+cd BuildingBlocks/BuildingBlocks.Messaging
+dotnet add package MassTransit
+dotnet add package MassTransit.RabbitMQ
+
+# Scheduling.Infrastructure project
+cd Core/Scheduling/Scheduling.Infrastructure
+dotnet add package MassTransit
+dotnet add package MassTransit.RabbitMQ
+```
+
+**Important:** Do NOT specify `--version` when using CPM. The version comes from `Directory.Packages.props`.
+
+### Benefits of Central Package Management
+
+| Benefit | Description |
+|---------|-------------|
+| **Consistency** | All projects use the same package versions |
+| **Maintainability** | Update versions in ONE place |
+| **Dependency Conflicts** | Eliminates version conflicts between projects |
+| **Audit Trail** | Single file to review for package versions |
+| **Onboarding** | New developers see all packages/versions in one file |
+
+### Verifying Package Versions
+
+```bash
+# View all package versions in the solution
+cat Directory.Packages.props
+
+# Verify a project's packages (should show NO versions)
+cat YourProject/YourProject.csproj
 ```
 
 ---

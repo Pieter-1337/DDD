@@ -17,6 +17,8 @@ cd DDD/WebApi
 dotnet add package Microsoft.EntityFrameworkCore.Design
 ```
 
+**Note:** This project uses Central Package Management (CPM). Package versions are defined in `Directory.Packages.props` at the solution root, so you don't specify `--version` when adding packages.
+
 ### Step 2: Add connection string to appsettings.json
 
 Location: `DDD/appsettings.json`

@@ -410,6 +410,8 @@ cd DDD/tests/Scheduling.Domain.Tests
 dotnet add package FluentAssertions
 ```
 
+**Note:** This project uses Central Package Management (CPM). Package versions are defined in `Directory.Packages.props` at the solution root, so you don't specify `--version` when adding packages.
+
 ### Step 8: Run Tests
 
 ```bash
