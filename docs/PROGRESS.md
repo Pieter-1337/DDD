@@ -7,8 +7,8 @@
 | Phase 1: DDD Fundamentals | Complete | 2026-01-05 | 2026-01-05 |
 | Phase 2: EF Core Persistence | Complete | 2026-01-05 | 2026-01-07 |
 | Phase 3: CQRS Pattern | Complete | 2026-01-07 | 2026-01-16 |
-| Phase 4: Testing | In Progress | 2026-01-09 | - |
-| Phase 5: Event-Driven Architecture | Not Started | - | - |
+| Phase 4: Testing | Complete | 2026-01-09 | 2026-01-23 |
+| Phase 5: Event-Driven Architecture | In Progress | 2026-01-23 | - |
 | Phase 6: Integration | Not Started | - | - |
 
 ---
@@ -211,20 +211,46 @@ This allows using `nameof(GetPatientAsync)` in `CreatedAtAction` calls.
 
 ## Phase 5: Event-Driven Architecture
 
-*Not started*
+### Concepts to Learn
+
+- [x] Domain Events vs Integration Events (conceptual understanding)
+- [x] Intra-domain messaging for async processing
+- [ ] RabbitMQ setup with Docker
+- [ ] MassTransit for .NET integration
+- [ ] Event publishing and subscribing
+- [ ] Idempotent message handlers
+- [ ] Error handling and dead letter queues
+- [ ] Saga patterns for distributed workflows
+- [ ] Event versioning and schema evolution
+
+### Implementation Progress
+
+- [x] Documentation created (all 6 documents)
+- [x] `BuildingBlocks.Messaging` project created
+- [x] `Shared/IntegrationEvents` project created
+- [ ] `IntegrationEventBase` base class
+- [ ] `IIntegrationEvent` marker interface
+- [ ] RabbitMQ Docker setup
+- [ ] MassTransit configuration in Infrastructure
+- [ ] First integration event (PatientCreated)
+- [ ] Event publisher implementation
+- [ ] Event consumer implementation
+- [ ] End-to-end integration test
+
+### Key Decisions Made
+
+1. **Project naming** - Using `Shared/IntegrationEvents` instead of `Contracts` for clarity
+2. **Three-project structure** - BuildingBlocks.Messaging (abstractions), Shared/IntegrationEvents (events), BC.Infrastructure (consumers)
+3. **Namespace changed** - From `BuildingBlocks.Application.Messaging` to `BuildingBlocks.Application.Cqrs` for CQRS base types
 
 ### Docs Available
 
-- `phase-5-event-driven/` - (to be created)
-
-### Planned Topics
-
-- Domain Events vs Integration Events
-- RabbitMQ setup with Docker
-- MassTransit for .NET integration
-- Event publishing and subscribing
-- Saga patterns
-- Idempotent message handlers
+- `phase-5-event-driven/01-event-driven-overview.md` - What is event-driven architecture, domain vs integration events
+- `phase-5-event-driven/02-rabbitmq-masstransit-setup.md` - Infrastructure setup, project structure
+- `phase-5-event-driven/03-integration-events.md` - Publishing and consuming events
+- `phase-5-event-driven/04-idempotency-error-handling.md` - DLQ, retries, idempotent handlers
+- `phase-5-event-driven/05-sagas-orchestration.md` - Saga pattern for distributed workflows
+- `phase-5-event-driven/06-event-versioning.md` - Schema evolution and backwards compatibility
 
 ---
 

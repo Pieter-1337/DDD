@@ -65,7 +65,7 @@ BuildingBlocks.Application/
 ├── Interfaces/
 │   ├── IUnitOfWork.cs
 │   └── IRepository.cs
-├── Messaging/                       <- Base types for CQRS
+├── Cqrs/                            <- Base types for CQRS
 │   ├── Command.cs                   <- Base record for commands (wrapped in transaction)
 │   ├── Query.cs                     <- Base record for queries (no transaction)
 │   └── OrchestrationCommand.cs      <- Base record for orchestrators (no transaction)
@@ -741,7 +741,7 @@ Commands are write operations wrapped in a database transaction by default.
 using MediatR;
 using System.Text.Json.Serialization;
 
-namespace BuildingBlocks.Application.Messaging;
+namespace BuildingBlocks.Application.Cqrs;
 
 public abstract record Command<TResponse> : IRequest<TResponse>
 {
@@ -761,7 +761,7 @@ Queries are read-only operations that never get wrapped in a transaction.
 ```csharp
 using MediatR;
 
-namespace BuildingBlocks.Application.Messaging;
+namespace BuildingBlocks.Application.Cqrs;
 
 public abstract record Query<TResponse> : IRequest<TResponse>;
 ```
@@ -771,7 +771,7 @@ public abstract record Query<TResponse> : IRequest<TResponse>;
 Orchestration commands coordinate multiple child commands but do NOT get wrapped in a transaction themselves. Each child command dispatched via `IMediator.Send()` gets its own transaction.
 
 ```csharp
-namespace BuildingBlocks.Application.Messaging;
+namespace BuildingBlocks.Application.Cqrs;
 
 public abstract record OrchestrationCommand<TResponse> : Command<TResponse>
 {
@@ -949,7 +949,7 @@ BuildingBlocks/
 │   ├── Interfaces/
 │   │   ├── IRepository.cs
 │   │   └── IUnitOfWork.cs
-│   ├── Messaging/                              <- Base types for CQRS
+│   ├── Cqrs/                                   <- Base types for CQRS
 │   │   ├── Command.cs                          <- Base record (wrapped in transaction)
 │   │   ├── Query.cs                            <- Base record (no transaction)
 │   │   └── OrchestrationCommand.cs             <- Base record (no transaction, orchestrates)
