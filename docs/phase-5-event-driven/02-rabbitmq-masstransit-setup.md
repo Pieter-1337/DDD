@@ -218,8 +218,8 @@ dotnet sln add Shared/IntegrationEvents
 
 ```bash
 cd BuildingBlocks/BuildingBlocks.Messaging
-dotnet add package MassTransit
-dotnet add package MassTransit.RabbitMQ
+dotnet add package MassTransit --version 8.*
+dotnet add package MassTransit.RabbitMQ --version 8.*
 ```
 
 **Step 4: Set Up Project References**
@@ -617,6 +617,30 @@ With MassTransit:
 await _publishEndpoint.Publish(new PatientCreatedIntegrationEvent { ... });
 ```
 
+### MassTransit Licensing (Important)
+
+**MassTransit v9 (2026+) requires a commercial license** for production use:
+- Small/Medium Business: $400/month or $4,000/year
+- Large Organizations: $1,200/month or $12,000/year
+- Local development/evaluation: Free (temporary license)
+
+**MassTransit v8 remains open source (Apache 2.0)** and is maintained through end of 2026.
+
+**For this learning project, use v8:**
+
+```bash
+# Use v8.x explicitly to stay on the open source version
+dotnet add package MassTransit --version 8.*
+dotnet add package MassTransit.RabbitMQ --version 8.*
+```
+
+**Open source alternatives** if you need long-term free options:
+- [Wolverine](https://wolverine.netlify.app/) - Modern .NET messaging (MIT)
+- [Rebus](https://github.com/rebus-org/Rebus) - Mature service bus (MIT)
+- [Brighter](https://github.com/BrighterCommand/Brighter) - CQRS/messaging (MIT)
+
+The concepts you learn (consumers, sagas, message patterns) transfer to any framework.
+
 ---
 
 ## Running RabbitMQ - Three Options
@@ -1006,21 +1030,23 @@ docker exec -it ddd-rabbitmq bash
 
 ## NuGet Packages
 
-Add these packages to your Infrastructure project:
+Add these packages to your Infrastructure project.
+
+**Important:** Use v8.x to stay on the open source version (v9+ requires commercial license).
 
 ```bash
-# Core MassTransit
-dotnet add package MassTransit
+# Core MassTransit (v8 - open source)
+dotnet add package MassTransit --version 8.*
 
-# RabbitMQ transport
-dotnet add package MassTransit.RabbitMQ
+# RabbitMQ transport (v8 - open source)
+dotnet add package MassTransit.RabbitMQ --version 8.*
 ```
 
-For the Application project (if you define contracts there):
+For the Application project (if you need abstractions):
 
 ```bash
 # Only if you need IBus/IPublishEndpoint interfaces
-dotnet add package MassTransit.Abstractions
+dotnet add package MassTransit.Abstractions --version 8.*
 ```
 
 ---
