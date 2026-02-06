@@ -6,9 +6,9 @@ We use a **generic repository pattern** with a **Unit of Work** that provides re
 
 **Key components:**
 - `IRepository<T>` - Interface in BuildingBlocks.Application
-- `Repository<TContext, TEntity>` - Generic implementation in BuildingBlocks.Infrastructure
+- `EfCoreRepository<TContext, TEntity>` - Generic implementation in BuildingBlocks.Infrastructure.EfCore
 - `IUnitOfWork` - Interface with `RepositoryFor<T>()` and `SaveChangesAsync()`
-- `UnitOfWork<TContext>` - Generic implementation with domain event dispatching
+- `EfCoreUnitOfWork<TContext>` - Generic implementation with domain event dispatching
 - `IEntityDto<TEntity, TDto>` - Interface for DTO projections
 
 ---
@@ -37,10 +37,10 @@ BuildingBlocks.Application/                ← Application layer contracts
 └── BuildingBlocks.Application.csproj
 │
 BuildingBlocks/
-└── BuildingBlocks.Infrastructure/         ← Infrastructure implementations
-    ├── Repository.cs
-    ├── UnitOfWork.cs
-    └── BuildingBlocks.Infrastructure.csproj
+└── BuildingBlocks.Infrastructure.EfCore/  ← EF Core infrastructure implementations
+    ├── EfCoreRepository.cs
+    ├── EfCoreUnitOfWork.cs
+    └── BuildingBlocks.Infrastructure.EfCore.csproj
 ```
 
 ### Step 2: IEntityBase Interface
@@ -113,7 +113,7 @@ public interface IRepository<TEntity> where TEntity : class, IEntityBase
 
 ### Step 5: Generic Repository Implementation
 
-Location: `BuildingBlocks/BuildingBlocks.Infrastructure/Repository.cs`
+Location: `BuildingBlocks/BuildingBlocks.Infrastructure.EfCore/EfCoreRepository.cs`
 
 ```csharp
 using System.Linq.Expressions;
@@ -121,16 +121,16 @@ using BuildingBlocks.Application;
 using BuildingBlocks.Domain.Interfaces;
 using Microsoft.EntityFrameworkCore;
 
-namespace BuildingBlocks.Infrastructure;
+namespace BuildingBlocks.Infrastructure.EfCore;
 
-public class Repository<TContext, TEntity> : IRepository<TEntity>
+public class EfCoreRepository<TContext, TEntity> : IRepository<TEntity>
     where TEntity : class, IEntityBase
     where TContext : DbContext
 {
     private readonly TContext _context;
     private readonly DbSet<TEntity> _dbSet;
 
-    public Repository(TContext context)
+    public EfCoreRepository(TContext context)
     {
         _context = context;
         _dbSet = _context.Set<TEntity>();
@@ -208,7 +208,7 @@ public interface IUnitOfWork
 
 ### Step 7: Generic UnitOfWork Implementation
 
-Location: `BuildingBlocks/BuildingBlocks.Infrastructure/UnitOfWork.cs`
+Location: `BuildingBlocks/BuildingBlocks.Infrastructure.EfCore/EfCoreUnitOfWork.cs`
 
 ```csharp
 using BuildingBlocks.Application;
@@ -217,14 +217,14 @@ using BuildingBlocks.Domain.Interfaces;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 
-namespace BuildingBlocks.Infrastructure;
+namespace BuildingBlocks.Infrastructure.EfCore;
 
-public class UnitOfWork<TContext> : IUnitOfWork where TContext : DbContext
+public class EfCoreUnitOfWork<TContext> : IUnitOfWork where TContext : DbContext
 {
     private readonly TContext _context;
     private readonly IMediator _mediator;
 
-    public UnitOfWork(TContext context, IMediator mediator)
+    public EfCoreUnitOfWork(TContext context, IMediator mediator)
     {
         _context = context;
         _mediator = mediator;
@@ -239,7 +239,7 @@ public class UnitOfWork<TContext> : IUnitOfWork where TContext : DbContext
 
     public IRepository<T> RepositoryFor<T>() where T : class, IEntityBase
     {
-        return new Repository<TContext, T>(_context);
+        return new EfCoreRepository<TContext, T>(_context);
     }
 
     private async Task DispatchDomainEventsAsync(CancellationToken cancellationToken)
@@ -278,7 +278,7 @@ Location: `Core/Scheduling/Scheduling.Infrastructure/ServiceCollectionExtensions
 
 ```csharp
 using BuildingBlocks.Application;
-using BuildingBlocks.Infrastructure;
+using BuildingBlocks.Infrastructure.EfCore;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Scheduling.Infrastructure.Persistence;
@@ -294,14 +294,14 @@ public static class ServiceCollectionExtensions
         services.AddDbContext<SchedulingDbContext>(options =>
             options.UseSqlServer(connectionString));
 
-        services.AddScoped<IUnitOfWork, UnitOfWork<SchedulingDbContext>>();
+        services.AddScoped<IUnitOfWork, EfCoreUnitOfWork<SchedulingDbContext>>();
 
         return services;
     }
 }
 ```
 
-**Note:** No repository registrations needed - `UnitOfWork.RepositoryFor<T>()` creates them.
+**Note:** No repository registrations needed - `EfCoreUnitOfWork.RepositoryFor<T>()` creates them.
 
 ---
 
@@ -404,6 +404,9 @@ await _unitOfWork.SaveChangesAsync(ct);
 | `PatientRepository.cs` | Not needed |
 | `IAppointmentRepository` | `IRepository<Appointment>` via `RepositoryFor<T>()` |
 | Register each repository | Register only `IUnitOfWork` |
+| `BuildingBlocks.Infrastructure` | `BuildingBlocks.Infrastructure.EfCore` |
+| `Repository<TContext, TEntity>` | `EfCoreRepository<TContext, TEntity>` |
+| `UnitOfWork<TContext>` | `EfCoreUnitOfWork<TContext>` |
 
 **Benefits:**
 - Less boilerplate - no entity-specific repositories
@@ -418,9 +421,9 @@ await _unitOfWork.SaveChangesAsync(ct);
 - [ ] `IEntityBase` interface exists in `BuildingBlocks.Domain`
 - [ ] `IEntityDto<TEntity, TDto>` interface exists in `BuildingBlocks.Application`
 - [ ] `IRepository<T>` interface exists in `BuildingBlocks.Application`
-- [ ] `Repository<TContext, TEntity>` implements `IRepository<T>`
+- [ ] `EfCoreRepository<TContext, TEntity>` implements `IRepository<T>`
 - [ ] `IUnitOfWork` interface exists in `BuildingBlocks.Application`
-- [ ] `UnitOfWork<TContext>` implements `IUnitOfWork`
+- [ ] `EfCoreUnitOfWork<TContext>` implements `IUnitOfWork`
 - [ ] ServiceCollectionExtensions registers `IUnitOfWork`
 - [ ] Domain entities implement `IEntityBase`
 - [ ] Entity DTOs implement `IEntityDto`

@@ -1,18 +1,18 @@
-﻿using System.Linq.Expressions;
+using System.Linq.Expressions;
 using BuildingBlocks.Application.Interfaces;
 using BuildingBlocks.Domain;
 using Microsoft.EntityFrameworkCore;
 
-namespace BuildingBlocks.Infrastructure;
+namespace BuildingBlocks.Infrastructure.EfCore;
 
-public class Repository<TContext, TEntity> : IRepository<TEntity>
+public class EfCoreRepository<TContext, TEntity> : IRepository<TEntity>
     where TEntity : class, IEntityBase
     where TContext : DbContext
 {
     private readonly TContext _context;
     private readonly DbSet<TEntity> _dbSet;
 
-    public Repository(TContext context)
+    public EfCoreRepository(TContext context)
     {
         _context = context;
         _dbSet = _context.Set<TEntity>();
@@ -34,7 +34,7 @@ public class Repository<TContext, TEntity> : IRepository<TEntity>
     }
 
     public async Task<IEnumerable<TDto>> GetAllAsDtosAsync<TDto>(
-        Expression<Func<TEntity, bool>>? filter = null, 
+        Expression<Func<TEntity, bool>>? filter = null,
         CancellationToken ct = default)
         where TDto : class, IEntityDto<TEntity, TDto>
     {

@@ -5,15 +5,15 @@ using MediatR;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
 
-namespace BuildingBlocks.Infrastructure;
+namespace BuildingBlocks.Infrastructure.EfCore;
 
-public class UnitOfWork<TContext> : IUnitOfWork where TContext : DbContext
+public class EfCoreUnitOfWork<TContext> : IUnitOfWork where TContext : DbContext
 {
     private readonly TContext _context;
     private readonly IMediator _mediator;
     private IDbContextTransaction? _transaction;
 
-    public UnitOfWork(TContext context, IMediator mediator)
+    public EfCoreUnitOfWork(TContext context, IMediator mediator)
     {
         _context = context;
         _mediator = mediator;
@@ -28,7 +28,7 @@ public class UnitOfWork<TContext> : IUnitOfWork where TContext : DbContext
 
     public IRepository<T> RepositoryFor<T>() where T : class, IEntityBase
     {
-        return new Repository<TContext, T>(_context);
+        return new EfCoreRepository<TContext, T>(_context);
     }
 
     private async Task DispatchDomainEventsAsync(CancellationToken cancellationToken)

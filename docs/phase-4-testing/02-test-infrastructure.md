@@ -41,7 +41,7 @@ dotnet sln add BuildingBlocks/BuildingBlocks.Tests
 
   <ItemGroup>
     <ProjectReference Include="..\BuildingBlocks.Application\BuildingBlocks.Application.csproj" />
-    <ProjectReference Include="..\BuildingBlocks.Infrastructure\BuildingBlocks.Infrastructure.csproj" />
+    <ProjectReference Include="..\BuildingBlocks.Infrastructure.EfCore\BuildingBlocks.Infrastructure.EfCore.csproj" />
     <ProjectReference Include="..\BuildingBlocks.Domain\BuildingBlocks.Domain.csproj" />
   </ItemGroup>
 
@@ -210,7 +210,7 @@ Location: `BuildingBlocks.Tests/TestBase.cs`
 ```csharp
 using BuildingBlocks.Application.Interfaces;
 using BuildingBlocks.Domain;
-using BuildingBlocks.Infrastructure;
+using BuildingBlocks.Infrastructure.EfCore;
 using System.Text.RegularExpressions;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Microsoft.EntityFrameworkCore;
@@ -266,7 +266,7 @@ public abstract class TestBase<TContext> : ValidatorTestBase where TContext : Db
             options.UseSqlite(_connection));
 
         // Register UnitOfWork (real implementation, not mock)
-        services.AddScoped<IUnitOfWork, UnitOfWork<TContext>>();
+        services.AddScoped<IUnitOfWork, EfCoreUnitOfWork<TContext>>();
 
         // Register bounded context services
         RegisterBoundedContextServices(services);

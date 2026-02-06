@@ -1,5 +1,5 @@
 using BuildingBlocks.Domain;
-using BuildingBlocks.Infrastructure;
+using BuildingBlocks.Infrastructure.EfCore;
 using System.Text.RegularExpressions;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Microsoft.EntityFrameworkCore;
@@ -60,7 +60,7 @@ public abstract class TestBase<TContext> : ValidatorTestBase where TContext : Db
             options.UseSqlite(_connection));
 
         // Register UnitOfWork (real implementation, not mock)
-        services.AddScoped<IUnitOfWork, UnitOfWork<TContext>>();
+        services.AddScoped<IUnitOfWork, EfCoreUnitOfWork<TContext>>();
 
         // Register bounded context services (MediatR, validators, etc.)
         RegisterBoundedContextServices(services);

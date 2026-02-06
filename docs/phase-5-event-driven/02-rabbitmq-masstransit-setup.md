@@ -63,101 +63,125 @@ RabbitMQ is a proven message broker that provides reliable message delivery betw
 
 ## 3. Architecture: Project Structure for Messaging
 
-This setup uses **three distinct projects** for messaging infrastructure, following DDD principles and Clean Architecture:
+This setup separates messaging concerns across multiple projects, following Clean Architecture and the Dependency Inversion Principle:
 
 | Project | Purpose | Contains |
 |---------|---------|----------|
-| **BuildingBlocks.Messaging** | Reusable abstractions | `IntegrationEventBase`, `IIntegrationEvent`, MassTransit helpers |
+| **BuildingBlocks.Application** | Application-layer abstractions | `IEventBus`, `IIntegrationEvent`, `IntegrationEventBase` |
+| **BuildingBlocks.Infrastructure.MassTransit** | MassTransit provider | `MassTransitEventBus`, RabbitMQ configuration |
+| **BuildingBlocks.Infrastructure.EfCore** | EF Core provider | EF Core implementations, repositories |
 | **Shared/IntegrationEvents** | Integration event definitions | `AppointmentScheduledIntegrationEvent`, `PatientCreatedIntegrationEvent` |
-| **[BC].Infrastructure** | BC-specific implementation | MassTransit configuration, publishers, consumers |
+| **[BC].Infrastructure** | BC-specific implementation | Event publishers and consumers |
 
-### Why Three Separate Projects?
+### Why This Separation?
 
-**BuildingBlocks.Messaging** = Generic envelope system (tracking numbers, timestamps)
-- Reusable infrastructure that could work in ANY domain
-- Contains ONLY technical abstractions, NO domain content
-- Example: If you start an e-commerce project, you'd reuse this project
+**BuildingBlocks.Application/Messaging/** = Technology-agnostic abstractions
+- Defines `IEventBus` interface for publishing events
+- Contains `IntegrationEventBase` with common event metadata
+- NO dependencies on MassTransit, RabbitMQ, or any specific implementation
+- Can be referenced by Application layer projects without coupling to infrastructure
 
-**Shared/IntegrationEvents** = The actual letters (healthcare events)
-- Your healthcare domain's public API between bounded contexts
-- Contains domain-specific integration events
+**BuildingBlocks.Infrastructure.MassTransit/** = MassTransit-specific implementation
+- Implements `IEventBus` using MassTransit
+- Contains RabbitMQ configuration and setup
+- Can be swapped for other providers (e.g., Wolverine, Rebus) without affecting other projects
+- Only referenced by host projects (WebApi, Worker)
+
+**BuildingBlocks.Infrastructure.EfCore/** = EF Core-specific implementation
+- Separate infrastructure concern from messaging
+- Contains repository patterns and database context base classes
+- Follows the same pattern: abstractions in Application, implementation in Infrastructure
+
+**Shared/IntegrationEvents** = Domain-specific public contracts
+- Your healthcare domain's integration events
 - Organized by bounded context: `Scheduling/`, `Billing/`, `MedicalRecords/`
+- Referenced by both publishers and consumers
 
-**Scheduling/Billing/Infrastructure** = The people writing and reading letters
-- BC-specific message handling (publishers and consumers)
-- MassTransit configuration for each bounded context
-- Each BC references BuildingBlocks.Messaging and Shared/IntegrationEvents
-
-**Key Principle**: Bounded contexts never reference each other directly, only the shared IntegrationEvents project. This preserves autonomy and prevents tight coupling.
+**Key Principle**: Bounded contexts never reference each other directly, only the shared IntegrationEvents project. This preserves autonomy and prevents tight coupling. The abstraction layer (`BuildingBlocks.Application`) allows swapping messaging providers without changing business logic.
 
 ### Project Structure Diagram
 
 ```
 src/
 ├── BuildingBlocks/
-│   ├── BuildingBlocks.Messaging/          # Reusable messaging abstractions
-│   │   ├── Abstractions/                  # IntegrationEventBase, IIntegrationEvent
-│   │   └── Configuration/                 # MassTransit setup helpers
+│   ├── BuildingBlocks.Application/           # Application-layer abstractions
+│   │   ├── Cqrs/                            # CQRS abstractions (ICommand, IQuery, etc.)
+│   │   └── Messaging/                       # Messaging abstractions
+│   │       ├── IEventBus.cs                 # Publisher interface
+│   │       ├── IIntegrationEvent.cs         # Marker interface
+│   │       └── IntegrationEventBase.cs      # Base class with metadata
 │   │
-│   └── BuildingBlocks.Infrastructure/     # Persistence infrastructure (separate concern)
-│       ├── Persistence/                   # EF Core base classes
-│       └── Repositories/                  # Repository patterns
+│   ├── BuildingBlocks.Infrastructure.EfCore/ # EF Core-specific implementations
+│   │   ├── Repositories/                    # Repository patterns
+│   │   └── DbContextBase.cs                 # Base database context
+│   │
+│   └── BuildingBlocks.Infrastructure.MassTransit/ # MassTransit-specific implementations
+│       ├── MassTransitEventBus.cs           # IEventBus implementation
+│       └── Configuration/                   # RabbitMQ/MassTransit setup
 │
 ├── Shared/
-│   └── IntegrationEvents/                 # Integration event definitions
-│       ├── Scheduling/                    # AppointmentScheduledIntegrationEvent
-│       ├── Billing/                       # PaymentProcessedIntegrationEvent
-│       └── MedicalRecords/                # RecordUpdatedIntegrationEvent
+│   └── IntegrationEvents/                    # Integration event definitions
+│       ├── Scheduling/                       # AppointmentScheduledIntegrationEvent
+│       ├── Billing/                          # PaymentProcessedIntegrationEvent
+│       └── MedicalRecords/                   # RecordUpdatedIntegrationEvent
 │
 ├── Scheduling/
 │   ├── Scheduling.Domain/
-│   ├── Scheduling.Application/
-│   └── Scheduling.Infrastructure/         # References: BuildingBlocks.Messaging, Shared/IntegrationEvents
-│       ├── Persistence/                   # EF Core, repositories (internal)
-│       └── Messaging/                     # Event publishers and consumers
+│   ├── Scheduling.Application/               # References: BuildingBlocks.Application
+│   └── Scheduling.Infrastructure/            # References: BuildingBlocks.Application, Shared/IntegrationEvents
+│       ├── Persistence/                      # EF Core, repositories
+│       └── Messaging/                        # Event publishers and consumers
 │
 └── Billing/
     ├── Billing.Domain/
-    ├── Billing.Application/
-    └── Billing.Infrastructure/            # References: BuildingBlocks.Messaging, Shared/IntegrationEvents
+    ├── Billing.Application/                  # References: BuildingBlocks.Application
+    └── Billing.Infrastructure/               # References: BuildingBlocks.Application, Shared/IntegrationEvents
         ├── Persistence/
         └── Messaging/
 ```
 
 ### Clean Architecture Layer Dependencies
 
-| Project | BuildingBlocks.Infrastructure | BuildingBlocks.Messaging | Shared/IntegrationEvents |
-|---------|------------------------------|-------------------------|--------------------------|
+| Project | BuildingBlocks.Application | BuildingBlocks.Infrastructure.* | Shared/IntegrationEvents |
+|---------|---------------------------|--------------------------------|--------------------------|
 | **{BC}.Domain** | No | No | No |
-| **{BC}.Application** | No | Yes (abstractions only) | Yes (event DTOs) |
-| **{BC}.Infrastructure** | Yes (EF Core, repositories) | Yes (MassTransit config) | Yes (publishers/consumers) |
+| **{BC}.Application** | Yes (abstractions only) | No | Yes (event DTOs) |
+| **{BC}.Infrastructure** | Yes (to implement interfaces) | Yes (specific providers) | Yes (publishers/consumers) |
+| **WebApi/Host** | Yes (abstractions) | Yes (register providers) | No (usually) |
 
 **Why Domain references nothing**: Domain is the innermost layer with zero external dependencies. It remains pure and framework-agnostic.
 
-**Why Application references Messaging**: Application layer orchestrates use cases and may need to publish integration events via `IEventBus` abstraction (without knowing the implementation details).
+**Why Application references BuildingBlocks.Application**: Application layer orchestrates use cases and may need to publish integration events via `IEventBus` abstraction (without knowing the implementation details like MassTransit or RabbitMQ).
 
-**Why Infrastructure references both**: Infrastructure provides concrete implementations for abstractions defined in inner layers. It bridges persistence (BuildingBlocks.Infrastructure) and messaging (BuildingBlocks.Messaging) concerns.
+**Why Infrastructure references BuildingBlocks.Infrastructure.***: Infrastructure provides concrete implementations. It depends on specific providers (EfCore, MassTransit) to implement the abstractions from BuildingBlocks.Application.
 
-### Why This Separation?
+**Why Host references both**: The composition root (WebApi/Worker) wires up dependencies by registering concrete implementations (MassTransit, EF Core) for abstractions.
 
-The three-project split enforces a critical architectural principle: **reusability vs. domain specificity**.
+### Provider Swappability
 
-**BuildingBlocks.Messaging** = Reusable in ANY domain
-- Contains ONLY technical infrastructure (base classes, MassTransit helpers)
-- Zero domain knowledge
-- If you start a new e-commerce project tomorrow, you copy this project as-is
+This architecture allows swapping messaging providers without changing business logic:
 
-**Shared/IntegrationEvents** = THIS domain's public API
-- Healthcare-specific events (appointments, patients, billing)
-- Defines the contract between YOUR bounded contexts
-- Each new domain gets its own IntegrationEvents project with domain-specific events
+**Current setup** (MassTransit + RabbitMQ):
+```csharp
+// In WebApi/Program.cs
+builder.Services.AddMassTransitEventBus(builder.Configuration);
+```
 
-**Bounded Context Independence**
-- Scheduling and Billing bounded contexts never reference each other
-- They only reference the shared IntegrationEvents project
-- This prevents tight coupling while enabling communication through events
+**If switching to Wolverine**:
+1. Create `BuildingBlocks.Infrastructure.Wolverine` project
+2. Implement `IEventBus` using Wolverine
+3. Change host registration:
+```csharp
+// In WebApi/Program.cs
+builder.Services.AddWolverineEventBus(builder.Configuration);
+```
 
-This separation ensures you're not mixing technical abstractions (the envelope system) with domain semantics (the letters inside the envelopes).
+**No changes required in**:
+- Domain layer (still pure)
+- Application layer (still uses `IEventBus` abstraction)
+- Business logic (command handlers, domain events)
+
+This is the power of Dependency Inversion: depend on abstractions, not concretions.
 
 ---
 
@@ -166,9 +190,12 @@ This separation ensures you're not mixing technical abstractions (the envelope s
 ### Step 1: Create Projects
 
 ```bash
-# Create BuildingBlocks.Messaging project
-dotnet new classlib -n BuildingBlocks.Messaging -o BuildingBlocks/BuildingBlocks.Messaging
-dotnet sln add BuildingBlocks/BuildingBlocks.Messaging
+# BuildingBlocks.Application already exists with CQRS abstractions
+# Add Messaging folder to it manually
+
+# Create BuildingBlocks.Infrastructure.MassTransit project
+dotnet new classlib -n BuildingBlocks.Infrastructure.MassTransit -o BuildingBlocks/BuildingBlocks.Infrastructure.MassTransit
+dotnet sln add BuildingBlocks/BuildingBlocks.Infrastructure.MassTransit
 
 # Create Shared/IntegrationEvents project
 dotnet new classlib -n IntegrationEvents -o Shared/IntegrationEvents
@@ -180,10 +207,11 @@ dotnet sln add Shared/IntegrationEvents
 **Note:** This project uses Central Package Management - see [Phase 1 documentation](../phase-1-ddd-fundamentals/03-building-patient-aggregate.md#understanding-central-package-management-cpm) for details on how CPM works.
 
 ```bash
-# Add packages to BuildingBlocks.Messaging (versions come from Directory.Packages.props)
-cd BuildingBlocks/BuildingBlocks.Messaging
+# Add packages to BuildingBlocks.Infrastructure.MassTransit
+cd BuildingBlocks/BuildingBlocks.Infrastructure.MassTransit
 dotnet add package MassTransit
 dotnet add package MassTransit.RabbitMQ
+dotnet add reference ../BuildingBlocks.Application
 ```
 
 Verify `Directory.Packages.props` contains:
@@ -195,30 +223,76 @@ Verify `Directory.Packages.props` contains:
 ### Step 3: Set Up Project References
 
 ```bash
-# IntegrationEvents references BuildingBlocks.Messaging (for IntegrationEventBase)
+# IntegrationEvents references BuildingBlocks.Application (for IntegrationEventBase)
 cd Shared/IntegrationEvents
-dotnet add reference ../../BuildingBlocks/BuildingBlocks.Messaging
+dotnet add reference ../../BuildingBlocks/BuildingBlocks.Application
+
+# Scheduling.Application references BuildingBlocks.Application (for IEventBus)
+cd ../../Core/Scheduling/Scheduling.Application
+dotnet add reference ../../../BuildingBlocks/BuildingBlocks.Application
 
 # Scheduling.Infrastructure references both
-cd ../../Core/Scheduling/Scheduling.Infrastructure
-dotnet add reference ../../../BuildingBlocks/BuildingBlocks.Messaging
+cd ../Scheduling.Infrastructure
+dotnet add reference ../../../BuildingBlocks/BuildingBlocks.Application
 dotnet add reference ../../../Shared/IntegrationEvents
+
+# WebApi references BuildingBlocks.Infrastructure.MassTransit (composition root)
+cd ../../../Presentation/WebApi
+dotnet add reference ../../BuildingBlocks/BuildingBlocks.Infrastructure.MassTransit
 ```
 
-### Step 4: Create IntegrationEventBase
+### Step 4: Create Messaging Abstractions
 
-Create the base class for all integration events in `BuildingBlocks.Messaging/Abstractions/IntegrationEventBase.cs`:
+Create the messaging abstractions in `BuildingBlocks.Application/Messaging/`:
 
+**IEventBus.cs**:
 ```csharp
-namespace BuildingBlocks.Messaging.Abstractions;
+namespace BuildingBlocks.Application.Messaging;
+
+/// <summary>
+/// Abstraction for publishing integration events to a message broker.
+/// </summary>
+/// <remarks>
+/// This interface allows the Application layer to publish events without
+/// coupling to a specific messaging implementation (MassTransit, Wolverine, etc.).
+/// The Infrastructure layer provides the concrete implementation.
+/// </remarks>
+public interface IEventBus
+{
+    /// <summary>
+    /// Publishes an integration event to the message broker.
+    /// </summary>
+    Task PublishAsync<TEvent>(TEvent @event, CancellationToken cancellationToken = default)
+        where TEvent : class, IIntegrationEvent;
+}
+```
+
+**IIntegrationEvent.cs**:
+```csharp
+namespace BuildingBlocks.Application.Messaging;
+
+/// <summary>
+/// Marker interface for integration events.
+/// Integration events represent facts that have occurred in one bounded context
+/// and may be of interest to other bounded contexts.
+/// </summary>
+public interface IIntegrationEvent
+{
+    Guid EventId { get; }
+    DateTime OccurredAt { get; }
+}
+```
+
+**IntegrationEventBase.cs**:
+```csharp
+namespace BuildingBlocks.Application.Messaging;
 
 /// <summary>
 /// Base class for all integration events.
 /// Integration events cross bounded context boundaries via message broker.
 /// </summary>
 /// <remarks>
-/// This class is part of the Shared Kernel (abstractions only).
-/// It provides technical infrastructure for distributed messaging:
+/// This class provides technical infrastructure for distributed messaging:
 /// - EventId enables idempotent message handling
 /// - OccurredAt provides event ordering and auditing
 /// - CorrelationId enables distributed tracing across bounded contexts
@@ -226,7 +300,7 @@ namespace BuildingBlocks.Messaging.Abstractions;
 /// IMPORTANT: This class should contain NO domain-specific logic.
 /// Actual event definitions belong in the Shared/IntegrationEvents project.
 /// </remarks>
-public abstract record IntegrationEventBase
+public abstract record IntegrationEventBase : IIntegrationEvent
 {
     /// <summary>
     /// Unique identifier for this event instance.
@@ -250,14 +324,45 @@ public abstract record IntegrationEventBase
 }
 ```
 
-**Why this lives in BuildingBlocks.Messaging**: Provides reusable technical infrastructure for ALL integration events. Contains NO domain-specific content and could work in any domain (e-commerce, banking, healthcare).
+**Why this lives in BuildingBlocks.Application**: These are application-layer abstractions that define contracts without coupling to infrastructure. This allows the Application layer to publish events via `IEventBus` without knowing whether it's MassTransit, Wolverine, or any other provider.
 
-### Step 5: Create Example Integration Event
+### Step 5: Create MassTransit Implementation
+
+Create the MassTransit implementation of `IEventBus` in `BuildingBlocks.Infrastructure.MassTransit/MassTransitEventBus.cs`:
+
+```csharp
+using BuildingBlocks.Application.Messaging;
+using MassTransit;
+
+namespace BuildingBlocks.Infrastructure.MassTransit;
+
+/// <summary>
+/// MassTransit implementation of IEventBus.
+/// Publishes integration events to RabbitMQ via MassTransit.
+/// </summary>
+internal sealed class MassTransitEventBus : IEventBus
+{
+    private readonly IPublishEndpoint _publishEndpoint;
+
+    public MassTransitEventBus(IPublishEndpoint publishEndpoint)
+    {
+        _publishEndpoint = publishEndpoint;
+    }
+
+    public async Task PublishAsync<TEvent>(TEvent @event, CancellationToken cancellationToken = default)
+        where TEvent : class, IIntegrationEvent
+    {
+        await _publishEndpoint.Publish(@event, cancellationToken);
+    }
+}
+```
+
+### Step 6: Create Example Integration Event
 
 Create an example event in `Shared/IntegrationEvents/Scheduling/PatientCreatedIntegrationEvent.cs`:
 
 ```csharp
-using BuildingBlocks.Messaging.Abstractions;
+using BuildingBlocks.Application.Messaging;
 
 namespace IntegrationEvents.Scheduling;
 
@@ -274,7 +379,7 @@ public record PatientCreatedIntegrationEvent : IntegrationEventBase
 }
 ```
 
-### Step 6: Set Up RabbitMQ in Docker
+### Step 7: Set Up RabbitMQ in Docker
 
 Create `docker-compose.yml` in your solution root:
 
@@ -322,27 +427,29 @@ Access RabbitMQ Management UI:
 - Username: guest
 - Password: guest
 
-### Step 7: Configure MassTransit
+### Step 8: Configure MassTransit
 
-Create `Scheduling.Infrastructure/Messaging/MassTransitConfiguration.cs`:
+Create `BuildingBlocks.Infrastructure.MassTransit/Configuration/MassTransitExtensions.cs`:
 
 ```csharp
+using BuildingBlocks.Application.Messaging;
 using MassTransit;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 
-namespace Scheduling.Infrastructure.Messaging;
+namespace BuildingBlocks.Infrastructure.MassTransit.Configuration;
 
-public static class MassTransitConfiguration
+public static class MassTransitExtensions
 {
-    public static IServiceCollection AddMessaging(
+    public static IServiceCollection AddMassTransitEventBus(
         this IServiceCollection services,
-        IConfiguration configuration)
+        IConfiguration configuration,
+        Action<IRegistrationConfigurator>? configureConsumers = null)
     {
         services.AddMassTransit(x =>
         {
-            // Register consumers from this assembly
-            x.AddConsumers(typeof(MassTransitConfiguration).Assembly);
+            // Allow host to register consumers from specific assemblies
+            configureConsumers?.Invoke(x);
 
             x.UsingRabbitMq((context, cfg) =>
             {
@@ -377,6 +484,9 @@ public static class MassTransitConfiguration
             });
         });
 
+        // Register IEventBus implementation
+        services.AddScoped<IEventBus, MassTransitEventBus>();
+
         return services;
     }
 }
@@ -398,20 +508,29 @@ Add RabbitMQ settings to `appsettings.json`:
 Register in `Program.cs`:
 
 ```csharp
-builder.Services.AddMessaging(builder.Configuration);
+using BuildingBlocks.Infrastructure.MassTransit.Configuration;
+
+// Register MassTransit with RabbitMQ
+builder.Services.AddMassTransitEventBus(
+    builder.Configuration,
+    configure =>
+    {
+        // Register consumers from Scheduling.Infrastructure assembly
+        configure.AddConsumers(typeof(Scheduling.Infrastructure.AssemblyReference).Assembly);
+    });
 ```
 
-### Step 8: Create Test Endpoint
+### Step 9: Create Test Endpoint
 
 Add a minimal endpoint to test message publishing:
 
 ```csharp
+using BuildingBlocks.Application.Messaging;
 using IntegrationEvents.Scheduling;
-using MassTransit;
 
-app.MapPost("/test-publish", async (IPublishEndpoint publishEndpoint) =>
+app.MapPost("/test-publish", async (IEventBus eventBus) =>
 {
-    await publishEndpoint.Publish(new PatientCreatedIntegrationEvent
+    await eventBus.PublishAsync(new PatientCreatedIntegrationEvent
     {
         PatientId = Guid.NewGuid(),
         Email = "test@example.com",
@@ -423,7 +542,9 @@ app.MapPost("/test-publish", async (IPublishEndpoint publishEndpoint) =>
 });
 ```
 
-### Step 9: Verify the Setup
+Notice we inject `IEventBus` (abstraction) instead of `IPublishEndpoint` (MassTransit-specific). This keeps the endpoint decoupled from the messaging provider.
+
+### Step 10: Verify the Setup
 
 1. Start RabbitMQ (if not already running): `docker-compose up -d`
 2. Run your application and POST to `/test-publish`
@@ -611,29 +732,36 @@ public async Task Should_Consume_PatientCreated_Event()
 - [ ] RabbitMQ running in Docker
 - [ ] RabbitMQ Management UI accessible at http://localhost:15672
 - [ ] Can log into Management UI with guest/guest credentials
-- [ ] BuildingBlocks.Messaging project created with IntegrationEventBase
+- [ ] BuildingBlocks.Application/Messaging/ created with IEventBus, IntegrationEventBase
+- [ ] BuildingBlocks.Infrastructure.MassTransit/ created with MassTransitEventBus
 - [ ] Shared/IntegrationEvents project created
-- [ ] Project references configured correctly
-- [ ] MassTransit NuGet packages installed
+- [ ] Project references configured correctly (abstractions in Application, implementation in Infrastructure)
+- [ ] MassTransit NuGet packages installed in BuildingBlocks.Infrastructure.MassTransit
 - [ ] MassTransit configured with RabbitMQ transport
+- [ ] IEventBus registered in DI container
 - [ ] appsettings.json has correct RabbitMQ connection details
-- [ ] Test publish endpoint working
+- [ ] Test publish endpoint working (uses IEventBus, not IPublishEndpoint)
 - [ ] Messages visible in RabbitMQ Management UI
 
 ---
 
 ## Summary
 
-You've set up the messaging infrastructure with three distinct projects:
+You've set up the messaging infrastructure following Clean Architecture and Dependency Inversion:
 
-1. **BuildingBlocks.Messaging** - Reusable technical abstractions (IntegrationEventBase, MassTransit helpers)
-2. **Shared/IntegrationEvents** - Your healthcare domain's integration events
-3. **[BC].Infrastructure** - BC-specific message handling (publishers, consumers)
+1. **BuildingBlocks.Application/Messaging/** - Technology-agnostic abstractions (IEventBus, IntegrationEventBase)
+2. **BuildingBlocks.Infrastructure.MassTransit/** - MassTransit-specific implementation (MassTransitEventBus)
+3. **BuildingBlocks.Infrastructure.EfCore/** - EF Core-specific implementation (separate concern)
+4. **Shared/IntegrationEvents** - Domain-specific integration events
+5. **[BC].Infrastructure** - BC-specific message handling (publishers, consumers)
 
 This architecture ensures:
-- Clear separation between technical abstractions and domain events
-- No coupling between bounded contexts (they only reference Shared/IntegrationEvents)
-- Reusability of BuildingBlocks.Messaging across different domains
-- Clean Architecture principles with proper dependency inversion
+- **Dependency Inversion**: Application layer depends on abstractions, not implementations
+- **Provider Swappability**: Swap MassTransit for Wolverine/Rebus without changing business logic
+- **Clear Separation**: Abstractions in Application, implementations in Infrastructure
+- **No Coupling**: Bounded contexts only reference Shared/IntegrationEvents
+- **Clean Architecture**: Inner layers know nothing about outer layers
+
+The key insight: by separating abstractions (`IEventBus`) from implementations (`MassTransitEventBus`), you can change messaging providers without touching application or domain code.
 
 Next: [03-integration-events.md](./03-integration-events.md) - Defining and publishing integration events

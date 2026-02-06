@@ -1,5 +1,5 @@
 using BuildingBlocks.Application.Interfaces;
-using BuildingBlocks.Infrastructure;
+using BuildingBlocks.Infrastructure.EfCore;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Scheduling.Infrastructure.Persistence;
@@ -11,7 +11,7 @@ public static class ServiceCollectionExtensions
     public static IServiceCollection AddSchedulingInfrastructure(this IServiceCollection services, string connectionString)
     {
         services.AddDbContext<SchedulingDbContext>(options => options.UseSqlServer(connectionString));
-        services.AddScoped<IUnitOfWork, UnitOfWork<SchedulingDbContext>>();
+        services.AddScoped<IUnitOfWork, EfCoreUnitOfWork<SchedulingDbContext>>();
 
         return services;
     }

@@ -64,7 +64,7 @@ public async Task Handle(SuspendPatientCommand cmd, CancellationToken ct)
 
 ### Step 1: UnitOfWork with Auto-Dispatch
 
-Location: `BuildingBlocks/BuildingBlocks.Infrastructure/UnitOfWork.cs`
+Location: `BuildingBlocks/BuildingBlocks.Infrastructure.EfCore/EfCoreUnitOfWork.cs`
 
 ```csharp
 using BuildingBlocks.Application;
@@ -73,14 +73,14 @@ using BuildingBlocks.Domain.Interfaces;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 
-namespace BuildingBlocks.Infrastructure;
+namespace BuildingBlocks.Infrastructure.EfCore;
 
-public class UnitOfWork<TContext> : IUnitOfWork where TContext : DbContext
+public class EfCoreUnitOfWork<TContext> : IUnitOfWork where TContext : DbContext
 {
     private readonly TContext _context;
     private readonly IMediator _mediator;
 
-    public UnitOfWork(TContext context, IMediator mediator)
+    public EfCoreUnitOfWork(TContext context, IMediator mediator)
     {
         _context = context;
         _mediator = mediator;
@@ -95,7 +95,7 @@ public class UnitOfWork<TContext> : IUnitOfWork where TContext : DbContext
 
     public IRepository<T> RepositoryFor<T>() where T : class, IEntityBase
     {
-        return new Repository<TContext, T>(_context);
+        return new EfCoreRepository<TContext, T>(_context);
     }
 
     private async Task DispatchDomainEventsAsync(CancellationToken cancellationToken)
@@ -276,9 +276,9 @@ BuildingBlocks.Application/
 └── IUnitOfWork.cs                         ← Unit of Work interface
 │
 BuildingBlocks/
-└── BuildingBlocks.Infrastructure/
-    ├── Repository.cs
-    └── UnitOfWork.cs                      ← Auto-dispatches events
+└── BuildingBlocks.Infrastructure.EfCore/
+    ├── EfCoreRepository.cs
+    └── EfCoreUnitOfWork.cs                ← Auto-dispatches events
 
 Core/Scheduling/
 ├── Scheduling.Domain/
@@ -297,8 +297,8 @@ Core/Scheduling/
 
 ## Verification Checklist
 
-- [ ] UnitOfWork injects IMediator
-- [ ] UnitOfWork dispatches events after SaveChangesAsync
+- [ ] EfCoreUnitOfWork injects IMediator
+- [ ] EfCoreUnitOfWork dispatches events after SaveChangesAsync
 - [ ] EF configuration ignores DomainEvents property
 - [ ] Event handlers implement `INotificationHandler<TEvent>`
 - [ ] Events are dispatched when published
