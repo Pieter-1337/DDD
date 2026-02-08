@@ -15,6 +15,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\BuildingBlocks\BuildingBlocks.Infrastructure.MassTransit\BuildingBlocks.Infrastructure.MassTransit.csproj" />
     <ProjectReference Include="..\Core\Scheduling\Scheduling.Infrastructure\Scheduling.Infrastructure.csproj" />
     <ProjectReference Include="..\BuildingBlocks\BuildingBlocks.WebApplications\BuildingBlocks.WebApplications.csproj" />
   </ItemGroup>
