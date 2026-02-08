@@ -217,6 +217,67 @@ public class EfCoreUnitOfWork<TContext> : IUnitOfWork where TContext : DbContext
 
 ---
 
+## Nested Transaction Support
+
+When a command handler calls another command via MediatR, both go through `TransactionBehavior`. The `EfCoreUnitOfWork` handles this by tracking transaction ownership - only the outermost command can commit or rollback.
+
+### How Nesting Works
+
+```csharp
+// In EfCoreUnitOfWork
+private IDbContextTransaction? _transaction;
+private bool _ownsTransaction;
+
+public async Task BeginTransactionAsync(CancellationToken cancellationToken = default)
+{
+    if (_transaction is not null)
+    {
+        // Transaction already exists - reuse it, don't own it
+        _ownsTransaction = false;
+        return;
+    }
+
+    // Start new transaction and take ownership
+    _transaction = await _context.Database.BeginTransactionAsync(cancellationToken);
+    _ownsTransaction = true;
+}
+
+public async Task CloseTransactionAsync(Exception? exception = null, CancellationToken cancellationToken = default)
+{
+    // Only the owner can commit/rollback
+    if (!_ownsTransaction || _transaction is null) return;
+
+    if (exception is not null)
+    {
+        await _transaction.RollbackAsync(cancellationToken);
+        _queuedIntegrationEvents.Clear();
+    }
+    else
+    {
+        await _transaction.CommitAsync(cancellationToken);
+        await PublishAndClearIntegrationEventsAsync(cancellationToken);
+    }
+
+    await _transaction.DisposeAsync();
+    _transaction = null;
+    _ownsTransaction = false;
+}
+```
+
+### Key Behaviors
+
+| Scenario | Behavior |
+|----------|----------|
+| First command calls `BeginTransactionAsync()` | Starts transaction, takes ownership |
+| Nested command calls `BeginTransactionAsync()` | Detects existing transaction, reuses it |
+| Nested command calls `CloseTransactionAsync()` | Does nothing (not the owner) |
+| Outer command calls `CloseTransactionAsync()` | Commits/rollbacks the shared transaction |
+| Integration events | Published only after outer transaction commits |
+
+For detailed examples and usage guidance, see [Pipeline Behaviors - Nested Transaction Handling](../phase-3-cqrs/05-pipeline-behaviors.md#nested-transaction-handling).
+
+---
+
 ## Domain Event Handlers
 
 Domain event handlers implement MediatR's `INotificationHandler<T>`. They are responsible for:

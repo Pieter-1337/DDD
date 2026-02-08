@@ -750,6 +750,158 @@ public class TransactionBehavior<TRequest, TResponse> : IPipelineBehavior<TReque
 
 ---
 
+## Nested Transaction Handling
+
+When a command handler dispatches another command via MediatR, both commands go through the `TransactionBehavior`. The `EfCoreUnitOfWork` detects if a transaction is already active and handles nesting correctly.
+
+### How It Works
+
+The `EfCoreUnitOfWork` tracks transaction ownership using a flag. When a nested command tries to begin a transaction:
+
+1. **Outer command** calls `BeginTransactionAsync()` - starts the actual database transaction
+2. **Nested command** calls `BeginTransactionAsync()` - detects existing transaction, does nothing
+3. **Nested command** completes and calls `CloseTransactionAsync()` - does nothing (not the owner)
+4. **Outer command** completes and calls `CloseTransactionAsync()` - commits/rollbacks the transaction
+5. **Integration events** are published only after the outer command's transaction commits
+
+### Example: Nested Command Execution
+
+```csharp
+// Outer command handler
+public class CreatePatientCommandHandler : IRequestHandler<CreatePatientCommand, Guid>
+{
+    private readonly IUnitOfWork _uow;
+    private readonly IMediator _mediator;
+
+    public async Task<Guid> Handle(CreatePatientCommand cmd, CancellationToken ct)
+    {
+        var patient = Patient.Create(cmd.FirstName, cmd.LastName, cmd.Email, cmd.DateOfBirth);
+        _uow.RepositoryFor<Patient>().Add(patient);
+
+        // This nested command reuses the same transaction!
+        await _mediator.Send(new CreateAuditLogCommand
+        {
+            Action = "PatientCreated",
+            EntityId = patient.Id
+        }, ct);
+
+        await _uow.SaveChangesAsync(ct);
+        return patient.Id;
+    }
+}
+// Both commands share ONE transaction
+// Commit happens after outer command completes
+```
+
+### Implementation in EfCoreUnitOfWork
+
+The key is the `_ownsTransaction` flag that tracks which layer started the transaction:
+
+```csharp
+// In EfCoreUnitOfWork
+private IDbContextTransaction? _transaction;
+private bool _ownsTransaction;
+
+public async Task BeginTransactionAsync(CancellationToken cancellationToken = default)
+{
+    if (_transaction is not null)
+    {
+        // Transaction already exists - reuse it, don't own it
+        _ownsTransaction = false;
+        return;
+    }
+
+    // Start new transaction and take ownership
+    _transaction = await _context.Database.BeginTransactionAsync(cancellationToken);
+    _ownsTransaction = true;
+}
+
+public async Task CloseTransactionAsync(Exception? exception = null, CancellationToken cancellationToken = default)
+{
+    // Only the owner can commit/rollback
+    if (!_ownsTransaction || _transaction is null) return;
+
+    if (exception is not null)
+    {
+        await _transaction.RollbackAsync(cancellationToken);
+        _queuedIntegrationEvents.Clear();
+    }
+    else
+    {
+        await _transaction.CommitAsync(cancellationToken);
+        await PublishAndClearIntegrationEventsAsync(cancellationToken);
+    }
+
+    await _transaction.DisposeAsync();
+    _transaction = null;
+    _ownsTransaction = false;
+}
+```
+
+### Execution Flow with Nested Commands
+
+```
+TransactionBehavior (Outer: CreatePatientCommand)
+  |
+  +-- BeginTransactionAsync()
+  |     +-- _transaction = new  [STARTED]
+  |     +-- _ownsTransaction = true
+  |
+  +-- CreatePatientCommandHandler.Handle()
+        |
+        +-- Patient.Create(...)
+        |
+        +-- _mediator.Send(CreateAuditLogCommand)
+        |     |
+        |     +-- TransactionBehavior (Inner: CreateAuditLogCommand)
+        |           |
+        |           +-- BeginTransactionAsync()
+        |           |     +-- _transaction already exists
+        |           |     +-- _ownsTransaction = false  [REUSING]
+        |           |
+        |           +-- CreateAuditLogCommandHandler.Handle()
+        |           |     +-- ... audit logic ...
+        |           |     +-- _uow.SaveChangesAsync()
+        |           |
+        |           +-- CloseTransactionAsync()
+        |                 +-- _ownsTransaction = false
+        |                 +-- [DOES NOTHING - not the owner]
+        |
+        +-- _uow.SaveChangesAsync()
+        |
+  +-- CloseTransactionAsync()
+        +-- _ownsTransaction = true
+        +-- CommitAsync()  [COMMITTED]
+        +-- PublishAndClearIntegrationEventsAsync()  [EVENTS PUBLISHED]
+```
+
+### Key Rules
+
+| Rule | Behavior |
+|------|----------|
+| First `BeginTransactionAsync()` | Starts transaction, takes ownership |
+| Subsequent `BeginTransactionAsync()` | Reuses transaction, no ownership |
+| `CloseTransactionAsync()` without ownership | Does nothing |
+| `CloseTransactionAsync()` with ownership | Commits/rollbacks, publishes events |
+| Rollback | Discards all queued integration events |
+| Integration events | Published only after outer transaction commits |
+
+### When to Use Nested Commands
+
+**Good use cases:**
+- Audit logging that must succeed with the main operation
+- Creating related entities in the same transaction
+- Operations that must be atomic with the parent operation
+
+**Avoid for:**
+- Independent operations that should have their own transaction boundaries
+- Long-running operations that could cause lock contention
+- Operations that might need to succeed even if the parent fails
+
+For truly independent operations, use `OrchestrationCommand<T>` instead, which lets each child command have its own transaction.
+
+---
+
 ## Command/Query Base Types
 
 The framework provides base record types for type-safe CQRS:

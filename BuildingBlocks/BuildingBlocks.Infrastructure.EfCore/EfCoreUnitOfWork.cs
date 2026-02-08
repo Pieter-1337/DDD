@@ -15,6 +15,7 @@ public class EfCoreUnitOfWork<TContext> : IUnitOfWork where TContext : DbContext
     private readonly IMediator? _mediator;
     private readonly List<IIntegrationEvent> _queuedIntegrationEvents = [];
     private IDbContextTransaction? _transaction;
+    private bool _ownsTransaction; // Track if we started the transaction
 
     public EfCoreUnitOfWork(TContext context, IEventBus? eventBus = null, IMediator? mediator = null)
     {
@@ -111,12 +112,28 @@ public class EfCoreUnitOfWork<TContext> : IUnitOfWork where TContext : DbContext
 
     public async Task BeginTransactionAsync(CancellationToken cancellationToken = default)
     {
+        // Don't start a new transaction if one is already active
+        if (_transaction is not null)
+        {
+            _ownsTransaction = false; // We're reusing an existing transaction
+            return;
+        }
+
         _transaction = await _context.Database.BeginTransactionAsync(cancellationToken);
+        _ownsTransaction = true; // We started this transaction
     }
 
     public async Task CloseTransactionAsync(Exception? exception = null, CancellationToken cancellationToken = default)
     {
         if (_transaction is null) return;
+
+        // Only commit/rollback if we own the transaction
+        if (!_ownsTransaction)
+        {
+            // Nested command - don't touch the transaction, let the outer command handle it
+            // But if there's an exception, we should still propagate it (the throw will bubble up)
+            return;
+        }
 
         if (exception is not null)
         {
@@ -133,5 +150,6 @@ public class EfCoreUnitOfWork<TContext> : IUnitOfWork where TContext : DbContext
 
         await _transaction.DisposeAsync();
         _transaction = null;
+        _ownsTransaction = false;
     }
 }
