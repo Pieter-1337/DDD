@@ -260,35 +260,46 @@ public record PatientSuspendedEvent(
 
 ### Step 3: Handle Domain Events
 
-Domain event handlers use MediatR's `INotificationHandler<T>`:
+Domain event handlers use MediatR's `INotificationHandler<T>`. Handlers are responsible for:
+- Internal side effects (logging, auditing, cache invalidation)
+- Queueing integration events for cross-bounded context communication
 
 ```csharp
 // Scheduling.Application/Patients/EventHandlers/PatientCreatedEventHandler.cs
+using BuildingBlocks.Application.Interfaces;
 using MediatR;
+using Microsoft.Extensions.Logging;
 using Scheduling.Domain.Patients.Events;
+using Shared.IntegrationEvents.Scheduling;
 
 namespace Scheduling.Application.Patients.EventHandlers;
 
 public class PatientCreatedEventHandler : INotificationHandler<PatientCreatedEvent>
 {
     private readonly ILogger<PatientCreatedEventHandler> _logger;
+    private readonly IUnitOfWork _unitOfWork;
 
-    public PatientCreatedEventHandler(ILogger<PatientCreatedEventHandler> logger)
+    public PatientCreatedEventHandler(
+        ILogger<PatientCreatedEventHandler> logger,
+        IUnitOfWork unitOfWork)
     {
         _logger = logger;
+        _unitOfWork = unitOfWork;
     }
 
-    public Task Handle(PatientCreatedEvent evt, CancellationToken ct)
+    public Task Handle(PatientCreatedEvent notification, CancellationToken cancellationToken)
     {
-        _logger.LogInformation(
-            "Domain event: Patient {PatientId} created with email {Email}",
-            evt.PatientId,
-            evt.Email);
+        // Internal side effect: logging
+        _logger.LogInformation("Patient created: {PatientId}", notification.PatientId);
 
-        // Internal side effects:
-        // - Send welcome email
-        // - Create audit log entry
-        // - Initialize related data
+        // Queue integration event for cross-BC communication
+        _unitOfWork.QueueIntegrationEvent(new PatientCreatedIntegrationEvent
+        {
+            PatientId = notification.PatientId,
+            Email = notification.Email,
+            FullName = $"{notification.FirstName} {notification.LastName}",
+            DateOfBirth = notification.DateOfBirth
+        });
 
         return Task.CompletedTask;
     }
@@ -350,58 +361,94 @@ Core/Scheduling/
 
 ## The Full Picture
 
-Domain events and integration events work together:
+Domain events and integration events work together. The complete flow:
 
 ```
-Entity.Suspend()
+Entity.Create() -> AddDomainEvent(PatientCreatedEvent)
     |
-    | AddDomainEvent(PatientSuspendedEvent)
     v
 SaveChangesAsync()
     |
-    +-- 1. Save to database
-    |
-    +-- 2. DispatchDomainEventsAsync() -> MediatR
+    +-- 1. DispatchDomainEventsAsync() -> MediatR
     |       |
-    |       +-- PatientSuspendedEventHandler (audit log)
-    |       +-- NotifyPatientHandler (send email)
-    |       +-- One of these handlers can queue an integration event:
-    |           _uow.QueueIntegrationEvent(PatientSuspendedIntegrationEvent)
+    |       +-- PatientCreatedEventHandler
+    |               +-- Logs event
+    |               +-- _uow.QueueIntegrationEvent(PatientCreatedIntegrationEvent)
     |
-    +-- 3. PublishQueuedIntegrationEventsAsync() -> RabbitMQ
+    +-- 2. _context.SaveChangesAsync() (DB save)
+    |
+    +-- 3. [after commit] -> RabbitMQ
             |
             +-- Billing context receives event
-            +-- Analytics context receives event
+            +-- Notifications context receives event
 ```
 
-A domain event handler can queue an integration event when the side effect needs to cross bounded context boundaries.
+**Key points:**
+- Entity raises domain event during state change
+- Domain event handler performs internal side effects AND queues integration event
+- Integration events are published only after the transaction commits
+- This keeps command handlers clean while ensuring cross-BC communication
 
 ---
 
-## Note: Current Project Implementation
+## Current Project Implementation
 
-This project currently uses **integration events only** via MassTransit/RabbitMQ. Integration events are queued directly in command handlers:
+This project uses **domain event handlers to queue integration events**. Command handlers are kept clean, focusing only on entity operations:
 
 ```csharp
-// Current approach - integration events queued in handler
+// Command handler - clean and focused
 public async Task<Guid> Handle(CreatePatientCommand cmd, CancellationToken ct)
 {
-    var patient = Patient.Create(...);
+    var patient = Patient.Create(
+        cmd.FirstName,
+        cmd.LastName,
+        cmd.Email,
+        cmd.DateOfBirth);
 
     _uow.RepositoryFor<Patient>().Add(patient);
-    _uow.QueueIntegrationEvent(new PatientCreatedIntegrationEvent(...));
-
-    await _uow.SaveChangesAsync(ct);
+    await _uow.SaveChangesAsync(ct);  // Triggers domain event dispatch
     return patient.Id;
 }
 ```
 
-This is a valid, simpler approach when:
-- You don't need internal side effects before publishing externally
-- All reactions are external (other bounded contexts)
-- You want fewer layers of indirection
+Domain event handlers listen via MediatR and queue integration events:
 
-Adding domain events is a future enhancement if internal decoupling becomes valuable.
+```csharp
+// Domain event handler - handles side effects
+public class PatientCreatedEventHandler : INotificationHandler<PatientCreatedEvent>
+{
+    private readonly ILogger<PatientCreatedEventHandler> _logger;
+    private readonly IUnitOfWork _unitOfWork;
+
+    public PatientCreatedEventHandler(ILogger<PatientCreatedEventHandler> logger, IUnitOfWork unitOfWork)
+    {
+        _logger = logger;
+        _unitOfWork = unitOfWork;
+    }
+
+    public Task Handle(PatientCreatedEvent notification, CancellationToken cancellationToken)
+    {
+        _logger.LogInformation("Patient created: {PatientId}", notification.PatientId);
+
+        // Queue integration event for cross-BC communication
+        _unitOfWork.QueueIntegrationEvent(new PatientCreatedIntegrationEvent
+        {
+            PatientId = notification.PatientId,
+            Email = notification.Email,
+            FullName = $"{notification.FirstName} {notification.LastName}",
+            DateOfBirth = notification.DateOfBirth
+        });
+
+        return Task.CompletedTask;
+    }
+}
+```
+
+**Benefits of this approach:**
+- Command handlers stay simple and focused on the core operation
+- Side effects are handled in dedicated, testable handlers
+- Easy to add new reactions without modifying command handlers
+- Clear separation between domain operations and integration concerns
 
 ---
 

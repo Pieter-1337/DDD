@@ -6,9 +6,11 @@ Integration events enable asynchronous communication between bounded contexts vi
 
 This document covers:
 - Defining integration events
-- Publishing from command handlers via `_uow.QueueIntegrationEvent()`
+- Publishing via domain event handlers (the recommended pattern)
 - Consuming in bounded contexts
 - The publish-subscribe pattern
+
+**Key Pattern:** Command handlers are kept clean (just entity operations + save). Domain event handlers listen for domain events via MediatR and queue integration events for cross-BC communication.
 
 ---
 
@@ -19,16 +21,18 @@ This document covers:
 |                         EVENT ARCHITECTURE                                   |
 +-----------------------------------------------------------------------------+
 
-Integration Events
-+------------------------------------------------------------------------+
-| - Published to RabbitMQ via MassTransit                                 |
-| - Cross bounded context communication                                   |
-| - Public contract between services                                      |
-| - Queued in command handler via _uow.QueueIntegrationEvent()            |
-| - Published AFTER transaction commits (via TransactionBehavior)         |
-| - Discarded on transaction rollback                                     |
-| - Get durability, retry, and dead-letter queues                         |
-+------------------------------------------------------------------------+
+Domain Events (Internal)                Integration Events (External)
++-----------------------------------+   +-----------------------------------+
+| - Raised by entities               |   | - Published to RabbitMQ           |
+| - Dispatched via MediatR           |   | - Cross bounded context           |
+| - INotificationHandler<T>          |   | - Queued by domain event handlers |
+| - Internal side effects            |-->| - Published AFTER commit          |
+|   (logging, audit, etc.)           |   | - Discarded on rollback           |
+| - Bridge to integration events     |   | - Durability, retry, DLQ          |
++-----------------------------------+   +-----------------------------------+
+
+Flow:
+  Entity -> Domain Event -> Domain Event Handler -> Queue Integration Event -> RabbitMQ
 ```
 
 ### Project Location
@@ -114,55 +118,66 @@ public record PatientCreatedIntegrationEvent : IntegrationEventBase
 
 ## Publishing Integration Events
 
-### The Pattern: Command Handler Queues, TransactionBehavior Controls Publishing
+### The Pattern: Domain Event Handlers Queue Integration Events
 
-The command handler queues integration events via `_uow.QueueIntegrationEvent()`. With `TransactionBehavior`, integration events are only published AFTER the transaction commits successfully.
+Integration events are queued by **domain event handlers**, not directly in command handlers. This keeps command handlers clean and focused on the core domain operation.
+
+**Flow:**
+1. Entity raises domain event during state change
+2. Command handler saves changes (triggers domain event dispatch)
+3. Domain event handler receives the event and queues integration event
+4. Integration events are published AFTER the transaction commits
 
 ```
-TransactionBehavior                   UnitOfWork
-+-----------------------------+       +-------------------------------------+
-| 1. BeginTransactionAsync()  |       |                                     |
-| 2. Call handler             |------>| SaveChangesAsync():                 |
-|                             |       |   - DispatchDomainEventsAsync()     |
-|                             |       |   - _context.SaveChangesAsync()     |
-|                             |       |   - [events queued, NOT published]  |
-| 3. CloseTransactionAsync()  |       |                                     |
-|    - CommitAsync()          |------>| PublishAndClearIntegrationEventsAsync() |
-|    - Publish events         |       |   - Publish to RabbitMQ             |
-+-----------------------------+       +-------------------------------------+
+Entity.Create() -> AddDomainEvent(PatientCreatedEvent)
+    |
+    v
+SaveChangesAsync()
+    |
+    +-- 1. DispatchDomainEventsAsync() -> MediatR
+    |       |
+    |       +-- PatientCreatedEventHandler
+    |               +-- Logs event
+    |               +-- _uow.QueueIntegrationEvent(PatientCreatedIntegrationEvent)
+    |
+    +-- 2. _context.SaveChangesAsync() (DB save)
+    |
+    +-- 3. [after commit] -> RabbitMQ
+            |
+            +-- Billing context receives event
+            +-- Notifications context receives event
 ```
 
 **Why this matters:**
+- Command handlers stay clean and focused
 - Events are never published for rolled-back operations
 - Consumers only see events for data that is actually persisted
 - Provides transactional consistency between DB and message broker
 
-### Publishing from Command Handler
+### Step 1: Command Handler (Clean)
+
+Command handlers focus only on entity operations and saving:
 
 ```csharp
 // Scheduling.Application/Patients/Commands/CreatePatientCommandHandler.cs
+using BuildingBlocks.Application.Interfaces;
 using MediatR;
 using Scheduling.Domain.Patients;
-using Shared.IntegrationEvents.Scheduling;
 
 namespace Scheduling.Application.Patients.Commands;
 
 public class CreatePatientCommandHandler : IRequestHandler<CreatePatientCommand, Guid>
 {
     private readonly IUnitOfWork _uow;
-    private readonly ILogger<CreatePatientCommandHandler> _logger;
 
-    public CreatePatientCommandHandler(
-        IUnitOfWork uow,
-        ILogger<CreatePatientCommandHandler> logger)
+    public CreatePatientCommandHandler(IUnitOfWork uow)
     {
         _uow = uow;
-        _logger = logger;
     }
 
     public async Task<Guid> Handle(CreatePatientCommand cmd, CancellationToken ct)
     {
-        // 1. Create domain entity
+        // 1. Create domain entity (raises PatientCreatedEvent internally)
         var patient = Patient.Create(
             cmd.FirstName,
             cmd.LastName,
@@ -172,23 +187,56 @@ public class CreatePatientCommandHandler : IRequestHandler<CreatePatientCommand,
         // 2. Add to repository
         _uow.RepositoryFor<Patient>().Add(patient);
 
-        // 3. Queue integration event for cross-BC communication
-        _uow.QueueIntegrationEvent(new PatientCreatedIntegrationEvent
-        {
-            PatientId = patient.Id,
-            Email = patient.Email,
-            FullName = $"{patient.FirstName} {patient.LastName}",
-            CreatedAt = DateTime.UtcNow
-        });
-
-        // 4. Save changes - publishes to RabbitMQ after successful save
+        // 3. Save changes - triggers domain event dispatch
         await _uow.SaveChangesAsync(ct);
 
-        _logger.LogInformation(
-            "Created patient {PatientId} and queued integration event",
-            patient.Id);
-
         return patient.Id;
+    }
+}
+```
+
+### Step 2: Domain Event Handler (Queues Integration Event)
+
+Domain event handlers listen for domain events and queue integration events:
+
+```csharp
+// Scheduling.Application/Patients/EventHandlers/PatientCreatedEventHandler.cs
+using BuildingBlocks.Application.Interfaces;
+using MediatR;
+using Microsoft.Extensions.Logging;
+using Scheduling.Domain.Patients.Events;
+using Shared.IntegrationEvents.Scheduling;
+
+namespace Scheduling.Application.Patients.EventHandlers;
+
+public class PatientCreatedEventHandler : INotificationHandler<PatientCreatedEvent>
+{
+    private readonly ILogger<PatientCreatedEventHandler> _logger;
+    private readonly IUnitOfWork _unitOfWork;
+
+    public PatientCreatedEventHandler(
+        ILogger<PatientCreatedEventHandler> logger,
+        IUnitOfWork unitOfWork)
+    {
+        _logger = logger;
+        _unitOfWork = unitOfWork;
+    }
+
+    public Task Handle(PatientCreatedEvent notification, CancellationToken cancellationToken)
+    {
+        // Internal side effect: logging
+        _logger.LogInformation("Patient created: {PatientId}", notification.PatientId);
+
+        // Queue integration event for cross-BC communication
+        _unitOfWork.QueueIntegrationEvent(new PatientCreatedIntegrationEvent
+        {
+            PatientId = notification.PatientId,
+            Email = notification.Email,
+            FullName = $"{notification.FirstName} {notification.LastName}",
+            DateOfBirth = notification.DateOfBirth
+        });
+
+        return Task.CompletedTask;
     }
 }
 ```
@@ -218,22 +266,25 @@ public class CreatePatientCommandHandler : IRequestHandler<CreatePatientCommand,
          v
 +------------------+
 | CreatePatient    |
-| CommandHandler   |
+| CommandHandler   |  <- Clean: just entity ops + save
 +--------+---------+
          |
          v
 +--------------------------------------------------+
 | 1. Patient.Create()                              |
+|       +-- AddDomainEvent(PatientCreatedEvent)    |
 | 2. _uow.RepositoryFor<Patient>().Add(patient)    |
-| 3. _uow.QueueIntegrationEvent(event)             |
 +---------+----------------------------------------+
          |
          v
 +--------------------------------------------------+
 | UnitOfWork.SaveChangesAsync()                    |
-|   +-- DispatchDomainEventsAsync() [if any]       |
+|   +-- DispatchDomainEventsAsync() [BEFORE save]  |
+|   |       +-- PatientCreatedEventHandler         |
+|   |               +-- Log event                  |
+|   |               +-- QueueIntegrationEvent()    |
 |   +-- _context.SaveChangesAsync() [in txn]       |
-|   +-- [events queued, NOT published yet]         |
+|   +-- [integration events queued, NOT published] |
 +---------+----------------------------------------+
          |
          v
@@ -262,12 +313,12 @@ public class CreatePatientCommandHandler : IRequestHandler<CreatePatientCommand,
 
 | Benefit | Description |
 |---------|-------------|
+| **Clean command handlers** | Just entity operations + save, no side effect logic |
 | **Transactional safety** | Events only published after transaction commits |
 | **Rollback protection** | Failed transactions discard queued events automatically |
-| **Explicit intent** | Command handler decides what to publish |
-| **Simple flow** | No intermediate event handlers needed |
-| **Testable** | Easy to verify queued events in tests |
-| **Single responsibility** | TransactionBehavior coordinates commit + publish |
+| **Single responsibility** | Domain event handlers handle side effects |
+| **Easy to extend** | Add new handlers without modifying command handlers |
+| **Testable** | Each handler can be tested in isolation |
 
 ---
 
@@ -538,11 +589,61 @@ public record PaymentReceivedIntegrationEvent : IntegrationEventBase
 - [ ] Integration events defined with `required` properties
 - [ ] Events inherit from `IntegrationEventBase`
 - [ ] Events located in `Shared/IntegrationEvents/{BoundedContext}/`
-- [ ] Command handlers queue events via `_uow.QueueIntegrationEvent()`
+- [ ] Domain event handlers queue integration events via `_uow.QueueIntegrationEvent()`
+- [ ] Domain event handlers implement `INotificationHandler<TDomainEvent>`
+- [ ] Command handlers are clean (just entity ops + save)
 - [ ] Consumers registered in MassTransit
 - [ ] Each consumer has its own queue (verified in RabbitMQ UI)
 - [ ] Consumer logs message receipt and processing
 - [ ] Integration events visible in RabbitMQ Management UI
+
+---
+
+## Additional Example: Appointment Domain Event Handler
+
+```csharp
+// Scheduling.Application/Appointments/EventHandlers/AppointmentScheduledEventHandler.cs
+using BuildingBlocks.Application.Interfaces;
+using MediatR;
+using Microsoft.Extensions.Logging;
+using Scheduling.Domain.Appointments.Events;
+using Shared.IntegrationEvents.Scheduling;
+
+namespace Scheduling.Application.Appointments.EventHandlers;
+
+public class AppointmentScheduledEventHandler : INotificationHandler<AppointmentScheduledEvent>
+{
+    private readonly ILogger<AppointmentScheduledEventHandler> _logger;
+    private readonly IUnitOfWork _unitOfWork;
+
+    public AppointmentScheduledEventHandler(
+        ILogger<AppointmentScheduledEventHandler> logger,
+        IUnitOfWork unitOfWork)
+    {
+        _logger = logger;
+        _unitOfWork = unitOfWork;
+    }
+
+    public Task Handle(AppointmentScheduledEvent notification, CancellationToken cancellationToken)
+    {
+        _logger.LogInformation(
+            "Appointment scheduled: {AppointmentId} for patient {PatientId}",
+            notification.AppointmentId,
+            notification.PatientId);
+
+        _unitOfWork.QueueIntegrationEvent(new AppointmentScheduledIntegrationEvent
+        {
+            AppointmentId = notification.AppointmentId,
+            PatientId = notification.PatientId,
+            DoctorId = notification.DoctorId,
+            ScheduledAt = notification.ScheduledAt,
+            Duration = notification.Duration
+        });
+
+        return Task.CompletedTask;
+    }
+}
+```
 
 ---
 
@@ -554,8 +655,9 @@ public record PaymentReceivedIntegrationEvent : IntegrationEventBase
 | Huge event payloads | Slow, memory issues | Include only necessary data |
 | Synchronous request-response | Defeats async benefits | Use events, cache data locally |
 | No event ID | Can't ensure idempotency | Always include unique EventId (IntegrationEventBase provides this) |
-| Forgetting to queue event | Other BCs don't get notified | Review command handlers for cross-BC impact |
+| Queueing in command handler | Mixes concerns, harder to maintain | Use domain event handlers to queue integration events |
 | Publishing in non-transactional flow | Events may publish before data is committed | Use Command<T> base type to ensure TransactionBehavior wraps the handler |
+| Missing domain event handler | Other BCs don't get notified | Create domain event handler that queues integration event |
 
 ---
 

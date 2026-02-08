@@ -1,5 +1,4 @@
 using BuildingBlocks.Application.Interfaces;
-using IntegrationEvents.Scheduling;
 using MediatR;
 using Scheduling.Application.Patients.Dtos;
 using Scheduling.Domain.Patients;
@@ -22,14 +21,7 @@ internal class CreatePatientCommandHandler : IRequestHandler<CreatePatientComman
         var patient = Patient.Create(request.FirstName, request.LastName, request.Email, request.DateOfBirth, request.PhoneNumber, status);
         _uow.RepositoryFor<Patient>().Add(patient);
 
-        // Queue integration event to be published after successful save
-        _uow.QueueIntegrationEvent(new PatientCreatedIntegrationEvent(
-            patient.Id,
-            patient.FirstName,
-            patient.LastName,
-            patient.Email,
-            patient.DateOfBirth));
-
+        // Domain event handler (PatientCreatedEventHandler) queues the integration event
         await _uow.SaveChangesAsync(cancellationToken);
 
         return new CreatePatientCommandResponse
@@ -39,4 +31,4 @@ internal class CreatePatientCommandHandler : IRequestHandler<CreatePatientComman
             PatientDto = PatientDto.ToDto(patient)
         };
     }
-}   
+}

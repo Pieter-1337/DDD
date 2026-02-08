@@ -2,9 +2,9 @@
 
 ## Overview
 
-This document explains how domain events are dispatched via MediatR during `SaveChangesAsync()`. Domain events enable internal decoupling within a bounded context.
+This document explains how domain events are dispatched via MediatR during `SaveChangesAsync()`. Domain events enable internal decoupling within a bounded context and serve as the bridge to integration events.
 
-**Note:** This project currently uses integration events only. This document describes how domain event dispatching would work if implemented.
+**Pattern:** Command handlers are kept clean (just entity operations + save). Domain event handlers listen for domain events via MediatR and queue integration events for cross-bounded context communication.
 
 ---
 
@@ -219,41 +219,47 @@ public class EfCoreUnitOfWork<TContext> : IUnitOfWork where TContext : DbContext
 
 ## Domain Event Handlers
 
-Domain event handlers implement MediatR's `INotificationHandler<T>`:
+Domain event handlers implement MediatR's `INotificationHandler<T>`. They are responsible for:
+1. Internal side effects (logging, auditing, cache invalidation)
+2. Queueing integration events for cross-bounded context communication
+
+### Example: PatientCreatedEventHandler
 
 ```csharp
-// Scheduling.Application/Patients/EventHandlers/PatientSuspendedEventHandler.cs
+// Scheduling.Application/Patients/EventHandlers/PatientCreatedEventHandler.cs
+using BuildingBlocks.Application.Interfaces;
 using MediatR;
+using Microsoft.Extensions.Logging;
 using Scheduling.Domain.Patients.Events;
+using Shared.IntegrationEvents.Scheduling;
 
 namespace Scheduling.Application.Patients.EventHandlers;
 
-public class PatientSuspendedEventHandler : INotificationHandler<PatientSuspendedEvent>
+public class PatientCreatedEventHandler : INotificationHandler<PatientCreatedEvent>
 {
-    private readonly ILogger<PatientSuspendedEventHandler> _logger;
-    private readonly IUnitOfWork _uow;
+    private readonly ILogger<PatientCreatedEventHandler> _logger;
+    private readonly IUnitOfWork _unitOfWork;
 
-    public PatientSuspendedEventHandler(
-        ILogger<PatientSuspendedEventHandler> logger,
-        IUnitOfWork uow)
+    public PatientCreatedEventHandler(
+        ILogger<PatientCreatedEventHandler> logger,
+        IUnitOfWork unitOfWork)
     {
         _logger = logger;
-        _uow = uow;
+        _unitOfWork = unitOfWork;
     }
 
-    public Task Handle(PatientSuspendedEvent evt, CancellationToken ct)
+    public Task Handle(PatientCreatedEvent notification, CancellationToken cancellationToken)
     {
-        _logger.LogInformation(
-            "Handling PatientSuspendedEvent for patient {PatientId}",
-            evt.PatientId);
+        // 1. Internal side effect: logging
+        _logger.LogInformation("Patient created: {PatientId}", notification.PatientId);
 
-        // Internal side effect: audit log, cache invalidation, etc.
-
-        // Cross-context communication: queue integration event
-        _uow.QueueIntegrationEvent(new PatientSuspendedIntegrationEvent
+        // 2. Queue integration event for cross-BC communication
+        _unitOfWork.QueueIntegrationEvent(new PatientCreatedIntegrationEvent
         {
-            PatientId = evt.PatientId,
-            SuspendedAt = evt.OccurredAt
+            PatientId = notification.PatientId,
+            Email = notification.Email,
+            FullName = $"{notification.FirstName} {notification.LastName}",
+            DateOfBirth = notification.DateOfBirth
         });
 
         return Task.CompletedTask;
@@ -261,95 +267,169 @@ public class PatientSuspendedEventHandler : INotificationHandler<PatientSuspende
 }
 ```
 
-**Note:** A domain event handler can queue an integration event when the reaction needs to cross bounded context boundaries.
-
----
-
-## When to Use Domain Events vs Direct Integration Events
-
-### Option A: Domain Events + Integration Events (Full Pattern)
+### Example: PatientSuspendedEventHandler
 
 ```csharp
-// Entity raises domain event
-public void Suspend()
-{
-    Status = PatientStatus.Suspended;
-    AddDomainEvent(new PatientSuspendedEvent(Id));
-}
+// Scheduling.Application/Patients/EventHandlers/PatientSuspendedEventHandler.cs
+using BuildingBlocks.Application.Interfaces;
+using MediatR;
+using Microsoft.Extensions.Logging;
+using Scheduling.Domain.Patients.Events;
+using Shared.IntegrationEvents.Scheduling;
 
-// Domain event handler queues integration event
+namespace Scheduling.Application.Patients.EventHandlers;
+
 public class PatientSuspendedEventHandler : INotificationHandler<PatientSuspendedEvent>
 {
-    public Task Handle(PatientSuspendedEvent evt, CancellationToken ct)
-    {
-        // Internal: audit log
-        _auditLogger.Log(...);
+    private readonly ILogger<PatientSuspendedEventHandler> _logger;
+    private readonly IUnitOfWork _unitOfWork;
 
-        // External: notify other contexts
-        _uow.QueueIntegrationEvent(new PatientSuspendedIntegrationEvent(...));
+    public PatientSuspendedEventHandler(
+        ILogger<PatientSuspendedEventHandler> logger,
+        IUnitOfWork unitOfWork)
+    {
+        _logger = logger;
+        _unitOfWork = unitOfWork;
+    }
+
+    public Task Handle(PatientSuspendedEvent notification, CancellationToken cancellationToken)
+    {
+        _logger.LogInformation(
+            "Handling PatientSuspendedEvent for patient {PatientId}",
+            notification.PatientId);
+
+        // Internal side effect: audit log, cache invalidation, etc.
+
+        // Queue integration event for cross-BC communication
+        _unitOfWork.QueueIntegrationEvent(new PatientSuspendedIntegrationEvent
+        {
+            PatientId = notification.PatientId,
+            SuspendedAt = notification.OccurredAt
+        });
 
         return Task.CompletedTask;
     }
 }
 ```
 
-**Use when:**
-- You need internal side effects (audit, cache, notifications)
-- You want entities focused purely on domain logic
-- Multiple internal handlers need to react
-
-### Option B: Direct Integration Events (Current Project Approach)
-
-```csharp
-// Command handler queues integration event directly
-public async Task<Unit> Handle(SuspendPatientCommand cmd, CancellationToken ct)
-{
-    var patient = await _uow.RepositoryFor<Patient>().GetByIdAsync(cmd.PatientId, ct);
-
-    patient!.Suspend();
-
-    // Queue integration event directly in handler
-    _uow.QueueIntegrationEvent(new PatientSuspendedIntegrationEvent
-    {
-        PatientId = patient.Id,
-        SuspendedAt = DateTime.UtcNow
-    });
-
-    await _uow.SaveChangesAsync(ct);
-    return Unit.Value;
-}
-```
-
-**Use when:**
-- All reactions are external (other bounded contexts)
-- No internal side effects needed
-- Simpler architecture is preferred
-- Starting out and want fewer abstractions
+**Key principle:** Domain event handlers bridge the gap between internal domain events and external integration events. This keeps command handlers clean and focused on the core domain operation.
 
 ---
 
-## Flow Comparison
+## Current Pattern: Domain Event Handlers Queue Integration Events
 
-### With Domain Events (Full Pattern) - Inside TransactionBehavior
+This project uses domain event handlers to queue integration events. This keeps command handlers clean and separates concerns appropriately.
+
+### The Pattern
+
+```csharp
+// 1. Entity raises domain event during state change
+public static Patient Create(string firstName, string lastName, string email, DateTime dateOfBirth)
+{
+    var patient = new Patient { /* ... */ };
+    patient.AddDomainEvent(new PatientCreatedEvent(
+        patient.Id, email, firstName, lastName, dateOfBirth));
+    return patient;
+}
+
+// 2. Command handler is clean - just entity operations + save
+public async Task<Guid> Handle(CreatePatientCommand cmd, CancellationToken ct)
+{
+    var patient = Patient.Create(
+        cmd.FirstName, cmd.LastName, cmd.Email, cmd.DateOfBirth);
+
+    _uow.RepositoryFor<Patient>().Add(patient);
+    await _uow.SaveChangesAsync(ct);  // Triggers domain event dispatch
+    return patient.Id;
+}
+
+// 3. Domain event handler queues integration event
+public class PatientCreatedEventHandler : INotificationHandler<PatientCreatedEvent>
+{
+    private readonly ILogger<PatientCreatedEventHandler> _logger;
+    private readonly IUnitOfWork _unitOfWork;
+
+    public PatientCreatedEventHandler(ILogger<PatientCreatedEventHandler> logger, IUnitOfWork unitOfWork)
+    {
+        _logger = logger;
+        _unitOfWork = unitOfWork;
+    }
+
+    public Task Handle(PatientCreatedEvent notification, CancellationToken cancellationToken)
+    {
+        _logger.LogInformation("Patient created: {PatientId}", notification.PatientId);
+
+        _unitOfWork.QueueIntegrationEvent(new PatientCreatedIntegrationEvent
+        {
+            PatientId = notification.PatientId,
+            Email = notification.Email,
+            FullName = $"{notification.FirstName} {notification.LastName}",
+            DateOfBirth = notification.DateOfBirth
+        });
+
+        return Task.CompletedTask;
+    }
+}
+```
+
+### Benefits
+
+| Benefit | Description |
+|---------|-------------|
+| Clean command handlers | Just entity operations + save, no side effect logic |
+| Single responsibility | Each handler has one job |
+| Easy to extend | Add new handlers without modifying existing code |
+| Testable | Each handler can be tested in isolation |
+| Clear separation | Domain events vs integration events have distinct purposes |
+
+---
+
+## Complete Flow Diagram
+
+### Domain Event Handler Pattern (Current Approach)
 
 ```
-POST /patients/{id}/suspend
+Entity.Create() -> AddDomainEvent(PatientCreatedEvent)
+    |
+    v
+SaveChangesAsync()
+    |
+    +-- 1. DispatchDomainEventsAsync() -> MediatR
+    |       |
+    |       +-- PatientCreatedEventHandler
+    |               +-- Logs event
+    |               +-- _uow.QueueIntegrationEvent(PatientCreatedIntegrationEvent)
+    |
+    +-- 2. _context.SaveChangesAsync() (DB save)
+    |
+    +-- 3. [after commit] -> RabbitMQ
+            |
+            +-- Billing context receives event
+            +-- Notifications context receives event
+```
+
+### Full Request Flow (With TransactionBehavior)
+
+```
+POST /patients
     |
     v
 TransactionBehavior
     |
     +-- BeginTransactionAsync()
     |
-    +-- SuspendPatientCommandHandler
+    +-- CreatePatientCommandHandler
     |       |
-    |       +-- patient.Suspend()
-    |       |       +-- AddDomainEvent(PatientSuspendedEvent)
+    |       +-- Patient.Create(...)
+    |       |       +-- AddDomainEvent(PatientCreatedEvent)
+    |       |
+    |       +-- _uow.RepositoryFor<Patient>().Add(patient)
     |       |
     |       +-- _uow.SaveChangesAsync()
     |               |
     |               +-- DispatchDomainEventsAsync() [BEFORE DB save]
-    |               |       +-- PatientSuspendedEventHandler
-    |               |               +-- Audit log (internal)
+    |               |       +-- PatientCreatedEventHandler
+    |               |               +-- Log (internal side effect)
     |               |               +-- QueueIntegrationEvent() (queued, not published)
     |               |
     |               +-- _context.SaveChangesAsync() [DB save in transaction]
@@ -364,35 +444,9 @@ TransactionBehavior
                     +-- RabbitMQ -> Billing, Notifications
 ```
 
-### Without Domain Events (Current Approach) - Inside TransactionBehavior
-
-```
-POST /patients/{id}/suspend
-    |
-    v
-TransactionBehavior
-    |
-    +-- BeginTransactionAsync()
-    |
-    +-- SuspendPatientCommandHandler
-    |       |
-    |       +-- patient.Suspend()
-    |       |
-    |       +-- _uow.QueueIntegrationEvent(PatientSuspendedIntegrationEvent)
-    |       |
-    |       +-- _uow.SaveChangesAsync()
-    |               |
-    |               +-- _context.SaveChangesAsync() [DB save in transaction]
-    |               |
-    |               +-- [integration events still queued]
-    |
-    +-- CloseTransactionAsync()
-            |
-            +-- CommitAsync()
-            |
-            +-- PublishAndClearIntegrationEventsAsync() [AFTER commit]
-                    +-- RabbitMQ -> Billing, Notifications
-```
+**Key timing:**
+1. Domain events dispatch BEFORE the database save (handlers can modify state)
+2. Integration events publish AFTER the transaction commits (guarantees data consistency)
 
 ### Rollback Scenario
 
