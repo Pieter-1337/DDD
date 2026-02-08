@@ -541,4 +541,4 @@ This separation keeps the domain focused on **behavior**, not gatekeeping.
 
 **Business preconditions** (e.g., "patient must exist", "patient can't already be suspended") are checked in validators before calling domain methods.
 
-→ Next: [04-domain-events.md](./04-domain-events.md) - Raising events when things happen
+> Next: [05-repository-pattern.md](./05-repository-pattern.md) - Repository pattern

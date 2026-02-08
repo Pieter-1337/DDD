@@ -338,4 +338,4 @@ curl -X POST https://localhost:5001/api/patients \
 
 ---
 
-→ Next: [04-domain-event-dispatching.md](./04-domain-event-dispatching.md) - Publishing events on save
+> Next: [04-event-publishing.md](./04-event-publishing.md) - Publishing events on save

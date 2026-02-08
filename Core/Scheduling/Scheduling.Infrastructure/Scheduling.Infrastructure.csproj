@@ -9,12 +9,14 @@
 
     <ItemGroup>
         <PackageReference Include="Ardalis.SmartEnum.EFCore" />
+        <PackageReference Include="MassTransit" />
     </ItemGroup>
 
     <ItemGroup>
         <ProjectReference Include="..\Scheduling.Domain\Scheduling.Domain.csproj" />
         <ProjectReference Include="..\Scheduling.Application\Scheduling.Application.csproj" />
         <ProjectReference Include="..\..\..\BuildingBlocks\BuildingBlocks.Infrastructure.EfCore\BuildingBlocks.Infrastructure.EfCore.csproj" />
+        <ProjectReference Include="..\..\..\Shared\IntegrationEvents\IntegrationEvents.csproj" />
     </ItemGroup>
 
 </Project>

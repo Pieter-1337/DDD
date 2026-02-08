@@ -991,10 +991,10 @@ You now have a complete CQRS implementation:
 - **Validation** - FluentValidation for input validation
 - **Pipeline Behaviors** - Cross-cutting concerns (transactions, logging, validation, performance, exception handling)
 
-**Next: Phase 4 - Event-Driven Architecture**
+**Next: Phase 4 - Testing**
 
 We'll implement:
-- Domain Events vs Integration Events
-- RabbitMQ with MassTransit
-- Event publishing between bounded contexts
-- Saga patterns for distributed transactions
+- Test infrastructure with base classes
+- Validator unit tests
+- Handler integration tests
+- Domain entity tests

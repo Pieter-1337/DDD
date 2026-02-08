@@ -63,15 +63,69 @@ RabbitMQ is a proven message broker that provides reliable message delivery betw
 
 ## 3. Architecture: Project Structure for Messaging
 
-This setup separates messaging concerns across multiple projects, following Clean Architecture and the Dependency Inversion Principle:
+This setup separates messaging concerns across multiple projects, following Clean Architecture and the Dependency Inversion Principle.
+
+### Core Principle
+
+All events are:
+- Published to RabbitMQ via MassTransit
+- Defined in `Shared/IntegrationEvents/`
+- Queued in command handlers via `_uow.QueueIntegrationEvent()`
+- Published after `SaveChangesAsync()` succeeds
 
 | Project | Purpose | Contains |
 |---------|---------|----------|
-| **BuildingBlocks.Application** | Application-layer abstractions | `IEventBus`, `IIntegrationEvent`, `IntegrationEventBase` |
+| **BuildingBlocks.Application/Messaging** | Application-layer abstractions | `IEventBus`, `IIntegrationEvent`, `IntegrationEventBase` |
+| **BuildingBlocks.Application/Interfaces** | Unit of work with event queuing | `IUnitOfWork.QueueIntegrationEvent()` |
 | **BuildingBlocks.Infrastructure.MassTransit** | MassTransit provider | `MassTransitEventBus`, `AddMassTransitEventBus()` extension |
 | **Shared/IntegrationEvents** | Integration event definitions | `PatientCreatedIntegrationEvent`, etc. |
-| **[BC].Infrastructure** | BC-specific consumers | Message consumers for the bounded context |
+| **[BC].Infrastructure/Consumers** | MassTransit consumers | Handles incoming integration events |
 | **WebApi** | Composition root | MassTransit registration with consumer discovery |
+
+### Key Interfaces
+
+**IEventBus** (BuildingBlocks.Application.Messaging):
+```csharp
+public interface IEventBus
+{
+    Task PublishAsync<TEvent>(TEvent @event, CancellationToken ct = default)
+        where TEvent : class, IIntegrationEvent;
+}
+```
+
+**IUnitOfWork** (BuildingBlocks.Application.Interfaces):
+```csharp
+public interface IUnitOfWork
+{
+    // ... repository methods ...
+
+    /// <summary>
+    /// Queues an integration event to be published after a successful save.
+    /// </summary>
+    void QueueIntegrationEvent(IIntegrationEvent integrationEvent);
+
+    Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
+}
+```
+
+**IIntegrationEvent** (BuildingBlocks.Application.Messaging):
+```csharp
+public interface IIntegrationEvent
+{
+    Guid EventId { get; }
+    DateTime OccurredOn { get; }
+}
+```
+
+### Publishing Flow
+
+1. Command handler creates entity
+2. Command handler calls `_uow.QueueIntegrationEvent(new PatientCreatedIntegrationEvent(...))`
+3. Command handler calls `await _uow.SaveChangesAsync()`
+4. `SaveChangesAsync()` commits the database transaction
+5. After successful commit, queued integration events are published to RabbitMQ via `IEventBus`
+
+This ensures events are only published if the database save succeeds.
 
 ### Where MassTransit Gets Registered
 
@@ -102,13 +156,22 @@ builder.Services.AddMassTransitEventBus(builder.Configuration, configure =>
 
 ### What Lives Where
 
+**BuildingBlocks.Application/Messaging** provides:
+- `IEventBus` - abstraction for publishing integration events
+- `IIntegrationEvent` - marker interface
+- `IntegrationEventBase` - base class with `EventId` and `OccurredOn`
+
 **BuildingBlocks.Infrastructure.MassTransit** provides:
 - `MassTransitEventBus` - implements `IEventBus` abstraction
 - `AddMassTransitEventBus()` - extension method for host registration
 - RabbitMQ transport configuration and retry policies
 
-**[BC].Infrastructure** provides:
-- Message consumers (e.g., `PatientCreatedConsumer`)
+**Shared/IntegrationEvents** provides:
+- Integration event definitions (e.g., `PatientCreatedIntegrationEvent`)
+- These are the public contracts between bounded contexts
+
+**[BC].Infrastructure/Consumers** provides:
+- MassTransit consumers (e.g., `PatientCreatedEventConsumer`)
 - These get discovered via `AddConsumers(assembly)`
 
 **WebApi/Host** does:
@@ -119,31 +182,38 @@ builder.Services.AddMassTransitEventBus(builder.Configuration, configure =>
 
 ```
 src/
-├── BuildingBlocks/
-│   ├── BuildingBlocks.Application/           # Application-layer abstractions
-│   │   └── Messaging/                        # Messaging abstractions
-│   │       ├── IEventBus.cs                  # Publisher interface
-│   │       ├── IIntegrationEvent.cs          # Marker interface
-│   │       └── IntegrationEventBase.cs       # Base class with metadata
-│   │
-│   └── BuildingBlocks.Infrastructure.MassTransit/
-│       ├── MassTransitEventBus.cs            # IEventBus implementation
-│       └── MassTransitExtensions.cs          # AddMassTransitEventBus() extension
-│
-├── Shared/
-│   └── IntegrationEvents/                    # Integration event definitions
-│       ├── Scheduling/                       # PatientCreatedIntegrationEvent, etc.
-│       ├── Billing/                          # PaymentProcessedIntegrationEvent
-│       └── MedicalRecords/                   # RecordUpdatedIntegrationEvent
-│
-├── Core/Scheduling/
-│   ├── Scheduling.Domain/
-│   ├── Scheduling.Application/               # Uses IEventBus abstraction
-│   └── Scheduling.Infrastructure/
-│       └── Messaging/                        # Consumers live here
-│
-└── WebApi/
-    └── Program.cs                            # MassTransit registered here
++-- BuildingBlocks/
+|   +-- BuildingBlocks.Application/
+|   |   +-- Messaging/                        # Messaging abstractions
+|   |   |   +-- IEventBus.cs                  # Publisher interface
+|   |   |   +-- IIntegrationEvent.cs          # Marker interface
+|   |   |   +-- IntegrationEventBase.cs       # Base class with EventId, OccurredOn
+|   |   |
+|   |   +-- Interfaces/
+|   |       +-- IUnitOfWork.cs                # Includes QueueIntegrationEvent()
+|   |
+|   +-- BuildingBlocks.Infrastructure.MassTransit/
+|       +-- MassTransitEventBus.cs            # IEventBus implementation
+|       +-- MassTransitExtensions.cs          # AddMassTransitEventBus() extension
+|
++-- Shared/
+|   +-- IntegrationEvents/                    # Integration event definitions
+|       +-- Scheduling/
+|       |   +-- PatientCreatedIntegrationEvent.cs
+|       +-- Billing/
+|       |   +-- PaymentProcessedIntegrationEvent.cs
+|       +-- MedicalRecords/
+|           +-- RecordUpdatedIntegrationEvent.cs
+|
++-- Core/Scheduling/
+|   +-- Scheduling.Application/               # Uses IUnitOfWork.QueueIntegrationEvent()
+|   |
+|   +-- Scheduling.Infrastructure/
+|       +-- Consumers/                        # MassTransit consumers
+|           +-- PatientCreatedEventConsumer.cs
+|
++-- WebApi/
+    +-- Program.cs                            # MassTransit registered here
 ```
 
 ### Clean Architecture Layer Dependencies
@@ -151,14 +221,9 @@ src/
 | Project | BuildingBlocks.Application | BuildingBlocks.Infrastructure.MassTransit | Shared/IntegrationEvents |
 |---------|---------------------------|------------------------------------------|--------------------------|
 | **{BC}.Domain** | No | No | No |
-| **{BC}.Application** | Yes (IEventBus) | No | Yes (event DTOs) |
+| **{BC}.Application** | Yes (IUnitOfWork, IEventBus) | No | Yes (event DTOs) |
 | **{BC}.Infrastructure** | Yes | No | Yes (consumers) |
 | **WebApi** | Yes | Yes (registration) | No |
-
-**Why BC.Infrastructure does NOT reference BuildingBlocks.Infrastructure.MassTransit**:
-- Consumers use MassTransit's `IConsumer<T>` interface (from MassTransit NuGet)
-- They don't need the `AddMassTransitEventBus()` extension
-- Only the host needs the registration extension
 
 ### Provider Swappability
 
@@ -183,9 +248,9 @@ builder.Services.AddWolverineEventBus(builder.Configuration);
 ```
 
 **No changes required in**:
-- Domain layer (still pure)
 - Application layer (still uses `IEventBus` abstraction)
 - Business logic (command handlers)
+- Integration event definitions
 
 This is the power of Dependency Inversion: depend on abstractions, not concretions.
 
@@ -257,18 +322,11 @@ namespace BuildingBlocks.Application.Messaging;
 
 /// <summary>
 /// Abstraction for publishing integration events to a message broker.
+/// Integration events are used for cross-bounded-context communication.
 /// </summary>
-/// <remarks>
-/// This interface allows the Application layer to publish events without
-/// coupling to a specific messaging implementation (MassTransit, Wolverine, etc.).
-/// The Infrastructure layer provides the concrete implementation.
-/// </remarks>
 public interface IEventBus
 {
-    /// <summary>
-    /// Publishes an integration event to the message broker.
-    /// </summary>
-    Task PublishAsync<TEvent>(TEvent @event, CancellationToken cancellationToken = default)
+    Task PublishAsync<TEvent>(TEvent @event, CancellationToken ct = default)
         where TEvent : class, IIntegrationEvent;
 }
 ```
@@ -279,13 +337,19 @@ namespace BuildingBlocks.Application.Messaging;
 
 /// <summary>
 /// Marker interface for integration events.
-/// Integration events represent facts that have occurred in one bounded context
-/// and may be of interest to other bounded contexts.
+/// Integration events are published to RabbitMQ via MassTransit.
 /// </summary>
 public interface IIntegrationEvent
 {
+    /// <summary>
+    /// Unique identifier for this event instance.
+    /// </summary>
     Guid EventId { get; }
-    DateTime OccurredAt { get; }
+
+    /// <summary>
+    /// When this event occurred.
+    /// </summary>
+    DateTime OccurredOn { get; }
 }
 ```
 
@@ -294,43 +358,34 @@ public interface IIntegrationEvent
 namespace BuildingBlocks.Application.Messaging;
 
 /// <summary>
-/// Base class for all integration events.
-/// Integration events cross bounded context boundaries via message broker.
+/// Base class for integration events providing common properties.
 /// </summary>
-/// <remarks>
-/// This class provides technical infrastructure for distributed messaging:
-/// - EventId enables idempotent message handling
-/// - OccurredAt provides event ordering and auditing
-/// - CorrelationId enables distributed tracing across bounded contexts
-///
-/// IMPORTANT: This class should contain NO domain-specific logic.
-/// Actual event definitions belong in the Shared/IntegrationEvents project.
-/// </remarks>
 public abstract record IntegrationEventBase : IIntegrationEvent
 {
-    /// <summary>
-    /// Unique identifier for this event instance.
-    /// Used for idempotent message handling - consumers can track processed EventIds
-    /// to avoid processing the same event multiple times.
-    /// </summary>
-    public Guid EventId { get; init; } = Guid.NewGuid();
-
-    /// <summary>
-    /// When the event was created (UTC).
-    /// Useful for event ordering, auditing, and troubleshooting.
-    /// </summary>
-    public DateTime OccurredAt { get; init; } = DateTime.UtcNow;
-
-    /// <summary>
-    /// Correlation ID for distributed tracing.
-    /// Links this event to the original request/transaction that triggered it.
-    /// Populated from HttpContext or command context.
-    /// </summary>
-    public string? CorrelationId { get; init; }
+    public Guid EventId { get; } = Guid.NewGuid();
+    public DateTime OccurredOn { get; } = DateTime.UtcNow;
 }
 ```
 
-**Why this lives in BuildingBlocks.Application**: These are application-layer abstractions that define contracts without coupling to infrastructure. This allows the Application layer to publish events via `IEventBus` without knowing whether it's MassTransit, Wolverine, or any other provider.
+**Update IUnitOfWork.cs** to include event queuing:
+```csharp
+namespace BuildingBlocks.Application.Interfaces;
+
+public interface IUnitOfWork
+{
+    IRepository<T> RepositoryFor<T>() where T : class, IEntityBase;
+    Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Queues an integration event to be published after a successful save.
+    /// Integration events are published to the message broker for cross-bounded-context communication.
+    /// </summary>
+    void QueueIntegrationEvent(IIntegrationEvent integrationEvent);
+
+    Task BeginTransactionAsync(CancellationToken cancellationToken = default);
+    Task CloseTransactionAsync(Exception? exception = null, CancellationToken cancellationToken = default);
+}
+```
 
 ### Step 5: Create MassTransit Implementation
 
@@ -365,7 +420,7 @@ internal sealed class MassTransitEventBus : IEventBus
 
 ### Step 6: Create Example Integration Event
 
-Create an example event in `Shared/IntegrationEvents/Scheduling/PatientCreatedIntegrationEvent.cs`:
+Create an example integration event in `Shared/IntegrationEvents/Scheduling/PatientCreatedIntegrationEvent.cs`:
 
 ```csharp
 using BuildingBlocks.Application.Messaging;
@@ -373,16 +428,17 @@ using BuildingBlocks.Application.Messaging;
 namespace IntegrationEvents.Scheduling;
 
 /// <summary>
-/// Published when a new patient is created in the Scheduling bounded context.
-/// Consumed by Billing and MedicalRecords bounded contexts.
+/// Integration event published when a new patient is created.
+/// This is the public contract for cross-bounded-context communication.
+/// Other bounded contexts (e.g., Billing, MedicalRecords) consume this event.
 /// </summary>
-public record PatientCreatedIntegrationEvent : IntegrationEventBase
-{
-    public Guid PatientId { get; init; }
-    public string Email { get; init; } = string.Empty;
-    public string FullName { get; init; } = string.Empty;
-    public DateTime DateOfBirth { get; init; }
-}
+public record PatientCreatedIntegrationEvent(
+    Guid PatientId,
+    string FirstName,
+    string LastName,
+    string Email,
+    DateTime DateOfBirth
+) : IntegrationEventBase;
 ```
 
 ### Step 7: Set Up RabbitMQ in Docker
@@ -537,13 +593,12 @@ using IntegrationEvents.Scheduling;
 
 app.MapPost("/test-publish", async (IEventBus eventBus) =>
 {
-    await eventBus.PublishAsync(new PatientCreatedIntegrationEvent
-    {
-        PatientId = Guid.NewGuid(),
-        Email = "test@example.com",
-        FullName = "Test Patient",
-        DateOfBirth = new DateTime(1985, 6, 15)
-    });
+    await eventBus.PublishAsync(new PatientCreatedIntegrationEvent(
+        PatientId: Guid.NewGuid(),
+        FirstName: "Test",
+        LastName: "Patient",
+        Email: "test@example.com",
+        DateOfBirth: new DateTime(1985, 6, 15)));
 
     return Results.Ok("Message published");
 });
@@ -551,7 +606,50 @@ app.MapPost("/test-publish", async (IEventBus eventBus) =>
 
 Notice we inject `IEventBus` (abstraction) instead of `IPublishEndpoint` (MassTransit-specific). This keeps the endpoint decoupled from the messaging provider.
 
-### Step 10: Verify the Setup
+### Step 10: Create a Consumer
+
+Create a consumer in `Scheduling.Infrastructure/Consumers/PatientCreatedEventConsumer.cs`:
+
+```csharp
+using IntegrationEvents.Scheduling;
+using MassTransit;
+using Microsoft.Extensions.Logging;
+
+namespace Scheduling.Infrastructure.Consumers;
+
+/// <summary>
+/// MassTransit consumer for PatientCreatedIntegrationEvent.
+/// Handles cross-bounded-context processing when a new patient is created.
+/// </summary>
+public class PatientCreatedEventConsumer : IConsumer<PatientCreatedIntegrationEvent>
+{
+    private readonly ILogger<PatientCreatedEventConsumer> _logger;
+
+    public PatientCreatedEventConsumer(ILogger<PatientCreatedEventConsumer> logger)
+    {
+        _logger = logger;
+    }
+
+    public Task Consume(ConsumeContext<PatientCreatedIntegrationEvent> context)
+    {
+        var message = context.Message;
+
+        _logger.LogInformation(
+            "Consumed PatientCreatedIntegrationEvent: {PatientId} - {FirstName} {LastName} ({Email})",
+            message.PatientId,
+            message.FirstName,
+            message.LastName,
+            message.Email);
+
+        // Add cross-bounded-context logic here
+        // Example: notify Billing or MedicalRecords bounded contexts
+
+        return Task.CompletedTask;
+    }
+}
+```
+
+### Step 11: Verify the Setup
 
 1. Start RabbitMQ (if not already running): `docker-compose up -d`
 2. Run your application and POST to `/test-publish`
@@ -689,8 +787,8 @@ MassTransit uses conventions for queue/exchange naming:
 
 ```
 Event: PatientCreatedIntegrationEvent
-  └── Exchange: IntegrationEvents.Scheduling:PatientCreatedIntegrationEvent
-      └── Queue: patient-created-integration-event (for each consumer)
+  +-- Exchange: IntegrationEvents.Scheduling:PatientCreatedIntegrationEvent
+      +-- Queue: patient-created-integration-event (for each consumer)
 ```
 
 Customize endpoint names with kebab-case:
@@ -756,22 +854,35 @@ public async Task Should_Consume_PatientCreated_Event()
 
 You've set up the messaging infrastructure following Clean Architecture and Dependency Inversion:
 
-1. **BuildingBlocks.Application/Messaging/** - Technology-agnostic abstractions (`IEventBus`, `IntegrationEventBase`)
-2. **BuildingBlocks.Infrastructure.MassTransit/** - MassTransit implementation (`MassTransitEventBus`, `AddMassTransitEventBus()`)
-3. **Shared/IntegrationEvents** - Domain-specific integration events
-4. **[BC].Infrastructure** - BC-specific consumers
-5. **WebApi/Program.cs** - Single MassTransit registration (composition root)
+1. **BuildingBlocks.Application/Messaging/** - Technology-agnostic abstractions (`IEventBus`, `IIntegrationEvent`, `IntegrationEventBase`)
+2. **BuildingBlocks.Application/Interfaces/** - `IUnitOfWork` with `QueueIntegrationEvent()` for transactional event publishing
+3. **BuildingBlocks.Infrastructure.MassTransit/** - MassTransit implementation (`MassTransitEventBus`, `AddMassTransitEventBus()`)
+4. **Shared/IntegrationEvents** - Integration event definitions (public contracts between bounded contexts)
+5. **[BC].Infrastructure/Consumers** - MassTransit consumers for incoming integration events
+6. **WebApi/Program.cs** - Single MassTransit registration (composition root)
 
-**Key architectural decision**: MassTransit is registered once in the host (`WebApi/Program.cs`), not per-bounded context. This keeps things simple:
+### Key Architectural Decisions
+
+**Event publishing:**
+- All events go through RabbitMQ/MassTransit
+- All events get durability, retry, and dead-letter queues
+- MediatR is used for CQRS (commands/queries)
+
+**Publishing flow:**
+1. Command handler creates entity
+2. Command handler queues integration event: `_uow.QueueIntegrationEvent(new PatientCreatedIntegrationEvent(...))`
+3. Command handler saves: `await _uow.SaveChangesAsync()`
+4. After successful database commit, queued events are published to RabbitMQ
+
+**MassTransit registration:**
+- Registered once in the host (`WebApi/Program.cs`), not per-bounded context
 - In a **monolith**: One API, one MassTransit registration, multiple consumer assemblies
 - In **microservices**: Each service has its own API with its own MassTransit registration
 
-There's no need for per-BC registration abstraction - it adds complexity without benefit. The host is already the composition root where infrastructure gets wired up.
-
 This architecture ensures:
+- **Durability**: All events persisted to message broker
 - **Dependency Inversion**: Application layer depends on `IEventBus`, not MassTransit
+- **Transactional Publishing**: Events only published after successful database commit
 - **Provider Swappability**: Swap MassTransit for Wolverine/Rebus by changing one line in `Program.cs`
-- **Simplicity**: One registration point, no unnecessary abstraction layers
-- **No Coupling**: Bounded contexts only reference Shared/IntegrationEvents
 
 Next: [03-integration-events.md](./03-integration-events.md) - Defining and publishing integration events

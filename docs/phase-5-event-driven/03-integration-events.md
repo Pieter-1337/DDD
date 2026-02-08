@@ -2,11 +2,48 @@
 
 ## Overview
 
-Integration events are how bounded contexts communicate asynchronously. This document covers:
+Integration events enable asynchronous communication between bounded contexts via RabbitMQ/MassTransit.
+
+This document covers:
 - Defining integration events
-- Publishing from domain event handlers
-- Consuming in other contexts
+- Publishing from command handlers via `_uow.QueueIntegrationEvent()`
+- Consuming in bounded contexts
 - The publish-subscribe pattern
+
+---
+
+## Architecture
+
+```
++-----------------------------------------------------------------------------+
+|                         EVENT ARCHITECTURE                                   |
++-----------------------------------------------------------------------------+
+
+Integration Events
++------------------------------------------------------------------------+
+| - Published to RabbitMQ via MassTransit                                 |
+| - Cross bounded context communication                                   |
+| - Public contract between services                                      |
+| - Queued in command handler via _uow.QueueIntegrationEvent()            |
+| - Published after SaveChangesAsync() succeeds                           |
+| - Get durability, retry, and dead-letter queues                         |
++------------------------------------------------------------------------+
+```
+
+### Project Location
+
+Integration events live in a shared location accessible by all bounded contexts:
+
+```
+Shared/
++-- IntegrationEvents/
+    +-- Scheduling/
+    |   +-- PatientCreatedIntegrationEvent.cs
+    |   +-- AppointmentScheduledIntegrationEvent.cs
+    |   +-- AppointmentCancelledIntegrationEvent.cs
+    +-- Billing/
+        +-- InvoiceCreatedIntegrationEvent.cs
+```
 
 ---
 
@@ -22,10 +59,10 @@ Integration events are how bounded contexts communicate asynchronously. This doc
 ### Anatomy of an Integration Event
 
 ```csharp
-// Scheduling.Application/IntegrationEvents/PatientCreatedIntegrationEvent.cs
-namespace Scheduling.Application.IntegrationEvents;
+// Shared/IntegrationEvents/Scheduling/PatientCreatedIntegrationEvent.cs
+namespace Shared.IntegrationEvents.Scheduling;
 
-public record PatientCreatedIntegrationEvent : IntegrationEvent
+public record PatientCreatedIntegrationEvent : IntegrationEventBase
 {
     /// <summary>
     /// The patient's ID in the Scheduling context
@@ -52,83 +89,96 @@ public record PatientCreatedIntegrationEvent : IntegrationEvent
 ### What Data to Include?
 
 ```
-┌─────────────────────────────────────────────────────────────────────┐
-│                    INCLUDE IN EVENT                                  │
-├─────────────────────────────────────────────────────────────────────┤
-│  ✅ IDs that other contexts need to correlate                       │
-│  ✅ Data that consumers need to do their job                        │
-│  ✅ Timestamps for ordering and debugging                           │
-│  ✅ Correlation IDs for distributed tracing                         │
-└─────────────────────────────────────────────────────────────────────┘
++---------------------------------------------------------------------+
+|                    INCLUDE IN EVENT                                  |
++---------------------------------------------------------------------+
+|  [x] IDs that other contexts need to correlate                      |
+|  [x] Data that consumers need to do their job                       |
+|  [x] Timestamps for ordering and debugging                          |
+|  [x] Correlation IDs for distributed tracing                        |
++---------------------------------------------------------------------+
 
-┌─────────────────────────────────────────────────────────────────────┐
-│                    AVOID IN EVENT                                    │
-├─────────────────────────────────────────────────────────────────────┤
-│  ❌ Internal implementation details                                  │
-│  ❌ Sensitive data (passwords, tokens)                              │
-│  ❌ Large blobs (files, images)                                     │
-│  ❌ Data that changes frequently (cache it instead)                 │
-│  ❌ Circular references                                              │
-└─────────────────────────────────────────────────────────────────────┘
++---------------------------------------------------------------------+
+|                    AVOID IN EVENT                                    |
++---------------------------------------------------------------------+
+|  [ ] Internal implementation details                                 |
+|  [ ] Sensitive data (passwords, tokens)                             |
+|  [ ] Large blobs (files, images)                                    |
+|  [ ] Data that changes frequently (cache it instead)                |
+|  [ ] Circular references                                             |
++---------------------------------------------------------------------+
 ```
 
 ---
 
 ## Publishing Integration Events
 
-### The Pattern: Domain Event → Integration Event
+### The Pattern: Command Handler Queues, UnitOfWork Publishes
+
+The command handler queues integration events via `_uow.QueueIntegrationEvent()`. After `SaveChangesAsync()` succeeds, the UnitOfWork publishes all queued events to RabbitMQ.
 
 ```
-Domain Event (in-memory)          Integration Event (broker)
-┌────────────────────┐            ┌────────────────────────────┐
-│ PatientCreatedEvent│──handler──>│ PatientCreatedIntegration  │
-│ (internal detail)  │            │ Event (public contract)    │
-└────────────────────┘            └────────────────────────────┘
+Command Handler                       UnitOfWork
++------------------------+           +----------------------------+
+| 1. Execute domain logic|           | 4. SaveChangesAsync()      |
+| 2. Add to repository   |           | 5. If success, publish     |
+| 3. Queue integration   |---------->|    all queued events       |
+|    event               |           |    to RabbitMQ             |
++------------------------+           +----------------------------+
 ```
 
-### Domain Event Handler Publishes Integration Event
+### Publishing from Command Handler
 
 ```csharp
-// Scheduling.Application/Patients/EventHandlers/PatientCreatedEventHandler.cs
-using MassTransit;
+// Scheduling.Application/Patients/Commands/CreatePatientCommandHandler.cs
 using MediatR;
-using Scheduling.Domain.Patients.Events;
-using Scheduling.Application.IntegrationEvents;
+using Scheduling.Domain.Patients;
+using Shared.IntegrationEvents.Scheduling;
 
-namespace Scheduling.Application.Patients.EventHandlers;
+namespace Scheduling.Application.Patients.Commands;
 
-public class PatientCreatedDomainEventHandler : INotificationHandler<PatientCreatedEvent>
+public class CreatePatientCommandHandler : IRequestHandler<CreatePatientCommand, Guid>
 {
-    private readonly IPublishEndpoint _publishEndpoint;
-    private readonly ILogger<PatientCreatedDomainEventHandler> _logger;
+    private readonly IUnitOfWork _uow;
+    private readonly ILogger<CreatePatientCommandHandler> _logger;
 
-    public PatientCreatedDomainEventHandler(
-        IPublishEndpoint publishEndpoint,
-        ILogger<PatientCreatedDomainEventHandler> logger)
+    public CreatePatientCommandHandler(
+        IUnitOfWork uow,
+        ILogger<CreatePatientCommandHandler> logger)
     {
-        _publishEndpoint = publishEndpoint;
+        _uow = uow;
         _logger = logger;
     }
 
-    public async Task Handle(PatientCreatedEvent notification, CancellationToken cancellationToken)
+    public async Task<Guid> Handle(CreatePatientCommand cmd, CancellationToken ct)
     {
-        _logger.LogInformation(
-            "Publishing PatientCreatedIntegrationEvent for patient {PatientId}",
-            notification.PatientId);
+        // 1. Create domain entity
+        var patient = Patient.Create(
+            cmd.FirstName,
+            cmd.LastName,
+            cmd.Email,
+            cmd.DateOfBirth);
 
-        var integrationEvent = new PatientCreatedIntegrationEvent
+        // 2. Add to repository
+        _uow.RepositoryFor<Patient>().Add(patient);
+
+        // 3. Queue integration event for cross-BC communication
+        _uow.QueueIntegrationEvent(new PatientCreatedIntegrationEvent
         {
-            PatientId = notification.PatientId,
-            Email = notification.Email,
-            FullName = $"{notification.FirstName} {notification.LastName}",
+            PatientId = patient.Id,
+            Email = patient.Email,
+            FullName = $"{patient.FirstName} {patient.LastName}",
             CreatedAt = DateTime.UtcNow
-        };
+        });
 
-        await _publishEndpoint.Publish(integrationEvent, cancellationToken);
+        // 4. Save changes - publishes to RabbitMQ after successful save
+        await _uow.SaveChangesAsync(ct);
 
         _logger.LogInformation(
-            "Published PatientCreatedIntegrationEvent {EventId}",
-            integrationEvent.EventId);
+            "Created patient {PatientId} and queued integration event",
+            patient.Id);
+
+        return patient.Id;
     }
 }
 ```
@@ -136,53 +186,63 @@ public class PatientCreatedDomainEventHandler : INotificationHandler<PatientCrea
 ### Flow Diagram
 
 ```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                         CREATE PATIENT FLOW                                  │
-└─────────────────────────────────────────────────────────────────────────────┘
++-----------------------------------------------------------------------------+
+|                         CREATE PATIENT FLOW                                  |
++-----------------------------------------------------------------------------+
 
      API Request
-          │
-          ▼
-┌──────────────────┐
-│   Controller     │
-│   POST /patients │
-└────────┬─────────┘
-         │ MediatR.Send()
-         ▼
-┌──────────────────┐
-│ CreatePatient    │
-│ CommandHandler   │
-└────────┬─────────┘
-         │
-         ▼
-┌──────────────────┐
-│ Patient.Create() │  ← Raises PatientCreatedEvent (domain event)
-└────────┬─────────┘
-         │
-         ▼
-┌──────────────────┐
-│ UnitOfWork       │
-│ SaveChangesAsync │  ← EF Interceptor dispatches domain events
-└────────┬─────────┘
-         │ MediatR.Publish()
-         ▼
-┌───────────────────────────┐
-│ PatientCreatedEventHandler│  ← Domain event handler
-│ (INotificationHandler)    │
-└────────────┬──────────────┘
-             │ _publishEndpoint.Publish()
-             ▼
-┌───────────────────────────┐
-│       RabbitMQ            │
-│ PatientCreatedIntegration │
-│         Event             │
-└───────────────────────────┘
-             │
-    ┌────────┼────────┐
-    ▼        ▼        ▼
-Billing   Notif.   Analytics
-Consumer  Consumer  Consumer
+          |
+          v
++------------------+
+|   Controller     |
+|   POST /patients |
++--------+---------+
+         | MediatR.Send()
+         v
++------------------+
+| CreatePatient    |
+| CommandHandler   |
++--------+---------+
+         |
+         v
++--------------------------------------------------+
+| 1. Patient.Create()                              |
+| 2. _uow.RepositoryFor<Patient>().Add(patient)    |
+| 3. _uow.QueueIntegrationEvent(event)             |
++---------+----------------------------------------+
+         |
+         v
++------------------+
+| UnitOfWork       |
+| SaveChangesAsync |
++--------+---------+
+         |
+         +-- 1. Save to SQL Server
+         |
+         +-- 2. Publish queued events to RabbitMQ
+                    |
+                    v
+         +---------------------------+
+         |       RabbitMQ            |
+         | PatientCreatedIntegration |
+         |         Event             |
+         +---------------------------+
+                    |
+           +--------+--------+
+           v        v        v
+        Billing   Notif.   Analytics
+        Consumer  Consumer  Consumer
 ```
+
+### Why This Pattern?
+
+| Benefit | Description |
+|---------|-------------|
+| **Transactional safety** | Events only published if save succeeds |
+| **Explicit intent** | Command handler decides what to publish |
+| **Simple flow** | No intermediate event handlers |
+| **Testable** | Easy to verify queued events in tests |
+| **Single responsibility** | UnitOfWork handles the publishing mechanics |
 
 ---
 
@@ -190,24 +250,23 @@ Consumer  Consumer  Consumer
 
 ### Creating a Consumer
 
-Consumers handle incoming messages:
+Consumers handle incoming messages from RabbitMQ:
 
 ```csharp
-// Billing.Application/Consumers/PatientCreatedIntegrationEventConsumer.cs
+// Billing.Infrastructure/Consumers/PatientCreatedEventConsumer.cs
 using MassTransit;
-using Scheduling.Application.IntegrationEvents;
+using Shared.IntegrationEvents.Scheduling;
 
-namespace Billing.Application.Consumers;
+namespace Billing.Infrastructure.Consumers;
 
-public class PatientCreatedIntegrationEventConsumer
-    : IConsumer<PatientCreatedIntegrationEvent>
+public class PatientCreatedEventConsumer : IConsumer<PatientCreatedIntegrationEvent>
 {
     private readonly IMediator _mediator;
-    private readonly ILogger<PatientCreatedIntegrationEventConsumer> _logger;
+    private readonly ILogger<PatientCreatedEventConsumer> _logger;
 
-    public PatientCreatedIntegrationEventConsumer(
+    public PatientCreatedEventConsumer(
         IMediator mediator,
-        ILogger<PatientCreatedIntegrationEventConsumer> logger)
+        ILogger<PatientCreatedEventConsumer> logger)
     {
         _mediator = mediator;
         _logger = logger;
@@ -215,26 +274,26 @@ public class PatientCreatedIntegrationEventConsumer
 
     public async Task Consume(ConsumeContext<PatientCreatedIntegrationEvent> context)
     {
-        var message = context.Message;
+        var evt = context.Message;
 
         _logger.LogInformation(
             "Received PatientCreatedIntegrationEvent {EventId} for patient {PatientId}",
-            message.EventId,
-            message.PatientId);
+            evt.EventId,
+            evt.PatientId);
 
-        // Create a billing profile for this patient
+        // Handle in Billing BC - create a billing profile
         var command = new CreateBillingProfileCommand
         {
-            ExternalPatientId = message.PatientId,
-            Email = message.Email,
-            FullName = message.FullName
+            ExternalPatientId = evt.PatientId,
+            Email = evt.Email,
+            FullName = evt.FullName
         };
 
         await _mediator.Send(command, context.CancellationToken);
 
         _logger.LogInformation(
             "Created billing profile for patient {PatientId}",
-            message.PatientId);
+            evt.PatientId);
     }
 }
 ```
@@ -244,20 +303,14 @@ public class PatientCreatedIntegrationEventConsumer
 Consumers are registered in MassTransit configuration:
 
 ```csharp
-// Billing.Infrastructure/Messaging/MassTransitConfiguration.cs
-services.AddMassTransit(x =>
+// WebApi/Program.cs
+builder.Services.AddMassTransitEventBus(builder.Configuration, configure =>
 {
     // Auto-register all consumers from assembly
-    x.AddConsumers(typeof(PatientCreatedIntegrationEventConsumer).Assembly);
+    configure.AddConsumers(typeof(Billing.Infrastructure.ServiceCollectionExtensions).Assembly);
 
     // Or register explicitly
-    x.AddConsumer<PatientCreatedIntegrationEventConsumer>();
-
-    x.UsingRabbitMq((context, cfg) =>
-    {
-        cfg.Host("localhost");
-        cfg.ConfigureEndpoints(context);
-    });
+    configure.AddConsumer<PatientCreatedEventConsumer>();
 });
 ```
 
@@ -300,12 +353,12 @@ Each consumer gets its own queue:
 
 ```
 Exchange: PatientCreatedIntegrationEvent
-    │
-    ├── Queue: billing-patient-created ──> Billing Consumer
-    │
-    ├── Queue: notification-patient-created ──> Notification Consumer
-    │
-    └── Queue: analytics-patient-created ──> Analytics Consumer
+    |
+    +-- Queue: billing-patient-created ------> Billing Consumer
+    |
+    +-- Queue: notification-patient-created -> Notification Consumer
+    |
+    +-- Queue: analytics-patient-created ----> Analytics Consumer
 ```
 
 ---
@@ -316,7 +369,7 @@ For fine-grained control, use consumer definitions:
 
 ```csharp
 public class PatientCreatedConsumerDefinition
-    : ConsumerDefinition<PatientCreatedIntegrationEventConsumer>
+    : ConsumerDefinition<PatientCreatedEventConsumer>
 {
     public PatientCreatedConsumerDefinition()
     {
@@ -329,7 +382,7 @@ public class PatientCreatedConsumerDefinition
 
     protected override void ConfigureConsumer(
         IReceiveEndpointConfigurator endpointConfigurator,
-        IConsumerConfigurator<PatientCreatedIntegrationEventConsumer> consumerConfigurator,
+        IConsumerConfigurator<PatientCreatedEventConsumer> consumerConfigurator,
         IRegistrationContext context)
     {
         // Retry policy for this consumer
@@ -405,13 +458,15 @@ public class SomeService
 ## Common Integration Events for Healthcare Domain
 
 ```csharp
+// Shared/IntegrationEvents/Scheduling/
+
 // Patient events
-public record PatientCreatedIntegrationEvent : IntegrationEvent { ... }
-public record PatientSuspendedIntegrationEvent : IntegrationEvent { ... }
-public record PatientReactivatedIntegrationEvent : IntegrationEvent { ... }
+public record PatientCreatedIntegrationEvent : IntegrationEventBase { ... }
+public record PatientSuspendedIntegrationEvent : IntegrationEventBase { ... }
+public record PatientReactivatedIntegrationEvent : IntegrationEventBase { ... }
 
 // Appointment events
-public record AppointmentScheduledIntegrationEvent : IntegrationEvent
+public record AppointmentScheduledIntegrationEvent : IntegrationEventBase
 {
     public required Guid AppointmentId { get; init; }
     public required Guid PatientId { get; init; }
@@ -420,28 +475,30 @@ public record AppointmentScheduledIntegrationEvent : IntegrationEvent
     public required TimeSpan Duration { get; init; }
 }
 
-public record AppointmentCancelledIntegrationEvent : IntegrationEvent
+public record AppointmentCancelledIntegrationEvent : IntegrationEventBase
 {
     public required Guid AppointmentId { get; init; }
     public required string CancellationReason { get; init; }
 }
 
-public record AppointmentCompletedIntegrationEvent : IntegrationEvent
+public record AppointmentCompletedIntegrationEvent : IntegrationEventBase
 {
     public required Guid AppointmentId { get; init; }
     public required Guid PatientId { get; init; }
     public required DateTime CompletedAt { get; init; }
 }
 
+// Shared/IntegrationEvents/Billing/
+
 // Billing events (from Billing context)
-public record InvoiceCreatedIntegrationEvent : IntegrationEvent
+public record InvoiceCreatedIntegrationEvent : IntegrationEventBase
 {
     public required Guid InvoiceId { get; init; }
     public required Guid PatientId { get; init; }
     public required decimal Amount { get; init; }
 }
 
-public record PaymentReceivedIntegrationEvent : IntegrationEvent
+public record PaymentReceivedIntegrationEvent : IntegrationEventBase
 {
     public required Guid PaymentId { get; init; }
     public required Guid InvoiceId { get; init; }
@@ -454,8 +511,9 @@ public record PaymentReceivedIntegrationEvent : IntegrationEvent
 ## Verification Checklist
 
 - [ ] Integration events defined with `required` properties
-- [ ] Events inherit from `IntegrationEvent` base class
-- [ ] Domain event handlers publish integration events
+- [ ] Events inherit from `IntegrationEventBase`
+- [ ] Events located in `Shared/IntegrationEvents/{BoundedContext}/`
+- [ ] Command handlers queue events via `_uow.QueueIntegrationEvent()`
 - [ ] Consumers registered in MassTransit
 - [ ] Each consumer has its own queue (verified in RabbitMQ UI)
 - [ ] Consumer logs message receipt and processing
@@ -467,11 +525,11 @@ public record PaymentReceivedIntegrationEvent : IntegrationEvent
 
 | Mistake | Problem | Solution |
 |---------|---------|----------|
-| Publishing inside aggregate | Couples domain to infrastructure | Publish from domain event handler |
+| Publishing before save | Data might not persist | UnitOfWork publishes after SaveChangesAsync |
 | Huge event payloads | Slow, memory issues | Include only necessary data |
 | Synchronous request-response | Defeats async benefits | Use events, cache data locally |
-| No event ID | Can't ensure idempotency | Always include unique EventId |
-| Exposing internal IDs | Tight coupling | Use public correlation IDs |
+| No event ID | Can't ensure idempotency | Always include unique EventId (IntegrationEventBase provides this) |
+| Forgetting to queue event | Other BCs don't get notified | Review command handlers for cross-BC impact |
 
 ---
 

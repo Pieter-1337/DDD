@@ -20,7 +20,7 @@
 - [x] Why DDD? - Understanding the problem it solves
 - [x] Entities - Objects with identity (Patient)
 - [x] Aggregates & Aggregate Roots - Consistency boundaries
-- [x] Domain Events - Communicating state changes
+- [x] Events - Decided to use integration events only (see Phase 5)
 - [x] Repositories - Persistence abstraction (interface)
 - [x] Value Objects - Discussed, using primitives pragmatically
 
@@ -29,8 +29,7 @@
 - [x] Project structure setup (Clean Architecture)
 - [x] Patient Entity / Aggregate Root
 - [x] PatientStatus enum
-- [x] Domain events (PatientCreated, PatientSuspended)
-- [x] Entity base class with event support
+- [x] Entity base class
 - [x] Generic repository interface
 
 ### Key Decisions Made
@@ -39,6 +38,7 @@
 2. **Primitives for simple values** - Email as string, not value object
 3. **Complex values get IDs** - If it needs its own table, make it an entity
 4. **Generic repository base** - `IRepository<T>` and `IUnitOfWork.RepositoryFor<T>()`
+5. **Integration events** - Published via MassTransit/RabbitMQ (see Phase 5)
 
 ---
 
@@ -51,7 +51,7 @@
 - [x] Repository implementation with EF Core
 - [x] Unit of Work pattern
 - [x] Database migrations
-- [x] Domain event dispatching
+- [x] Integration event publishing (via UnitOfWork)
 
 ### Implementation Complete
 
@@ -61,21 +61,21 @@
 - [x] Implement generic Repository<TContext, TEntity>
 - [x] Implement UnitOfWork<TContext> with RepositoryFor<T>()
 - [x] Create database migrations
-- [x] Add domain event dispatcher
+- [x] Add integration event publishing after SaveChangesAsync
 - [x] Test with API endpoint
 
 ### Key Decisions Made
 
 1. **BuildingBlocks split** - Separated into `BuildingBlocks.Domain` (pure abstractions) and `BuildingBlocks.Infrastructure` (EF Core implementations)
 2. **Generic repository** - `UnitOfWork.RepositoryFor<T>()` instead of entity-specific repositories
-3. **Event dispatching after save** - Events fire only after successful database commit
+3. **Event publishing** - Events queued via `QueueIntegrationEvent()` and published after save
 
 ### Docs Available
 
 - `phase-2-ef-core/01-setup-efcore.md` - DbContext and configuration
 - `phase-2-ef-core/02-repository-implementation.md` - Repository pattern
 - `phase-2-ef-core/03-database-migrations.md` - Creating the database
-- `phase-2-ef-core/04-domain-event-dispatching.md` - Publishing events
+- `phase-2-ef-core/04-event-publishing.md` - Event publishing
 
 ---
 
@@ -119,6 +119,7 @@
 6. **SmartEnum for enumerations** - Using Ardalis.SmartEnum instead of C# enums for type safety
 7. **ErrorCode with SmartEnum** - Consistent error codes with auto-prefixing (`ERR_` for errors, `WRN_` for warnings)
 8. **SmartEnum as string in DTOs** - Use `string` type in DTOs, validate with `TryFromName`, convert in handler with `FromName`
+9. **MediatR for CQRS only** - MediatR used for commands/queries, NOT for events
 
 ### Docs Available
 
@@ -162,7 +163,7 @@ This allows using `nameof(GetPatientAsync)` in `CreatedAtAction` calls.
 
 ### Concepts Learned
 
-- [x] Two-tier test base hierarchy (ValidatorTestBase → TestBase<TContext>)
+- [x] Two-tier test base hierarchy (ValidatorTestBase -> TestBase<TContext>)
 - [x] Validator unit tests with mocked IUnitOfWork
 - [x] Integration tests with SQLite in-memory database
 - [x] Transaction-based test isolation (rollback after each test)
@@ -211,13 +212,13 @@ This allows using `nameof(GetPatientAsync)` in `CreatedAtAction` calls.
 
 ## Phase 5: Event-Driven Architecture
 
-### Concepts to Learn
+### Concepts Learned
 
-- [x] Domain Events vs Integration Events (conceptual understanding)
+- [x] Integration events for cross-bounded-context communication
 - [x] Intra-domain messaging for async processing
-- [ ] RabbitMQ setup with Docker
-- [ ] MassTransit for .NET integration
-- [ ] Event publishing and subscribing
+- [x] RabbitMQ setup with Docker
+- [x] MassTransit for .NET integration
+- [x] Event publishing via `_uow.QueueIntegrationEvent()`
 - [ ] Idempotent message handlers
 - [ ] Error handling and dead letter queues
 - [ ] Saga patterns for distributed workflows
@@ -226,26 +227,41 @@ This allows using `nameof(GetPatientAsync)` in `CreatedAtAction` calls.
 ### Implementation Progress
 
 - [x] Documentation created (all 6 documents)
-- [x] `BuildingBlocks.Messaging` project created
+- [x] `BuildingBlocks.Application/Messaging` created (IEventBus abstraction)
+- [x] `BuildingBlocks.Infrastructure.MassTransit` project created (MassTransitEventBus implementation)
 - [x] `Shared/IntegrationEvents` project created
-- [ ] `IntegrationEventBase` base class
-- [ ] `IIntegrationEvent` marker interface
-- [ ] RabbitMQ Docker setup
-- [ ] MassTransit configuration in Infrastructure
-- [ ] First integration event (PatientCreated)
-- [ ] Event publisher implementation
-- [ ] Event consumer implementation
+- [x] `IIntegrationEvent` marker interface
+- [x] `IntegrationEventBase` base class
+- [x] RabbitMQ Docker setup (docker-compose.yml)
+- [x] MassTransit configuration in Infrastructure
+- [x] First integration event (`PatientCreatedIntegrationEvent`)
+- [x] Event publisher implementation (`MassTransitEventBus`)
+- [x] Event consumer implementation (`PatientCreatedEventConsumer`)
+- [x] `IUnitOfWork.QueueIntegrationEvent()` pattern
 - [ ] End-to-end integration test
+- [ ] Additional integration events
 
 ### Key Decisions Made
 
-1. **Project naming** - Using `Shared/IntegrationEvents` instead of `Contracts` for clarity
-2. **Three-project structure** - BuildingBlocks.Messaging (abstractions), Shared/IntegrationEvents (events), BC.Infrastructure (consumers)
-3. **Namespace changed** - From `BuildingBlocks.Application.Messaging` to `BuildingBlocks.Application.Cqrs` for CQRS base types
+1. **Integration events via MassTransit**
+   - All events go through RabbitMQ/MassTransit
+   - All events get durability, retry, and dead-letter queues
+   - MediatR used for CQRS (commands/queries)
+
+2. **Event publishing flow**:
+   - Command handler queues events via `_uow.QueueIntegrationEvent()`
+   - Events published after `SaveChangesAsync()` succeeds
+   - Transactional safety: events only published if save succeeds
+
+3. **Project structure**:
+   - `BuildingBlocks.Application/Messaging` - IEventBus abstraction
+   - `BuildingBlocks.Infrastructure.MassTransit` - MassTransitEventBus implementation
+   - `Shared/IntegrationEvents/Scheduling/` - Integration event contracts
+   - `BC.Infrastructure/Consumers` - Event consumers
 
 ### Docs Available
 
-- `phase-5-event-driven/01-event-driven-overview.md` - What is event-driven architecture, domain vs integration events
+- `phase-5-event-driven/01-event-driven-overview.md` - What is event-driven architecture, integration events only
 - `phase-5-event-driven/02-rabbitmq-masstransit-setup.md` - Infrastructure setup, project structure
 - `phase-5-event-driven/03-integration-events.md` - Publishing and consuming events
 - `phase-5-event-driven/04-idempotency-error-handling.md` - DLQ, retries, idempotent handlers

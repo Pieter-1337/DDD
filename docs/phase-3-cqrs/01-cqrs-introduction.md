@@ -27,7 +27,6 @@ CQRS Approach:
 **Writes (Commands):**
 - Need validation
 - Need business rules
-- Need domain events
 - Need consistency
 - Usually single entity
 

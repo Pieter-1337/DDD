@@ -155,7 +155,7 @@ public interface IUnitOfWork
 
 **Key points:**
 - `RepositoryFor<T>()` - Get a repository for any entity type dynamically
-- `SaveChangesAsync()` - Commits all changes and dispatches domain events
+- `SaveChangesAsync()` - Commits all changes and publishes queued events
 
 ### Step 5: Why interfaces are in Application layer?
 
@@ -259,24 +259,27 @@ Repositories work with domain entities or project to DTOs. The `IEntityDto` cons
 
 ```
 BuildingBlocks/
-├── BuildingBlocks.Domain/                 ← Pure domain abstractions
-│   ├── Entity.cs
-│   ├── Events/
-│   │   ├── IDomainEvent.cs
-│   │   └── IHasDomainEvents.cs
-│   └── Interfaces/
-│       └── IEntityBase.cs                 ← Only marker interface stays here
-│
-BuildingBlocks.Application/                ← Application layer contracts
-├── IEntityDto.cs                          ← DTO projection interface
-├── IRepository.cs                         ← Repository interface
-└── IUnitOfWork.cs                         ← Unit of Work interface
-
-BuildingBlocks/
-└── BuildingBlocks.Infrastructure/         ← Infrastructure implementations
-    ├── Repository.cs
-    └── UnitOfWork.cs
++-- BuildingBlocks.Domain/                 <- Pure domain abstractions
+|   +-- Entity.cs
+|   +-- Interfaces/
+|       +-- IEntityBase.cs                 <- Only marker interface
+|
++-- BuildingBlocks.Application/            <- Application layer contracts
+|   +-- Interfaces/
+|   |   +-- IRepository.cs                 <- Repository interface
+|   |   +-- IUnitOfWork.cs                 <- Unit of Work interface
+|   +-- Messaging/
+|   |   +-- IEventBus.cs                   <- Event publishing abstraction
+|   |   +-- IIntegrationEvent.cs           <- Event marker interface
+|   |   +-- IntegrationEventBase.cs        <- Base class for events
+|   +-- IEntityDto.cs                      <- DTO projection interface
+|
++-- BuildingBlocks.Infrastructure.EfCore/  <- EF Core implementations
+    +-- EfCoreRepository.cs
+    +-- EfCoreUnitOfWork.cs
 ```
+
+**Note:** Integration events are published via MassTransit/RabbitMQ. See Phase 5 documentation for details.
 
 ---
 
@@ -295,7 +298,6 @@ BuildingBlocks/
 You've now built:
 - Clean Architecture project structure
 - Patient aggregate with encapsulation
-- Domain events
 - Generic repository and Unit of Work interfaces
 
 **Next: Phase 2 - Persistence with EF Core**
@@ -304,4 +306,4 @@ We'll implement:
 - Repository implementation using EF Core
 - DbContext configuration
 - Mapping entities to tables
-- Domain event dispatching on save
+- Event publishing on save

@@ -55,7 +55,7 @@ Make the **domain layer depend on NOTHING**:
 Create the following structure:
 ```
 BuildingBlocks/                    ← Shared building blocks (split by concern)
-├── BuildingBlocks.Domain/         ← Entity, interfaces, domain events
+├── BuildingBlocks.Domain/         ← Entity, interfaces
 └── BuildingBlocks.Infrastructure/ ← Repository, UnitOfWork implementations
 Core/
 └── Scheduling/                    ← Bounded context
@@ -86,9 +86,9 @@ Location: `BuildingBlocks/BuildingBlocks.Domain/BuildingBlocks.Domain.csproj`
 </Project>
 ```
 
-This project contains pure domain building blocks: `Entity`, `IEntityBase`, `IRepository`, `IUnitOfWork`, `IDomainEvent`, `IHasDomainEvents`.
+This project contains pure domain building blocks: `Entity`, `IEntityBase`.
 
-**Note:** Only MediatR dependency (for `INotification` marker interface).
+**Note:** This is a minimal project with only the base `Entity` class and `IEntityBase` interface. No MediatR dependency needed since we use integration events only (published via MassTransit, not MediatR).
 
 ### Step 3: Create BuildingBlocks.Infrastructure project
 
@@ -116,7 +116,7 @@ Location: `BuildingBlocks/BuildingBlocks.Infrastructure/BuildingBlocks.Infrastru
 </Project>
 ```
 
-This project contains infrastructure implementations: `Repository<TContext, TEntity>`, `UnitOfWork<TContext>`, `DomainEventDispatcher`.
+This project contains infrastructure implementations: `EfCoreRepository<TContext, TEntity>`, `EfCoreUnitOfWork<TContext>`.
 
 ### Step 4: Create Scheduling.Domain.csproj
 
@@ -144,7 +144,7 @@ Location: `Core/Scheduling/Scheduling.Domain/Scheduling.Domain.csproj`
 </Project>
 ```
 
-**Why reference BuildingBlocks.Domain?** Domain entities inherit from `Entity` base class which provides domain event support.
+**Why reference BuildingBlocks.Domain?** Domain entities inherit from `Entity` base class which implements `IEntityBase`.
 
 ### Step 5: Create Scheduling.Application.csproj
 

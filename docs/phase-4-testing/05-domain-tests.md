@@ -17,7 +17,6 @@ Domain tests are **pure unit tests** that verify entity behavior without any dat
 | **State transitions** | `Suspend()` changes status |
 | **Business rules** | Can't suspend an already suspended patient |
 | **Invariant protection** | Required fields validated |
-| **Domain events** | Events raised on state changes |
 
 ---
 
@@ -81,18 +80,6 @@ public class PatientTests
         patient1.Id.ShouldNotBe(patient2.Id);
     }
 
-    [TestMethod]
-    public void Create_ShouldRaisePatientCreatedEvent()
-    {
-        // Act
-        var patient = Patient.Create("John", "Doe", "john@test.com", new DateTime(1990, 1, 15));
-
-        // Assert
-        patient.DomainEvents.ShouldContain(e => e is PatientCreatedEvent);
-        var createdEvent = patient.DomainEvents.OfType<PatientCreatedEvent>().Single();
-        createdEvent.PatientId.ShouldBe(patient.Id);
-    }
-
     #endregion
 
     #region Suspend Tests
@@ -108,20 +95,6 @@ public class PatientTests
 
         // Assert
         patient.Status.ShouldBe(PatientStatus.Suspended);
-    }
-
-    [TestMethod]
-    public void Suspend_ShouldRaisePatientSuspendedEvent()
-    {
-        // Arrange
-        var patient = Patient.Create("John", "Doe", "john@test.com", new DateTime(1990, 1, 15));
-        patient.ClearDomainEvents(); // Clear the created event
-
-        // Act
-        patient.Suspend();
-
-        // Assert
-        patient.DomainEvents.ShouldContain(e => e is PatientSuspendedEvent);
     }
 
     [TestMethod]
@@ -190,32 +163,6 @@ public class PatientTests
     }
 
     #endregion
-}
-```
-
----
-
-## Testing Domain Events
-
-Domain events are critical for event-driven architecture. Always verify they're raised correctly:
-
-```csharp
-[TestMethod]
-public void SomeAction_ShouldRaiseExpectedEvent()
-{
-    // Arrange
-    var entity = MyEntity.Create(/* ... */);
-    entity.ClearDomainEvents(); // Clear events from creation
-
-    // Act
-    entity.DoSomething();
-
-    // Assert
-    entity.DomainEvents.ShouldContain(e => e is SomethingHappenedEvent);
-
-    var theEvent = entity.DomainEvents.OfType<SomethingHappenedEvent>().Single();
-    theEvent.EntityId.ShouldBe(entity.Id);
-    theEvent.SomeProperty.ShouldBe(expectedValue);
 }
 ```
 

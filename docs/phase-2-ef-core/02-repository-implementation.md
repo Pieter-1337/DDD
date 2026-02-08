@@ -7,8 +7,8 @@ We use a **generic repository pattern** with a **Unit of Work** that provides re
 **Key components:**
 - `IRepository<T>` - Interface in BuildingBlocks.Application
 - `EfCoreRepository<TContext, TEntity>` - Generic implementation in BuildingBlocks.Infrastructure.EfCore
-- `IUnitOfWork` - Interface with `RepositoryFor<T>()` and `SaveChangesAsync()`
-- `EfCoreUnitOfWork<TContext>` - Generic implementation with domain event dispatching
+- `IUnitOfWork` - Interface with `RepositoryFor<T>()`, `QueueIntegrationEvent()`, and `SaveChangesAsync()`
+- `EfCoreUnitOfWork<TContext>` - Generic implementation with integration event publishing
 - `IEntityDto<TEntity, TDto>` - Interface for DTO projections
 
 ---
@@ -17,30 +17,31 @@ We use a **generic repository pattern** with a **Unit of Work** that provides re
 
 ### Step 1: Shared BuildingBlocks Project Structure
 
-The generic repository interfaces and implementations are split across three projects:
+The generic repository interfaces and implementations are split across projects:
 
 ```
 BuildingBlocks/
-├── BuildingBlocks.Domain/                 ← Pure domain abstractions
-│   ├── Entity.cs
-│   ├── Events/
-│   │   ├── IDomainEvent.cs
-│   │   └── IHasDomainEvents.cs
-│   ├── Interfaces/
-│   │   └── IEntityBase.cs                 ← Only marker interface
-│   └── BuildingBlocks.Domain.csproj
-│
-BuildingBlocks.Application/                ← Application layer contracts
-├── IEntityDto.cs                          ← DTO projection interface
-├── IRepository.cs                         ← Repository interface
-├── IUnitOfWork.cs                         ← Unit of Work interface
-└── BuildingBlocks.Application.csproj
-│
-BuildingBlocks/
-└── BuildingBlocks.Infrastructure.EfCore/  ← EF Core infrastructure implementations
-    ├── EfCoreRepository.cs
-    ├── EfCoreUnitOfWork.cs
-    └── BuildingBlocks.Infrastructure.EfCore.csproj
++-- BuildingBlocks.Domain/                 <- Pure domain abstractions
+|   +-- Entity.cs
+|   +-- Interfaces/
+|   |   +-- IEntityBase.cs                 <- Only marker interface
+|   +-- BuildingBlocks.Domain.csproj
+|
++-- BuildingBlocks.Application/            <- Application layer contracts
+|   +-- Interfaces/
+|   |   +-- IRepository.cs
+|   |   +-- IUnitOfWork.cs
+|   +-- Messaging/
+|   |   +-- IEventBus.cs
+|   |   +-- IIntegrationEvent.cs
+|   |   +-- IntegrationEventBase.cs
+|   +-- IEntityDto.cs
+|   +-- BuildingBlocks.Application.csproj
+|
++-- BuildingBlocks.Infrastructure.EfCore/  <- EF Core infrastructure
+    +-- EfCoreRepository.cs
+    +-- EfCoreUnitOfWork.cs
+    +-- BuildingBlocks.Infrastructure.EfCore.csproj
 ```
 
 ### Step 2: IEntityBase Interface
@@ -80,7 +81,7 @@ public interface IEntityDto<TEntity, TDto> where TDto : IEntityDto<TEntity, TDto
 
 ### Step 4: IRepository Interface
 
-Location: `BuildingBlocks.Application/IRepository.cs`
+Location: `BuildingBlocks.Application/Interfaces/IRepository.cs`
 
 ```csharp
 using System.Linq.Expressions;
@@ -190,9 +191,10 @@ public class EfCoreRepository<TContext, TEntity> : IRepository<TEntity>
 
 ### Step 6: IUnitOfWork Interface
 
-Location: `BuildingBlocks.Application/IUnitOfWork.cs`
+Location: `BuildingBlocks.Application/Interfaces/IUnitOfWork.cs`
 
 ```csharp
+using BuildingBlocks.Application.Messaging;
 using BuildingBlocks.Domain.Interfaces;
 
 namespace BuildingBlocks.Application;
@@ -200,11 +202,19 @@ namespace BuildingBlocks.Application;
 public interface IUnitOfWork
 {
     IRepository<T> RepositoryFor<T>() where T : class, IEntityBase;
+
+    /// <summary>
+    /// Queues an integration event to be published after a successful save.
+    /// </summary>
+    void QueueIntegrationEvent(IIntegrationEvent integrationEvent);
+
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
 }
 ```
 
-**Key feature:** `RepositoryFor<T>()` provides a repository for any entity type on demand.
+**Key features:**
+- `RepositoryFor<T>()` provides a repository for any entity type on demand
+- `QueueIntegrationEvent()` queues events to be published after save
 
 ### Step 7: Generic UnitOfWork Implementation
 
@@ -212,9 +222,8 @@ Location: `BuildingBlocks/BuildingBlocks.Infrastructure.EfCore/EfCoreUnitOfWork.
 
 ```csharp
 using BuildingBlocks.Application;
-using BuildingBlocks.Domain.Events;
+using BuildingBlocks.Application.Messaging;
 using BuildingBlocks.Domain.Interfaces;
-using MediatR;
 using Microsoft.EntityFrameworkCore;
 
 namespace BuildingBlocks.Infrastructure.EfCore;
@@ -222,55 +231,55 @@ namespace BuildingBlocks.Infrastructure.EfCore;
 public class EfCoreUnitOfWork<TContext> : IUnitOfWork where TContext : DbContext
 {
     private readonly TContext _context;
-    private readonly IMediator _mediator;
+    private readonly IEventBus? _eventBus;
+    private readonly List<IIntegrationEvent> _queuedEvents = [];
 
-    public EfCoreUnitOfWork(TContext context, IMediator mediator)
+    public EfCoreUnitOfWork(TContext context, IEventBus? eventBus = null)
     {
         _context = context;
-        _mediator = mediator;
+        _eventBus = eventBus;
+    }
+
+    public void QueueIntegrationEvent(IIntegrationEvent integrationEvent)
+    {
+        _queuedEvents.Add(integrationEvent);
     }
 
     public async Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
     {
         var result = await _context.SaveChangesAsync(cancellationToken);
-        await DispatchDomainEventsAsync(cancellationToken);
+
+        // Publish queued integration events after successful save
+        await PublishQueuedEventsAsync(cancellationToken);
+
         return result;
+    }
+
+    private async Task PublishQueuedEventsAsync(CancellationToken cancellationToken)
+    {
+        if (_eventBus is null || _queuedEvents.Count == 0)
+            return;
+
+        foreach (var @event in _queuedEvents)
+        {
+            await _eventBus.PublishAsync(@event, cancellationToken);
+        }
+
+        _queuedEvents.Clear();
     }
 
     public IRepository<T> RepositoryFor<T>() where T : class, IEntityBase
     {
         return new EfCoreRepository<TContext, T>(_context);
     }
-
-    private async Task DispatchDomainEventsAsync(CancellationToken cancellationToken)
-    {
-        var entitiesWithEvents = _context.ChangeTracker
-            .Entries<IHasDomainEvents>()
-            .Where(e => e.Entity.DomainEvents.Any())
-            .Select(e => e.Entity)
-            .ToList();
-
-        var domainEvents = entitiesWithEvents
-            .SelectMany(e => e.DomainEvents)
-            .ToList();
-
-        foreach (var entity in entitiesWithEvents)
-        {
-            entity.ClearDomainEvents();
-        }
-
-        foreach (var domainEvent in domainEvents)
-        {
-            await _mediator.Publish(domainEvent, cancellationToken);
-        }
-    }
 }
 ```
 
 **Key points:**
-- UnitOfWork injects `IMediator` for domain event dispatching
-- Events are auto-dispatched after `SaveChangesAsync()` succeeds
-- Events only fire if save succeeds (no orphan events)
+- `QueueIntegrationEvent()` adds events to an internal list
+- Events are published after `SaveChangesAsync()` succeeds
+- `IEventBus` is optional (null in tests without RabbitMQ)
+- Events only publish if save succeeds (transactional safety)
 
 ### Step 8: Register Services
 
@@ -309,11 +318,12 @@ public static class ServiceCollectionExtensions
 
 In your Application layer handlers:
 
-### Command Handler (Create)
+### Command Handler (Create with Integration Event)
 
 ```csharp
 using BuildingBlocks.Application;
 using Scheduling.Domain.Patients;
+using Shared.IntegrationEvents.Scheduling;
 
 public class CreatePatientHandler
 {
@@ -334,6 +344,15 @@ public class CreatePatientHandler
             cmd.PhoneNumber);
 
         _unitOfWork.RepositoryFor<Patient>().Add(patient);
+
+        // Queue integration event for cross-BC communication
+        _unitOfWork.QueueIntegrationEvent(new PatientCreatedIntegrationEvent(
+            patient.Id,
+            cmd.FirstName,
+            cmd.LastName,
+            cmd.Email,
+            cmd.DateOfBirth));
+
         await _unitOfWork.SaveChangesAsync(ct);
 
         return patient.Id;
@@ -413,6 +432,7 @@ await _unitOfWork.SaveChangesAsync(ct);
 - Single injection - only `IUnitOfWork` needed
 - Consistent API - same methods for all entities
 - Efficient DTO projections - `IEntityDto` enables SQL-level projections
+- Integration events - queued and published after successful save
 
 ---
 
@@ -422,7 +442,7 @@ await _unitOfWork.SaveChangesAsync(ct);
 - [ ] `IEntityDto<TEntity, TDto>` interface exists in `BuildingBlocks.Application`
 - [ ] `IRepository<T>` interface exists in `BuildingBlocks.Application`
 - [ ] `EfCoreRepository<TContext, TEntity>` implements `IRepository<T>`
-- [ ] `IUnitOfWork` interface exists in `BuildingBlocks.Application`
+- [ ] `IUnitOfWork` interface exists with `QueueIntegrationEvent()`
 - [ ] `EfCoreUnitOfWork<TContext>` implements `IUnitOfWork`
 - [ ] ServiceCollectionExtensions registers `IUnitOfWork`
 - [ ] Domain entities implement `IEntityBase`
@@ -431,4 +451,4 @@ await _unitOfWork.SaveChangesAsync(ct);
 
 ---
 
-→ Next: [03-database-migrations.md](./03-database-migrations.md) - Creating the database
+> Next: [03-database-migrations.md](./03-database-migrations.md) - Creating the database

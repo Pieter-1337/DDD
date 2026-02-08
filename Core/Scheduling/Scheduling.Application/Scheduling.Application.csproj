@@ -20,6 +20,7 @@
 
     <ItemGroup>
         <ProjectReference Include="..\..\..\BuildingBlocks\BuildingBlocks.Application\BuildingBlocks.Application.csproj" />
+        <ProjectReference Include="..\..\..\Shared\IntegrationEvents\IntegrationEvents.csproj" />
         <ProjectReference Include="..\Scheduling.Domain\Scheduling.Domain.csproj" />
     </ItemGroup>
 

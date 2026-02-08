@@ -12,7 +12,7 @@ docs/
 +-- phase-2-ef-core/             # Persistence with EF Core
 +-- phase-3-cqrs/                # CQRS pattern
 +-- phase-4-testing/             # Integration testing setup
-+-- phase-5-event-driven/        # Event-driven architecture (planned)
++-- phase-5-event-driven/        # Event-driven architecture
 +-- phase-6-integration/         # Complete system integration (planned)
 ```
 
@@ -26,12 +26,11 @@ Each phase directory contains:
 
 ## Current Phase
 
-**Phase 4: Integration Testing** - Complete
+**Phase 5: Event-Driven Architecture** - In Progress
 
-- Two-tier test base hierarchy: `ValidatorTestBase` → `TestBase<TContext>`
-- `SchedulingValidatorTestBase` for validator unit tests (mocked IUnitOfWork)
-- `SchedulingDbTestBase` for handler integration tests (SQLite)
-- Transaction-based test isolation
-- MSTest with Shouldly, Moq, and NBuilder
+- Events are published via MassTransit/RabbitMQ
+- Events queued in command handlers via `_uow.QueueIntegrationEvent()`
+- Published after `SaveChangesAsync()` succeeds
+- MediatR used for CQRS (commands/queries)
 
 See [PROGRESS.md](./PROGRESS.md) for detailed status.

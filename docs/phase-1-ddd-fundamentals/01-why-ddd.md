@@ -50,7 +50,6 @@ public class Patient
         if (newEmail == Email) return;
 
         Email = newEmail;
-        AddDomainEvent(new PatientEmailChangedEvent(Id, newEmail));
     }
 }
 ```
@@ -60,9 +59,8 @@ public class Patient
 1. **Business rules in one place** - Inside the domain object
 2. **Encapsulation** - Private setters, changes only through methods
 3. **Self-documenting** - `ChangeEmail()` tells you what's happening
-4. **Domain Events** - Other parts of the system can react to changes
-5. **Type safety** - `PatientId` can't be confused with `AppointmentId`
-6. **Easy to test** - Domain logic is isolated from infrastructure
+4. **Type safety** - `PatientId` can't be confused with `AppointmentId`
+5. **Easy to test** - Domain logic is isolated from infrastructure
 
 ## Key Insight: The Domain is the Core
 

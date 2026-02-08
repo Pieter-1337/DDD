@@ -618,8 +618,7 @@ public class CreatePatientCommandHandlerTests : SchedulingTestBase
 - [x] MediatR registered in DI
 - [x] `SuppressAsyncSuffixInActionNames = false` configured
 - [x] Controller receives request DTO, wraps in command
-- [x] Handlers inject `IUnitOfWork` (events auto-dispatched)
-- [x] Entity adds events in behavior methods
+- [x] Handlers inject `IUnitOfWork` and queue integration events
 - [x] FluentValidation validates (not domain)
 
 ---
@@ -632,26 +631,29 @@ Commands, requests, responses, and validators are all in the same file:
 Core/Scheduling/
 +-- Scheduling.Domain/
 |   +-- Patients/
-|       +-- Patient.cs                           <- Uses AddDomainEvent()
+|       +-- Patient.cs                           <- Pure domain entity (no event collection)
 |       +-- PatientStatus.cs
-|       +-- Events/                              <- Events in Domain layer
-|           +-- PatientCreatedEvent.cs
-|           +-- PatientSuspendedEvent.cs
 +-- Scheduling.Application/
     +-- Patients/
     |   +-- Commands/
     |   |   +-- CreatePatientCommand.cs          <- Command + Request + Response + Validators
-    |   |   +-- CreatePatientCommandHandler.cs
+    |   |   +-- CreatePatientCommandHandler.cs   <- Queues integration events
     |   |   +-- SuspendPatientCommand.cs         <- Command + Response + Validator
     |   |   +-- SuspendPatientCommandHandler.cs
     |   +-- Dtos/
-    |   |   +-- PatientDto.cs
-    |   +-- EventHandlers/
-    |       +-- PatientCreatedEventHandler.cs
+    |       +-- PatientDto.cs
     +-- ServiceCollectionExtensions.cs
+
+Shared/
++-- IntegrationEvents/
+    +-- Scheduling/
+        +-- PatientCreatedIntegrationEvent.cs
+        +-- PatientSuspendedIntegrationEvent.cs
 ```
 
 **Note:** All related types (Command, Request DTO, Response DTO, Validators) are in the same file, organized with `#region Validators`. This keeps related code together and makes it easier to understand the full contract.
+
+**Integration events** are queued in command handlers via `_uow.QueueIntegrationEvent()` and published to RabbitMQ after `SaveChangesAsync()` succeeds.
 
 ---
 

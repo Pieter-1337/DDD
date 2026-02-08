@@ -1,12 +1,10 @@
 namespace BuildingBlocks.Application.Messaging;
 
 /// <summary>
-/// Base class for all integration events.
-/// Integration events cross bounded context boundaries via message broker.
+/// Base class for integration events providing common properties.
 /// </summary>
 public abstract record IntegrationEventBase : IIntegrationEvent
 {
-    public Guid EventId { get; init; } = Guid.NewGuid();
-    public DateTime OccurredAt { get; init; } = DateTime.UtcNow;
-    public string? CorrelationId { get; init; }
+    public Guid EventId { get; } = Guid.NewGuid();
+    public DateTime OccurredOn { get; } = DateTime.UtcNow;
 }

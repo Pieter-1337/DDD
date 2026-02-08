@@ -1,4 +1,5 @@
 using BuildingBlocks.Application.Interfaces;
+using IntegrationEvents.Scheduling;
 using MediatR;
 using Scheduling.Domain.Patients;
 
@@ -18,6 +19,10 @@ internal class SuspendPatientCommandHandler : IRequestHandler<SuspendPatientComm
         var patient = await _uow.RepositoryFor<Patient>().GetByIdAsync(cmd.Id, cancellationToken);
 
         patient!.Suspend();
+
+        // Queue integration event to be published after successful save
+        _uow.QueueIntegrationEvent(new PatientSuspendedIntegrationEvent(patient.Id));
+
         await _uow.SaveChangesAsync(cancellationToken);
 
         return new SuspendPatientCommandResponse

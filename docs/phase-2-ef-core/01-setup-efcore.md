@@ -4,14 +4,13 @@
 
 In Phase 1, we built the domain layer with:
 - Patient aggregate with encapsulation
-- Domain events
 - `IEntityBase` interface (in shared Repositories project)
 
 Now we'll implement the **Infrastructure layer** with:
 - EF Core DbContext
 - Entity configurations (Fluent API)
 - Generic Repository and UnitOfWork (see [02-repository-implementation.md](./02-repository-implementation.md))
-- Domain event dispatching
+- Event publishing
 
 ---
 
@@ -102,8 +101,6 @@ public class PatientConfiguration : IEntityTypeConfiguration<Patient>
             .HasConversion<string>()  // Store enum as string
             .HasMaxLength(20);
 
-        // Ignore domain events - they're not persisted
-        builder.Ignore(p => p.DomainEvents);
     }
 }
 ```
@@ -111,7 +108,6 @@ public class PatientConfiguration : IEntityTypeConfiguration<Patient>
 **Key points:**
 - **Fluent API over attributes** - Keeps domain clean, no EF dependencies in domain
 - **`HasConversion<string>()`** - Stores enum as readable string, not int
-- **`Ignore(DomainEvents)`** - Domain events are transient, not stored in DB
 
 ### Step 4: Handle private setters and constructors
 
@@ -142,39 +138,54 @@ public class Patient : Entity
 Your project structure should look like:
 
 ```
-Core/
-├── Repositories/                          ← Shared building blocks
-│   ├── Entity.cs
-│   ├── Repository.cs
-│   ├── UnitOfWork.cs
-│   ├── Events/
-│   │   ├── IDomainEvent.cs
-│   │   ├── IHasDomainEvents.cs
-│   │   ├── IDomainEventDispatcher.cs
-│   │   └── DomainEventDispatcher.cs
-│   ├── Interfaces/
-│   │   ├── IEntityBase.cs
-│   │   ├── IRepository.cs
-│   │   └── IUnitOfWork.cs
-│   └── Repositories.csproj
-└── Scheduling/
-    ├── Scheduling.Domain/
-    │   └── Patients/
-    │       ├── Patient.cs
-    │       ├── PatientStatus.cs
-    │       └── Events/
-    │           ├── PatientCreatedEvent.cs
-    │           └── PatientSuspendedEvent.cs
-    └── Scheduling.Infrastructure/
-        ├── Persistence/
-        │   ├── SchedulingDbContext.cs
-        │   ├── Configurations/
-        │   │   └── PatientConfiguration.cs
-        │   └── Migrations/
-        │       └── (generated migration files)
-        ├── ServiceCollectionExtensions.cs
-        └── Scheduling.Infrastructure.csproj
+BuildingBlocks/
++-- BuildingBlocks.Domain/                 <- Pure domain abstractions
+|   +-- Entity.cs
+|   +-- Interfaces/
+|   |   +-- IEntityBase.cs
+|   +-- BuildingBlocks.Domain.csproj
+|
++-- BuildingBlocks.Application/            <- Application layer contracts
+|   +-- Interfaces/
+|   |   +-- IRepository.cs
+|   |   +-- IUnitOfWork.cs
+|   +-- Messaging/
+|   |   +-- IEventBus.cs
+|   |   +-- IIntegrationEvent.cs
+|   |   +-- IntegrationEventBase.cs
+|   +-- IEntityDto.cs
+|   +-- BuildingBlocks.Application.csproj
+|
++-- BuildingBlocks.Infrastructure.EfCore/  <- EF Core implementations
+    +-- EfCoreRepository.cs
+    +-- EfCoreUnitOfWork.cs
+    +-- BuildingBlocks.Infrastructure.EfCore.csproj
+
+Shared/
++-- IntegrationEvents/                     <- Integration events (cross-BC contracts)
+    +-- Scheduling/
+        +-- PatientCreatedIntegrationEvent.cs
+        +-- PatientSuspendedIntegrationEvent.cs
+
+Core/Scheduling/
++-- Scheduling.Domain/
+|   +-- Patients/
+|       +-- Patient.cs                     <- Pure entity (no event collection)
+|       +-- PatientStatus.cs
++-- Scheduling.Infrastructure/
+    +-- Persistence/
+    |   +-- SchedulingDbContext.cs
+    |   +-- Configurations/
+    |   |   +-- PatientConfiguration.cs
+    |   +-- Migrations/
+    |       +-- (generated migration files)
+    +-- Consumers/                         <- MassTransit consumers
+    |   +-- PatientCreatedEventConsumer.cs
+    +-- ServiceCollectionExtensions.cs
+    +-- Scheduling.Infrastructure.csproj
 ```
+
+**Note:** Integration events are defined in `Shared/IntegrationEvents/` and published via MassTransit/RabbitMQ.
 
 ### Step 6: Verify it compiles
 
@@ -225,7 +236,6 @@ Strings are readable in the database. Worth the minor storage overhead.
 
 - [ ] `SchedulingDbContext` created (minimal, no DbSet properties)
 - [ ] `PatientConfiguration` created with Fluent API
-- [ ] Domain events ignored in configuration
 - [ ] Domain entities inherit from `Entity` (which implements `IEntityBase`)
 - [ ] Solution builds
 

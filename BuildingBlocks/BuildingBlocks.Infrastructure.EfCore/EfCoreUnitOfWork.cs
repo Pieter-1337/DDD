@@ -1,7 +1,6 @@
 using BuildingBlocks.Application.Interfaces;
+using BuildingBlocks.Application.Messaging;
 using BuildingBlocks.Domain;
-using BuildingBlocks.Domain.Events;
-using MediatR;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
 
@@ -10,19 +9,32 @@ namespace BuildingBlocks.Infrastructure.EfCore;
 public class EfCoreUnitOfWork<TContext> : IUnitOfWork where TContext : DbContext
 {
     private readonly TContext _context;
-    private readonly IMediator _mediator;
+    private readonly IEventBus? _eventBus;
+    private readonly List<IIntegrationEvent> _queuedIntegrationEvents = [];
     private IDbContextTransaction? _transaction;
 
-    public EfCoreUnitOfWork(TContext context, IMediator mediator)
+    public EfCoreUnitOfWork(TContext context, IEventBus? eventBus = null)
     {
         _context = context;
-        _mediator = mediator;
+        _eventBus = eventBus;
+    }
+
+    public void QueueIntegrationEvent(IIntegrationEvent integrationEvent)
+    {
+        _queuedIntegrationEvents.Add(integrationEvent);
     }
 
     public async Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
     {
+        // Capture the queued integration events before saving
+        var integrationEventsToPublish = _queuedIntegrationEvents.ToList();
+        _queuedIntegrationEvents.Clear();
+
         var result = await _context.SaveChangesAsync(cancellationToken);
-        await DispatchDomainEventsAsync(cancellationToken);
+
+        // Publish integration events to message bus after successful save
+        await PublishIntegrationEventsAsync(integrationEventsToPublish, cancellationToken);
+
         return result;
     }
 
@@ -31,29 +43,30 @@ public class EfCoreUnitOfWork<TContext> : IUnitOfWork where TContext : DbContext
         return new EfCoreRepository<TContext, T>(_context);
     }
 
-    private async Task DispatchDomainEventsAsync(CancellationToken cancellationToken)
+    private async Task PublishIntegrationEventsAsync(List<IIntegrationEvent> integrationEvents, CancellationToken cancellationToken)
     {
-        var entitiesWithEvents = _context.ChangeTracker
-            .Entries<IHasDomainEvents>()
-            .Where(e => e.Entity.DomainEvents.Any())
-            .Select(e => e.Entity)
-            .ToList();
-
-        var domainEvents = entitiesWithEvents
-            .SelectMany(e => e.DomainEvents)
-            .ToList();
-
-        // Clear events before dispatching to avoid re-dispatching if handler causes another save
-        foreach (var entity in entitiesWithEvents)
+        if (_eventBus is null || integrationEvents.Count == 0)
         {
-            entity.ClearDomainEvents();
+            return;
         }
 
-        foreach (var domainEvent in domainEvents)
+        foreach (var integrationEvent in integrationEvents)
         {
-            await _mediator.Publish(domainEvent, cancellationToken);
+            await PublishEventAsync(integrationEvent, cancellationToken);
         }
     }
+
+    private async Task PublishEventAsync(IIntegrationEvent integrationEvent, CancellationToken cancellationToken)
+    {
+        // Use reflection to call the generic PublishAsync method with the correct type
+        var publishMethod = typeof(IEventBus)
+            .GetMethod(nameof(IEventBus.PublishAsync))!
+            .MakeGenericMethod(integrationEvent.GetType());
+
+        var task = (Task)publishMethod.Invoke(_eventBus, [integrationEvent, cancellationToken])!;
+        await task;
+    }
+
     public async Task BeginTransactionAsync(CancellationToken cancellationToken = default)
     {
         _transaction = await _context.Database.BeginTransactionAsync(cancellationToken);
