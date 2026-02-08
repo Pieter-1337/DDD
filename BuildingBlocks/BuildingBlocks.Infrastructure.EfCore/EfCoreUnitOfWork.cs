@@ -33,14 +33,14 @@ public class EfCoreUnitOfWork<TContext> : IUnitOfWork where TContext : DbContext
         // Dispatch domain events BEFORE saving (allows handlers to modify state)
         await DispatchDomainEventsAsync(cancellationToken);
 
-        // Capture the queued integration events before saving
-        var integrationEventsToPublish = _queuedIntegrationEvents.ToList();
-        _queuedIntegrationEvents.Clear();
-
         var result = await _context.SaveChangesAsync(cancellationToken);
 
-        // Publish integration events to message bus after successful save
-        await PublishIntegrationEventsAsync(integrationEventsToPublish, cancellationToken);
+        // Only publish integration events if NOT in a transaction
+        // If in a transaction, they'll be published after commit in CloseTransactionAsync
+        if (_transaction is null)
+        {
+            await PublishAndClearIntegrationEventsAsync(cancellationToken);
+        }
 
         return result;
     }
@@ -82,14 +82,17 @@ public class EfCoreUnitOfWork<TContext> : IUnitOfWork where TContext : DbContext
         }
     }
 
-    private async Task PublishIntegrationEventsAsync(List<IIntegrationEvent> integrationEvents, CancellationToken cancellationToken)
+    private async Task PublishAndClearIntegrationEventsAsync(CancellationToken cancellationToken)
     {
-        if (_eventBus is null || integrationEvents.Count == 0)
+        if (_eventBus is null || _queuedIntegrationEvents.Count == 0)
         {
             return;
         }
 
-        foreach (var integrationEvent in integrationEvents)
+        var eventsToPublish = _queuedIntegrationEvents.ToList();
+        _queuedIntegrationEvents.Clear();
+
+        foreach (var integrationEvent in eventsToPublish)
         {
             await PublishEventAsync(integrationEvent, cancellationToken);
         }
@@ -118,10 +121,14 @@ public class EfCoreUnitOfWork<TContext> : IUnitOfWork where TContext : DbContext
         if (exception is not null)
         {
             await _transaction.RollbackAsync(cancellationToken);
+            // Discard queued integration events on rollback
+            _queuedIntegrationEvents.Clear();
         }
         else
         {
             await _transaction.CommitAsync(cancellationToken);
+            // Publish integration events AFTER successful commit
+            await PublishAndClearIntegrationEventsAsync(cancellationToken);
         }
 
         await _transaction.DisposeAsync();
