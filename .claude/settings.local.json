@@ -78,7 +78,20 @@
       "Bash(git -C \"C:/projects/DDD/DDD\" commit -m \"$\\(cat <<''EOF''\nfix: prevent build hang when Docker Desktop is not running\n\n- Add timeout parameter to ensure-docker.ps1 script \\(default 60s\\)\n- Add MSBuild timeout \\(90s\\) to EnsureDockerServices target\n- Remove interactive ReadKey that would hang CI/non-interactive builds\n- Add SKIP_DOCKER_CHECK environment variable to bypass Docker check\n- Add helpful error messages with fix instructions\n- Add documentation for the Docker auto-start behavior\n\nCo-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>\nEOF\n\\)\")",
       "Bash(set SKIP_DOCKER_CHECK=1)",
       "Bash($env:SKIP_DOCKER_CHECK='1')",
-      "Bash(SKIP_DOCKER_CHECK=1 dotnet build:*)"
+      "Bash(SKIP_DOCKER_CHECK=1 dotnet build:*)",
+      "Bash(SKIP_DOCKER_CHECK=1 dotnet test:*)",
+      "Bash(claude --print-conversation -A ~/.claude/agents/coder.md \"Remove domain events completely from the codebase - only integration events should exist.\n\n**Remove:**\n1. IDomainEvent interface from BuildingBlocks.Domain/Events/\n2. IHasDomainEvents interface from BuildingBlocks.Domain/Events/\n3. PatientCreatedEvent from Scheduling.Domain/Patients/Events/\n4. PatientSuspendedEvent from Scheduling.Domain/Patients/Events/\n5. DomainEvents property and methods from entity base classes\n6. DispatchDomainEventsAsync\\(\\) from EfCoreUnitOfWork\n7. Any MediatR event handlers that handle domain events\n8. Remove MediatR package from projects that only used it for domain events \\(keep it for CQRS commands/queries\\)\n\n**Keep:**\n1. Integration events in Shared/IntegrationEvents\n2. IEventBus, IIntegrationEvent, IntegrationEventBase in BuildingBlocks.Application.Messaging\n3. QueueIntegrationEvent pattern in IUnitOfWork\n4. MassTransit consumers in Infrastructure\n5. MediatR for commands and queries \\(CQRS\\) - just not for events\n\n**Update entities:**\n- Remove RaiseDomainEvent\\(\\) calls from Patient.Create\\(\\), Patient.Suspend\\(\\) etc.\n- The command handler is responsible for queueing integration events\n\n**Final architecture:**\n- Only ONE type of event: Integration Events\n- Published via MassTransit to RabbitMQ\n- Queued in command handler via _uow.QueueIntegrationEvent\\(\\)\n- Published after SaveChangesAsync\\(\\)\n\nBuild with SKIP_DOCKER_CHECK=1 and verify. Run tests too.\")",
+      "Bash(claude:*)",
+      "Bash(git rm:*)",
+      "Bash($env:SKIP_DOCKER_CHECK=\"1\")",
+      "Bash(git -C \"C:\\\\projects\\\\DDD\\\\DDD\" status --short)",
+      "Bash(git -C \"C:\\\\projects\\\\DDD\\\\DDD\" add docs/)",
+      "Bash(git -C \"C:\\\\projects\\\\DDD\\\\DDD\" commit -m \"$\\(cat <<''EOF''\ndocs: update event flow diagrams for transaction-aware publishing\n\n- Show TransactionBehavior wrapping in flow diagrams\n- Document that integration events publish AFTER commit\n- Add rollback scenario explanations\n- Update phase-2, phase-3, phase-5 docs\n\nCo-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>\nEOF\n\\)\")",
+      "Bash(git -C \"C:\\\\projects\\\\DDD\\\\DDD\" add -A)",
+      "Bash(git -C \"C:\\\\projects\\\\DDD\\\\DDD\" reset HEAD .claude/settings.local.json)",
+      "Bash(git -C \"C:\\\\projects\\\\DDD\\\\DDD\" commit -m \"$\\(cat <<''EOF''\nfeat: add domain event handlers that queue integration events\n\n- Create PatientCreatedEventHandler and PatientSuspendedEventHandler\n- Handlers log events and queue integration events via IUnitOfWork\n- Remove direct QueueIntegrationEvent calls from command handlers\n- Add 9 tests for event handler behavior\n- Update docs to reflect domain event handler pattern\n\nCo-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>\nEOF\n\\)\")",
+      "Bash(git -C \"C:\\\\projects\\\\DDD\\\\DDD\" push)",
+      "Bash(git -C \"C:\\\\projects\\\\DDD\\\\DDD\" commit -m \"$\\(cat <<''EOF''\nfeat: add nested transaction support and comprehensive tests\n\n- EfCoreUnitOfWork tracks transaction ownership with _ownsTransaction flag\n- Nested commands reuse existing transaction instead of starting new one\n- Only outer command commits/rollbacks the transaction\n- Add 5 EfCoreUnitOfWork tests for nested transaction scenarios\n- Add 9 TransactionBehavior tests including nested command scenario\n- Update docs with nested transaction handling sections\n\nCo-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>\nEOF\n\\)\")"
     ]
   }
 }

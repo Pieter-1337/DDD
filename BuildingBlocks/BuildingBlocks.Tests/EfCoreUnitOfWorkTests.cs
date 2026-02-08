@@ -1,4 +1,3 @@
-using BuildingBlocks.Application.Interfaces;
 using BuildingBlocks.Domain;
 using BuildingBlocks.Infrastructure.EfCore;
 using Microsoft.Data.Sqlite;
