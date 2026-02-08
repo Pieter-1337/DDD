@@ -65,7 +65,20 @@
       "Bash(git -C \"C:\\\\projects\\\\DDD\\\\DDD\" diff)",
       "Bash(git -C \"C:\\\\projects\\\\DDD\\\\DDD\" log --oneline -5)",
       "Bash(git -C \"C:\\\\projects\\\\DDD\\\\DDD\" checkout -- \"Core/Scheduling/Scheduling.Infrastructure/Scheduling.Infrastructure.csproj\")",
-      "Bash(git -C \"C:\\\\projects\\\\DDD\\\\DDD\" add \"BuildingBlocks/BuildingBlocks.Infrastructure.EfCore/BuildingBlocks.Infrastructure.EfCore.csproj\" \"DDD.sln\" \".claude/settings.local.json\")"
+      "Bash(git -C \"C:\\\\projects\\\\DDD\\\\DDD\" add \"BuildingBlocks/BuildingBlocks.Infrastructure.EfCore/BuildingBlocks.Infrastructure.EfCore.csproj\" \"DDD.sln\" \".claude/settings.local.json\")",
+      "Bash(git -C \"C:\\\\projects\\\\DDD\\\\DDD\" commit -m \"$\\(cat <<''EOF''\nAdd SqlServer package to EfCore provider and fix solution folder\n\n- Add Microsoft.EntityFrameworkCore.SqlServer to BuildingBlocks.Infrastructure.EfCore\n  \\(provides migrations support as the EF Core provider package\\)\n- Fix solution folder nesting for EfCore project under \"01. BuildingBlocks\"\n\nCo-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>\nEOF\n\\)\")",
+      "Bash(Select-Object -First 5)",
+      "Bash(docker stop:*)",
+      "Bash(docker rm:*)",
+      "Bash(wsl --shutdown)",
+      "Bash(git -C \"C:/projects/DDD/DDD\" status)",
+      "Bash(git -C \"C:/projects/DDD/DDD\" diff)",
+      "Bash(git -C \"C:/projects/DDD/DDD\" log --oneline -5)",
+      "Bash(git -C \"C:/projects/DDD/DDD\" add \"Directory.Build.targets\" \"scripts/ensure-docker.ps1\" \"scripts/DOCKER_AUTOSTART_FIX.md\")",
+      "Bash(git -C \"C:/projects/DDD/DDD\" commit -m \"$\\(cat <<''EOF''\nfix: prevent build hang when Docker Desktop is not running\n\n- Add timeout parameter to ensure-docker.ps1 script \\(default 60s\\)\n- Add MSBuild timeout \\(90s\\) to EnsureDockerServices target\n- Remove interactive ReadKey that would hang CI/non-interactive builds\n- Add SKIP_DOCKER_CHECK environment variable to bypass Docker check\n- Add helpful error messages with fix instructions\n- Add documentation for the Docker auto-start behavior\n\nCo-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>\nEOF\n\\)\")",
+      "Bash(set SKIP_DOCKER_CHECK=1)",
+      "Bash($env:SKIP_DOCKER_CHECK='1')",
+      "Bash(SKIP_DOCKER_CHECK=1 dotnet build:*)"
     ]
   }
 }
