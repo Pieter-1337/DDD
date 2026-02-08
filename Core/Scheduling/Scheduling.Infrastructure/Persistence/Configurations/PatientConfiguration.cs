@@ -11,6 +11,9 @@ namespace Scheduling.Infrastructure.Persistence.Configurations
             builder.ToTable("Patients");
             builder.HasKey(p => p.Id);
 
+            // Ignore domain events - they are not persisted
+            builder.Ignore(p => p.DomainEvents);
+
             #region Conversions
             builder.Property(p => p.Status)
                 .IsRequired()

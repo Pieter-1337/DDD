@@ -1,4 +1,5 @@
 using BuildingBlocks.Domain;
+using Scheduling.Domain.Patients.Events;
 
 namespace Scheduling.Domain.Patients;
 
@@ -32,6 +33,13 @@ public class Patient : Entity
             Status = status ?? PatientStatus.Active
         };
 
+        patient.AddDomainEvent(new PatientCreatedEvent(
+            patient.Id,
+            patient.FirstName,
+            patient.LastName,
+            patient.Email,
+            patient.DateOfBirth));
+
         return patient;
     }
 
@@ -41,12 +49,14 @@ public class Patient : Entity
         PhoneNumber = phoneNumber?.Trim();
     }
 
-    public void Suspend()
+    public void Suspend(string reason = "")
     {
         if (Status == PatientStatus.Suspended)
             return;
 
         Status = PatientStatus.Suspended;
+
+        AddDomainEvent(new PatientSuspendedEvent(Id, reason));
     }
 
     public void Activate()

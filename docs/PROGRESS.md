@@ -20,7 +20,7 @@
 - [x] Why DDD? - Understanding the problem it solves
 - [x] Entities - Objects with identity (Patient)
 - [x] Aggregates & Aggregate Roots - Consistency boundaries
-- [x] Events - Decided to use integration events only (see Phase 5)
+- [x] Domain Events - Internal decoupling via MediatR (see Phase 5 for integration events)
 - [x] Repositories - Persistence abstraction (interface)
 - [x] Value Objects - Discussed, using primitives pragmatically
 
@@ -38,7 +38,7 @@
 2. **Primitives for simple values** - Email as string, not value object
 3. **Complex values get IDs** - If it needs its own table, make it an entity
 4. **Generic repository base** - `IRepository<T>` and `IUnitOfWork.RepositoryFor<T>()`
-5. **Integration events** - Published via MassTransit/RabbitMQ (see Phase 5)
+5. **Domain events** - Internal via MediatR, integration events via MassTransit (see Phase 5)
 
 ---
 
@@ -51,7 +51,8 @@
 - [x] Repository implementation with EF Core
 - [x] Unit of Work pattern
 - [x] Database migrations
-- [x] Integration event publishing (via UnitOfWork)
+- [x] Domain event dispatching (via MediatR in UnitOfWork)
+- [x] Integration event publishing (via MassTransit in UnitOfWork)
 
 ### Implementation Complete
 
@@ -61,6 +62,7 @@
 - [x] Implement generic Repository<TContext, TEntity>
 - [x] Implement UnitOfWork<TContext> with RepositoryFor<T>()
 - [x] Create database migrations
+- [x] Add domain event dispatching via MediatR
 - [x] Add integration event publishing after SaveChangesAsync
 - [x] Test with API endpoint
 
@@ -68,14 +70,16 @@
 
 1. **BuildingBlocks split** - Separated into `BuildingBlocks.Domain` (pure abstractions) and `BuildingBlocks.Infrastructure` (EF Core implementations)
 2. **Generic repository** - `UnitOfWork.RepositoryFor<T>()` instead of entity-specific repositories
-3. **Event publishing** - Events queued via `QueueIntegrationEvent()` and published after save
+3. **Two-tier event system**:
+   - Domain events: dispatched via MediatR for internal decoupling
+   - Integration events: queued via `QueueIntegrationEvent()` and published to RabbitMQ after save
 
 ### Docs Available
 
 - `phase-2-ef-core/01-setup-efcore.md` - DbContext and configuration
 - `phase-2-ef-core/02-repository-implementation.md` - Repository pattern
 - `phase-2-ef-core/03-database-migrations.md` - Creating the database
-- `phase-2-ef-core/04-event-publishing.md` - Event publishing
+- `phase-2-ef-core/04-domain-event-dispatching.md` - Domain events via MediatR, integration events via MassTransit
 
 ---
 
@@ -214,7 +218,8 @@ This allows using `nameof(GetPatientAsync)` in `CreatedAtAction` calls.
 
 ### Concepts Learned
 
-- [x] Integration events for cross-bounded-context communication
+- [x] Domain events for internal decoupling (via MediatR)
+- [x] Integration events for cross-bounded-context communication (via MassTransit)
 - [x] Intra-domain messaging for async processing
 - [x] RabbitMQ setup with Docker
 - [x] MassTransit for .NET integration
@@ -243,30 +248,42 @@ This allows using `nameof(GetPatientAsync)` in `CreatedAtAction` calls.
 
 ### Key Decisions Made
 
-1. **Integration events via MassTransit**
-   - All events go through RabbitMQ/MassTransit
-   - All events get durability, retry, and dead-letter queues
-   - MediatR used for CQRS (commands/queries)
+1. **Two-tier event system**:
+   - **Domain events**: Internal via MediatR for decoupling within bounded context
+   - **Integration events**: External via MassTransit/RabbitMQ for cross-BC communication
+   - Domain event handlers can queue integration events when crossing boundaries
 
 2. **Event publishing flow**:
-   - Command handler queues events via `_uow.QueueIntegrationEvent()`
-   - Events published after `SaveChangesAsync()` succeeds
-   - Transactional safety: events only published if save succeeds
+   ```
+   Entity raises domain event
+       ↓
+   SaveChangesAsync()
+       ↓
+   DispatchDomainEventsAsync() → MediatR → Domain event handlers (internal)
+       ↓
+   PublishQueuedIntegrationEventsAsync() → MassTransit → RabbitMQ (external)
+   ```
 
 3. **Project structure**:
+   - `BuildingBlocks.Domain` - IDomainEvent, IHasDomainEvents interfaces
    - `BuildingBlocks.Application/Messaging` - IEventBus abstraction
    - `BuildingBlocks.Infrastructure.MassTransit` - MassTransitEventBus implementation
-   - `Shared/IntegrationEvents/Scheduling/` - Integration event contracts
-   - `BC.Infrastructure/Consumers` - Event consumers
+   - `BC.Domain/Entity/Events/` - Domain events (internal)
+   - `Shared/IntegrationEvents/` - Integration event contracts (external)
+   - `BC.Infrastructure/Consumers` - MassTransit consumers
 
 ### Docs Available
 
-- `phase-5-event-driven/01-event-driven-overview.md` - What is event-driven architecture, integration events only
+- `phase-5-event-driven/01-event-driven-overview.md` - Domain events vs integration events, full architecture
 - `phase-5-event-driven/02-rabbitmq-masstransit-setup.md` - Infrastructure setup, project structure
-- `phase-5-event-driven/03-integration-events.md` - Publishing and consuming events
+- `phase-5-event-driven/03-integration-events.md` - Publishing and consuming integration events
 - `phase-5-event-driven/04-idempotency-error-handling.md` - DLQ, retries, idempotent handlers
 - `phase-5-event-driven/05-sagas-orchestration.md` - Saga pattern for distributed workflows
 - `phase-5-event-driven/06-event-versioning.md` - Schema evolution and backwards compatibility
+
+**See also:**
+- `phase-1-ddd-fundamentals/04-domain-events.md` - Domain events concept and implementation
+- `phase-2-ef-core/04-domain-event-dispatching.md` - How domain events are dispatched via MediatR
 
 ---
 

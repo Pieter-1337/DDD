@@ -28,9 +28,23 @@ Each phase directory contains:
 
 **Phase 5: Event-Driven Architecture** - In Progress
 
-- Events are published via MassTransit/RabbitMQ
-- Events queued in command handlers via `_uow.QueueIntegrationEvent()`
-- Published after `SaveChangesAsync()` succeeds
-- MediatR used for CQRS (commands/queries)
+### Two Types of Events
+
+| Type | Purpose | Transport |
+|------|---------|-----------|
+| **Domain Events** | Internal decoupling within bounded context | MediatR (in-memory) |
+| **Integration Events** | Cross-bounded-context communication | MassTransit/RabbitMQ |
+
+### Event Flow
+
+```
+Entity raises domain event
+    ↓
+SaveChangesAsync()
+    ↓
+DispatchDomainEventsAsync() → MediatR → Domain event handlers (internal)
+    ↓
+PublishQueuedIntegrationEventsAsync() → MassTransit → RabbitMQ (external)
+```
 
 See [PROGRESS.md](./PROGRESS.md) for detailed status.

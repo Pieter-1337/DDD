@@ -25,6 +25,97 @@ Event-Driven (Asynchronous):
 
 ---
 
+## Two Types of Events
+
+This project uses **two types of events** for different purposes:
+
+| Type | Purpose | Transport | Scope |
+|------|---------|-----------|-------|
+| **Domain Events** | Internal decoupling within a bounded context | MediatR (in-memory) | Same process |
+| **Integration Events** | Cross-bounded-context communication | MassTransit/RabbitMQ | Across services |
+
+### The Full Event Flow
+
+```
+Entity.Suspend()
+    |
+    | AddDomainEvent(PatientSuspendedEvent)
+    v
+SaveChangesAsync()
+    |
+    +-- 1. Save to database
+    |
+    +-- 2. DispatchDomainEventsAsync() -> MediatR (internal)
+    |       |
+    |       +-- AuditHandler (log the action)
+    |       +-- NotificationHandler (send email)
+    |       +-- IntegrationEventHandler -> QueueIntegrationEvent()
+    |
+    +-- 3. PublishQueuedIntegrationEventsAsync() -> RabbitMQ (external)
+            |
+            +-- Billing context
+            +-- Analytics context
+```
+
+### Domain Events (Internal)
+
+Domain events enable decoupling **within** a bounded context:
+
+```csharp
+// Entity raises domain event
+public void Suspend()
+{
+    Status = PatientStatus.Suspended;
+    AddDomainEvent(new PatientSuspendedEvent(Id));
+}
+
+// Handler reacts (in same process)
+public class AuditPatientSuspensionHandler : INotificationHandler<PatientSuspendedEvent>
+{
+    public Task Handle(PatientSuspendedEvent evt, CancellationToken ct)
+    {
+        // Log audit entry
+        return Task.CompletedTask;
+    }
+}
+```
+
+**Use for:**
+- Audit logging
+- Cache invalidation
+- Sending notifications
+- Internal workflow triggers
+
+### Integration Events (External)
+
+Integration events communicate **across** bounded contexts:
+
+```csharp
+// Queued in command handler or domain event handler
+_uow.QueueIntegrationEvent(new PatientSuspendedIntegrationEvent
+{
+    PatientId = patient.Id,
+    SuspendedAt = DateTime.UtcNow
+});
+
+// Consumed in another bounded context
+public class PatientSuspendedConsumer : IConsumer<PatientSuspendedIntegrationEvent>
+{
+    public Task Consume(ConsumeContext<PatientSuspendedIntegrationEvent> context)
+    {
+        // Billing: pause invoicing
+        return Task.CompletedTask;
+    }
+}
+```
+
+**Use for:**
+- Cross-context communication
+- Microservice integration
+- External system notifications
+
+---
+
 ## Messages vs Events
 
 Two types of communication through a message broker:

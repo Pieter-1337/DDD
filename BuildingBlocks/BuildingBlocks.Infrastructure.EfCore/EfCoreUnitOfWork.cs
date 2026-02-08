@@ -1,6 +1,8 @@
 using BuildingBlocks.Application.Interfaces;
 using BuildingBlocks.Application.Messaging;
 using BuildingBlocks.Domain;
+using BuildingBlocks.Domain.Events;
+using MediatR;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
 
@@ -10,13 +12,15 @@ public class EfCoreUnitOfWork<TContext> : IUnitOfWork where TContext : DbContext
 {
     private readonly TContext _context;
     private readonly IEventBus? _eventBus;
+    private readonly IMediator? _mediator;
     private readonly List<IIntegrationEvent> _queuedIntegrationEvents = [];
     private IDbContextTransaction? _transaction;
 
-    public EfCoreUnitOfWork(TContext context, IEventBus? eventBus = null)
+    public EfCoreUnitOfWork(TContext context, IEventBus? eventBus = null, IMediator? mediator = null)
     {
         _context = context;
         _eventBus = eventBus;
+        _mediator = mediator;
     }
 
     public void QueueIntegrationEvent(IIntegrationEvent integrationEvent)
@@ -26,6 +30,9 @@ public class EfCoreUnitOfWork<TContext> : IUnitOfWork where TContext : DbContext
 
     public async Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
     {
+        // Dispatch domain events BEFORE saving (allows handlers to modify state)
+        await DispatchDomainEventsAsync(cancellationToken);
+
         // Capture the queued integration events before saving
         var integrationEventsToPublish = _queuedIntegrationEvents.ToList();
         _queuedIntegrationEvents.Clear();
@@ -41,6 +48,38 @@ public class EfCoreUnitOfWork<TContext> : IUnitOfWork where TContext : DbContext
     public IRepository<T> RepositoryFor<T>() where T : class, IEntityBase
     {
         return new EfCoreRepository<TContext, T>(_context);
+    }
+
+    private async Task DispatchDomainEventsAsync(CancellationToken cancellationToken)
+    {
+        if (_mediator is null)
+        {
+            return;
+        }
+
+        // Find all entities with domain events
+        var entitiesWithEvents = _context.ChangeTracker
+            .Entries<IHasDomainEvents>()
+            .Where(e => e.Entity.DomainEvents.Count > 0)
+            .Select(e => e.Entity)
+            .ToList();
+
+        // Collect all domain events
+        var domainEvents = entitiesWithEvents
+            .SelectMany(e => e.DomainEvents)
+            .ToList();
+
+        // Clear events from entities before publishing (prevents re-processing)
+        foreach (var entity in entitiesWithEvents)
+        {
+            entity.ClearDomainEvents();
+        }
+
+        // Publish each domain event via MediatR
+        foreach (var domainEvent in domainEvents)
+        {
+            await _mediator.Publish(domainEvent, cancellationToken);
+        }
     }
 
     private async Task PublishIntegrationEventsAsync(List<IIntegrationEvent> integrationEvents, CancellationToken cancellationToken)
