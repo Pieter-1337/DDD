@@ -34,28 +34,45 @@ This project uses **two types of events** for different purposes:
 | **Domain Events** | Internal decoupling within a bounded context | MediatR (in-memory) | Same process |
 | **Integration Events** | Cross-bounded-context communication | MassTransit/RabbitMQ | Across services |
 
-### The Full Event Flow
+### The Full Event Flow (With TransactionBehavior)
+
+When using commands wrapped in `TransactionBehavior`, the flow ensures transactional consistency:
 
 ```
-Entity.Suspend()
-    |
-    | AddDomainEvent(PatientSuspendedEvent)
-    v
-SaveChangesAsync()
-    |
-    +-- 1. Save to database
-    |
-    +-- 2. DispatchDomainEventsAsync() -> MediatR (internal)
-    |       |
-    |       +-- AuditHandler (log the action)
-    |       +-- NotificationHandler (send email)
-    |       +-- IntegrationEventHandler -> QueueIntegrationEvent()
-    |
-    +-- 3. PublishQueuedIntegrationEventsAsync() -> RabbitMQ (external)
-            |
-            +-- Billing context
-            +-- Analytics context
+TransactionBehavior.Handle()
+  |
+  +-- BeginTransactionAsync()
+  |
+  +-- Handler runs
+  |     |
+  |     +-- Entity.Suspend()
+  |     |       +-- AddDomainEvent(PatientSuspendedEvent)
+  |     |
+  |     +-- _uow.SaveChangesAsync()
+  |           |
+  |           +-- 1. DispatchDomainEventsAsync() -> MediatR (BEFORE DB save)
+  |           |       +-- AuditHandler (log the action)
+  |           |       +-- NotificationHandler (send email)
+  |           |       +-- IntegrationEventHandler -> QueueIntegrationEvent()
+  |           |
+  |           +-- 2. _context.SaveChangesAsync() (DB save, in transaction)
+  |           |
+  |           +-- 3. [integration events queued, NOT published yet]
+  |
+  +-- CloseTransactionAsync()
+        |
+        +-- CommitAsync() (transaction committed)
+        |
+        +-- PublishAndClearIntegrationEventsAsync() -> RabbitMQ (AFTER commit)
+                +-- Billing context
+                +-- Analytics context
 ```
+
+**Key guarantees:**
+- Domain events dispatch BEFORE DB save (handlers can modify state in same transaction)
+- If a domain event handler throws, the entire transaction rolls back
+- Integration events are published AFTER the transaction commits
+- On rollback, queued integration events are discarded (never published)
 
 ### Domain Events (Internal)
 

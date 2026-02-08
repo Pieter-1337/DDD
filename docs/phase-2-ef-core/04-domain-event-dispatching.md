@@ -10,28 +10,68 @@ This document explains how domain events are dispatched via MediatR during `Save
 
 ## Architecture
 
+### With TransactionBehavior (Commands)
+
+When a command is wrapped in a transaction by `TransactionBehavior`, the flow ensures integration events are only published after a successful commit:
+
 ```
-Entity raises domain event
+TransactionBehavior.Handle()
+  |
+  +-- BeginTransactionAsync()
+  |
+  +-- Handler runs
+  |     |
+  |     +-- Entity.DoSomething()
+  |     |       +-- AddDomainEvent(SomethingHappenedEvent)
+  |     |
+  |     +-- _uow.QueueIntegrationEvent(SomethingHappenedIntegrationEvent)
+  |     |
+  |     +-- _uow.SaveChangesAsync()
+  |           |
+  |           +-- 1. DispatchDomainEventsAsync() via MediatR (BEFORE DB save)
+  |           |       +-- Handler 1 (audit logging)
+  |           |       +-- Handler 2 (send notification)
+  |           |       +-- Handler 3 (queue more integration events)
+  |           |
+  |           +-- 2. _context.SaveChangesAsync() (DB save, in transaction)
+  |           |
+  |           +-- 3. [integration events remain queued - NOT published yet]
+  |
+  +-- CloseTransactionAsync()
+        |
+        +-- Success? -> CommitAsync()
+        |               |
+        |               +-- PublishAndClearIntegrationEventsAsync() via MassTransit
+        |                       +-- RabbitMQ -> Other bounded contexts
+        |
+        +-- Exception? -> RollbackAsync()
+                          |
+                          +-- _queuedIntegrationEvents.Clear() (events discarded)
+```
+
+### Without Transaction (Queries, Non-Command Flows)
+
+When there is no active transaction, integration events are published immediately in `SaveChangesAsync()`:
+
+```
+SaveChangesAsync() (no transaction)
     |
-    v
-SaveChangesAsync()
+    +-- 1. DispatchDomainEventsAsync() via MediatR
     |
-    +-- 1. Collect domain events from entities
+    +-- 2. _context.SaveChangesAsync() (DB save)
     |
-    +-- 2. Clear domain events from entities
-    |
-    +-- 3. Save changes to database
-    |
-    +-- 4. DispatchDomainEventsAsync() via MediatR
-    |       |
-    |       +-- Handler 1 (audit logging)
-    |       +-- Handler 2 (send notification)
-    |       +-- Handler 3 (queue integration event)
-    |
-    +-- 5. PublishQueuedIntegrationEventsAsync() via MassTransit
-            |
+    +-- 3. PublishAndClearIntegrationEventsAsync() via MassTransit (immediate)
             +-- RabbitMQ -> Other bounded contexts
 ```
+
+### Key Design Decisions
+
+| Decision | Rationale |
+|----------|-----------|
+| Domain events dispatch BEFORE DB save | Allows handlers to modify state that gets saved in the same transaction |
+| Integration events publish AFTER commit | Guarantees data is persisted before notifying other systems |
+| Rollback discards queued events | Prevents publishing events for operations that failed |
+| No transaction = immediate publish | Maintains backwards compatibility for non-command flows |
 
 ---
 
@@ -39,7 +79,7 @@ SaveChangesAsync()
 
 ### Step 1: EfCoreUnitOfWork with Domain Event Dispatching
 
-The UnitOfWork collects domain events from entities and dispatches them after save:
+The UnitOfWork collects domain events from entities, dispatches them via MediatR, and coordinates integration event publishing with transactions.
 
 Location: `BuildingBlocks/BuildingBlocks.Infrastructure.EfCore/EfCoreUnitOfWork.cs`
 
@@ -47,26 +87,26 @@ Location: `BuildingBlocks/BuildingBlocks.Infrastructure.EfCore/EfCoreUnitOfWork.
 using BuildingBlocks.Application.Interfaces;
 using BuildingBlocks.Application.Messaging;
 using BuildingBlocks.Domain;
+using BuildingBlocks.Domain.Events;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage;
 
 namespace BuildingBlocks.Infrastructure.EfCore;
 
 public class EfCoreUnitOfWork<TContext> : IUnitOfWork where TContext : DbContext
 {
     private readonly TContext _context;
-    private readonly IMediator _mediator;
     private readonly IEventBus? _eventBus;
+    private readonly IMediator? _mediator;
     private readonly List<IIntegrationEvent> _queuedIntegrationEvents = [];
+    private IDbContextTransaction? _transaction;
 
-    public EfCoreUnitOfWork(
-        TContext context,
-        IMediator mediator,
-        IEventBus? eventBus = null)
+    public EfCoreUnitOfWork(TContext context, IEventBus? eventBus = null, IMediator? mediator = null)
     {
         _context = context;
-        _mediator = mediator;
         _eventBus = eventBus;
+        _mediator = mediator;
     }
 
     public void QueueIntegrationEvent(IIntegrationEvent integrationEvent)
@@ -76,80 +116,104 @@ public class EfCoreUnitOfWork<TContext> : IUnitOfWork where TContext : DbContext
 
     public async Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
     {
-        // 1. Collect domain events before saving
-        var domainEvents = CollectDomainEvents();
+        // 1. Dispatch domain events BEFORE saving (allows handlers to modify state)
+        await DispatchDomainEventsAsync(cancellationToken);
 
         // 2. Save changes to database
         var result = await _context.SaveChangesAsync(cancellationToken);
 
-        // 3. Dispatch domain events (internal, via MediatR)
-        await DispatchDomainEventsAsync(domainEvents, cancellationToken);
-
-        // 4. Publish integration events (external, via MassTransit)
-        await PublishQueuedIntegrationEventsAsync(cancellationToken);
+        // 3. Only publish integration events if NOT in a transaction
+        //    If in a transaction, they'll be published after commit in CloseTransactionAsync
+        if (_transaction is null)
+        {
+            await PublishAndClearIntegrationEventsAsync(cancellationToken);
+        }
 
         return result;
     }
 
-    private List<IDomainEvent> CollectDomainEvents()
+    private async Task DispatchDomainEventsAsync(CancellationToken cancellationToken)
     {
+        if (_mediator is null) return;
+
+        // Find all entities with domain events
         var entitiesWithEvents = _context.ChangeTracker
             .Entries<IHasDomainEvents>()
             .Where(e => e.Entity.DomainEvents.Count > 0)
             .Select(e => e.Entity)
             .ToList();
 
+        // Collect all domain events
         var domainEvents = entitiesWithEvents
             .SelectMany(e => e.DomainEvents)
             .ToList();
 
-        // Clear events from entities to prevent re-dispatch
+        // Clear events from entities before publishing (prevents re-processing)
         foreach (var entity in entitiesWithEvents)
         {
             entity.ClearDomainEvents();
         }
 
-        return domainEvents;
-    }
-
-    private async Task DispatchDomainEventsAsync(
-        List<IDomainEvent> domainEvents,
-        CancellationToken cancellationToken)
-    {
+        // Publish each domain event via MediatR
         foreach (var domainEvent in domainEvents)
         {
             await _mediator.Publish(domainEvent, cancellationToken);
         }
     }
 
-    private async Task PublishQueuedIntegrationEventsAsync(CancellationToken cancellationToken)
+    private async Task PublishAndClearIntegrationEventsAsync(CancellationToken cancellationToken)
     {
-        if (_eventBus is null || _queuedIntegrationEvents.Count == 0)
-            return;
+        if (_eventBus is null || _queuedIntegrationEvents.Count == 0) return;
 
-        var events = _queuedIntegrationEvents.ToList();
+        var eventsToPublish = _queuedIntegrationEvents.ToList();
         _queuedIntegrationEvents.Clear();
 
-        foreach (var integrationEvent in events)
+        foreach (var integrationEvent in eventsToPublish)
         {
             await _eventBus.PublishAsync(integrationEvent, cancellationToken);
         }
+    }
+
+    public async Task BeginTransactionAsync(CancellationToken cancellationToken = default)
+    {
+        _transaction = await _context.Database.BeginTransactionAsync(cancellationToken);
+    }
+
+    public async Task CloseTransactionAsync(Exception? exception = null, CancellationToken cancellationToken = default)
+    {
+        if (_transaction is null) return;
+
+        if (exception is not null)
+        {
+            await _transaction.RollbackAsync(cancellationToken);
+            // Discard queued integration events on rollback
+            _queuedIntegrationEvents.Clear();
+        }
+        else
+        {
+            await _transaction.CommitAsync(cancellationToken);
+            // Publish integration events AFTER successful commit
+            await PublishAndClearIntegrationEventsAsync(cancellationToken);
+        }
+
+        await _transaction.DisposeAsync();
+        _transaction = null;
     }
 
     public IRepository<T> RepositoryFor<T>() where T : class, IEntityBase
     {
         return new EfCoreRepository<TContext, T>(_context);
     }
-
-    // Transaction methods omitted for brevity...
 }
 ```
 
 **Key points:**
-- Domain events collected from entities via `IHasDomainEvents`
-- Events cleared from entities before dispatch (prevents duplicates)
-- Domain events dispatched via MediatR (`INotificationHandler<T>`)
-- Integration events published via MassTransit (`IEventBus`)
+- Domain events are dispatched BEFORE the database save (within the transaction)
+- If a domain event handler fails, the entire transaction rolls back
+- Integration events are queued but NOT published during `SaveChangesAsync()` when in a transaction
+- Integration events are published AFTER `CommitAsync()` in `CloseTransactionAsync()`
+- On rollback, queued integration events are discarded (never published)
+- Without a transaction, integration events publish immediately in `SaveChangesAsync()`
 
 ---
 
@@ -266,53 +330,93 @@ public async Task<Unit> Handle(SuspendPatientCommand cmd, CancellationToken ct)
 
 ## Flow Comparison
 
-### With Domain Events (Full Pattern)
+### With Domain Events (Full Pattern) - Inside TransactionBehavior
 
 ```
 POST /patients/{id}/suspend
     |
     v
-SuspendPatientCommandHandler
+TransactionBehavior
     |
-    +-- patient.Suspend()
+    +-- BeginTransactionAsync()
+    |
+    +-- SuspendPatientCommandHandler
     |       |
-    |       +-- AddDomainEvent(PatientSuspendedEvent)
+    |       +-- patient.Suspend()
+    |       |       +-- AddDomainEvent(PatientSuspendedEvent)
+    |       |
+    |       +-- _uow.SaveChangesAsync()
+    |               |
+    |               +-- DispatchDomainEventsAsync() [BEFORE DB save]
+    |               |       +-- PatientSuspendedEventHandler
+    |               |               +-- Audit log (internal)
+    |               |               +-- QueueIntegrationEvent() (queued, not published)
+    |               |
+    |               +-- _context.SaveChangesAsync() [DB save in transaction]
+    |               |
+    |               +-- [integration events still queued]
     |
-    +-- _uow.SaveChangesAsync()
+    +-- CloseTransactionAsync()
             |
-            +-- Save to DB
+            +-- CommitAsync()
             |
-            +-- DispatchDomainEventsAsync()
-            |       |
-            |       +-- PatientSuspendedEventHandler
-            |               |
-            |               +-- Audit log (internal)
-            |               +-- QueueIntegrationEvent() (external)
-            |
-            +-- PublishQueuedIntegrationEventsAsync()
-                    |
+            +-- PublishAndClearIntegrationEventsAsync() [AFTER commit]
                     +-- RabbitMQ -> Billing, Notifications
 ```
 
-### Without Domain Events (Current Approach)
+### Without Domain Events (Current Approach) - Inside TransactionBehavior
 
 ```
 POST /patients/{id}/suspend
     |
     v
-SuspendPatientCommandHandler
+TransactionBehavior
     |
-    +-- patient.Suspend()
+    +-- BeginTransactionAsync()
     |
-    +-- _uow.QueueIntegrationEvent(PatientSuspendedIntegrationEvent)
+    +-- SuspendPatientCommandHandler
+    |       |
+    |       +-- patient.Suspend()
+    |       |
+    |       +-- _uow.QueueIntegrationEvent(PatientSuspendedIntegrationEvent)
+    |       |
+    |       +-- _uow.SaveChangesAsync()
+    |               |
+    |               +-- _context.SaveChangesAsync() [DB save in transaction]
+    |               |
+    |               +-- [integration events still queued]
     |
-    +-- _uow.SaveChangesAsync()
+    +-- CloseTransactionAsync()
             |
-            +-- Save to DB
+            +-- CommitAsync()
             |
-            +-- PublishQueuedIntegrationEventsAsync()
-                    |
+            +-- PublishAndClearIntegrationEventsAsync() [AFTER commit]
                     +-- RabbitMQ -> Billing, Notifications
+```
+
+### Rollback Scenario
+
+```
+POST /patients/{id}/suspend
+    |
+    v
+TransactionBehavior
+    |
+    +-- BeginTransactionAsync()
+    |
+    +-- SuspendPatientCommandHandler
+    |       |
+    |       +-- patient.Suspend()
+    |       +-- _uow.QueueIntegrationEvent(...)
+    |       +-- _uow.SaveChangesAsync() --> EXCEPTION!
+    |
+    +-- CloseTransactionAsync(exception)
+            |
+            +-- RollbackAsync()
+            |
+            +-- _queuedIntegrationEvents.Clear() [events DISCARDED]
+            |
+            +-- [nothing published to RabbitMQ]
 ```
 
 ---

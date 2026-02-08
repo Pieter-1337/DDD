@@ -25,7 +25,8 @@ Integration Events
 | - Cross bounded context communication                                   |
 | - Public contract between services                                      |
 | - Queued in command handler via _uow.QueueIntegrationEvent()            |
-| - Published after SaveChangesAsync() succeeds                           |
+| - Published AFTER transaction commits (via TransactionBehavior)         |
+| - Discarded on transaction rollback                                     |
 | - Get durability, retry, and dead-letter queues                         |
 +------------------------------------------------------------------------+
 ```
@@ -113,19 +114,28 @@ public record PatientCreatedIntegrationEvent : IntegrationEventBase
 
 ## Publishing Integration Events
 
-### The Pattern: Command Handler Queues, UnitOfWork Publishes
+### The Pattern: Command Handler Queues, TransactionBehavior Controls Publishing
 
-The command handler queues integration events via `_uow.QueueIntegrationEvent()`. After `SaveChangesAsync()` succeeds, the UnitOfWork publishes all queued events to RabbitMQ.
+The command handler queues integration events via `_uow.QueueIntegrationEvent()`. With `TransactionBehavior`, integration events are only published AFTER the transaction commits successfully.
 
 ```
-Command Handler                       UnitOfWork
-+------------------------+           +----------------------------+
-| 1. Execute domain logic|           | 4. SaveChangesAsync()      |
-| 2. Add to repository   |           | 5. If success, publish     |
-| 3. Queue integration   |---------->|    all queued events       |
-|    event               |           |    to RabbitMQ             |
-+------------------------+           +----------------------------+
+TransactionBehavior                   UnitOfWork
++-----------------------------+       +-------------------------------------+
+| 1. BeginTransactionAsync()  |       |                                     |
+| 2. Call handler             |------>| SaveChangesAsync():                 |
+|                             |       |   - DispatchDomainEventsAsync()     |
+|                             |       |   - _context.SaveChangesAsync()     |
+|                             |       |   - [events queued, NOT published]  |
+| 3. CloseTransactionAsync()  |       |                                     |
+|    - CommitAsync()          |------>| PublishAndClearIntegrationEventsAsync() |
+|    - Publish events         |       |   - Publish to RabbitMQ             |
++-----------------------------+       +-------------------------------------+
 ```
+
+**Why this matters:**
+- Events are never published for rolled-back operations
+- Consumers only see events for data that is actually persisted
+- Provides transactional consistency between DB and message broker
 
 ### Publishing from Command Handler
 
@@ -183,7 +193,7 @@ public class CreatePatientCommandHandler : IRequestHandler<CreatePatientCommand,
 }
 ```
 
-### Flow Diagram
+### Flow Diagram (With TransactionBehavior)
 
 ```
 +-----------------------------------------------------------------------------+
@@ -200,6 +210,13 @@ public class CreatePatientCommandHandler : IRequestHandler<CreatePatientCommand,
          | MediatR.Send()
          v
 +------------------+
+| TransactionBehavior                                                         |
++--------+---------+
+         |
+         +-- BeginTransactionAsync()
+         |
+         v
++------------------+
 | CreatePatient    |
 | CommandHandler   |
 +--------+---------+
@@ -212,16 +229,21 @@ public class CreatePatientCommandHandler : IRequestHandler<CreatePatientCommand,
 +---------+----------------------------------------+
          |
          v
-+------------------+
-| UnitOfWork       |
-| SaveChangesAsync |
-+--------+---------+
++--------------------------------------------------+
+| UnitOfWork.SaveChangesAsync()                    |
+|   +-- DispatchDomainEventsAsync() [if any]       |
+|   +-- _context.SaveChangesAsync() [in txn]       |
+|   +-- [events queued, NOT published yet]         |
++---------+----------------------------------------+
          |
-         +-- 1. Save to SQL Server
+         v
++--------------------------------------------------+
+| TransactionBehavior.CloseTransactionAsync()      |
+|   +-- CommitAsync()                              |
+|   +-- PublishAndClearIntegrationEventsAsync()    |
++---------+----------------------------------------+
          |
-         +-- 2. Publish queued events to RabbitMQ
-                    |
-                    v
+         v
          +---------------------------+
          |       RabbitMQ            |
          | PatientCreatedIntegration |
@@ -234,15 +256,18 @@ public class CreatePatientCommandHandler : IRequestHandler<CreatePatientCommand,
         Consumer  Consumer  Consumer
 ```
 
+**Note:** If the transaction rolls back (due to an exception), queued integration events are discarded and nothing is published to RabbitMQ.
+
 ### Why This Pattern?
 
 | Benefit | Description |
 |---------|-------------|
-| **Transactional safety** | Events only published if save succeeds |
+| **Transactional safety** | Events only published after transaction commits |
+| **Rollback protection** | Failed transactions discard queued events automatically |
 | **Explicit intent** | Command handler decides what to publish |
-| **Simple flow** | No intermediate event handlers |
+| **Simple flow** | No intermediate event handlers needed |
 | **Testable** | Easy to verify queued events in tests |
-| **Single responsibility** | UnitOfWork handles the publishing mechanics |
+| **Single responsibility** | TransactionBehavior coordinates commit + publish |
 
 ---
 
@@ -525,11 +550,12 @@ public record PaymentReceivedIntegrationEvent : IntegrationEventBase
 
 | Mistake | Problem | Solution |
 |---------|---------|----------|
-| Publishing before save | Data might not persist | UnitOfWork publishes after SaveChangesAsync |
+| Publishing before commit | Data might not persist (txn could rollback) | TransactionBehavior publishes after CommitAsync |
 | Huge event payloads | Slow, memory issues | Include only necessary data |
 | Synchronous request-response | Defeats async benefits | Use events, cache data locally |
 | No event ID | Can't ensure idempotency | Always include unique EventId (IntegrationEventBase provides this) |
 | Forgetting to queue event | Other BCs don't get notified | Review command handlers for cross-BC impact |
+| Publishing in non-transactional flow | Events may publish before data is committed | Use Command<T> base type to ensure TransactionBehavior wraps the handler |
 
 ---
 

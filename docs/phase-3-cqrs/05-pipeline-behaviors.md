@@ -639,6 +639,7 @@ public class AdminLoggingBehavior<TRequest, TResponse> : LoggingBehavior<TReques
 - Uses type-based checking (`Command<T>`) not string-based naming conventions
 - Commits on `ValidationException` because validators may have modified state (e.g., checked existence)
 - Uses `IUnitOfWork` so it works with any bounded context's DbContext
+- **Ensures integration events are only published after successful commit**
 
 **When to use it:**
 - Commands that modify multiple aggregates
@@ -650,15 +651,35 @@ public class AdminLoggingBehavior<TRequest, TResponse> : LoggingBehavior<TReques
 - EF Core already wraps `SaveChangesAsync()` in an implicit transaction
 - For read-only queries (behavior skips these automatically based on type)
 
-**Flow:**
+**Flow (including event publishing):**
 ```
 Command arrives (inherits from Command<T>)
-  → BeginTransactionAsync()
-    → Handler executes (may call SaveChangesAsync multiple times)
-      → Success? → CommitAsync()
-      → ValidationException? → CommitAsync() → Re-throw (validators may have side effects)
-      → Other Exception? → RollbackAsync() → Re-throw
+  |
+  +-- BeginTransactionAsync()
+  |
+  +-- Handler executes
+  |     |
+  |     +-- SaveChangesAsync()
+  |           +-- DispatchDomainEventsAsync() [MediatR, BEFORE DB save]
+  |           +-- _context.SaveChangesAsync() [DB save, in transaction]
+  |           +-- [integration events queued, NOT published yet]
+  |
+  +-- CloseTransactionAsync()
+        |
+        +-- Success? --> CommitAsync()
+        |                 +-- PublishAndClearIntegrationEventsAsync() [AFTER commit]
+        |
+        +-- ValidationException? --> CommitAsync() + Re-throw
+        |                             +-- PublishAndClearIntegrationEventsAsync() [AFTER commit]
+        |
+        +-- Other Exception? --> RollbackAsync() + Re-throw
+                                  +-- _queuedIntegrationEvents.Clear() [events DISCARDED]
 ```
+
+**Key insight:** Integration events are deferred until after the transaction commits. This guarantees that:
+1. Events are never published for rolled-back operations
+2. Consumers only see events for data that is actually persisted
+3. If publishing fails after commit, the data is still saved (at-least-once delivery)
 
 Location: `BuildingBlocks/BuildingBlocks.Application/Behaviors/TransactionBehavior.cs`
 
