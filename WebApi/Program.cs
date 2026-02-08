@@ -1,6 +1,8 @@
 using BuildingBlocks.Application;
+using BuildingBlocks.Infrastructure.MassTransit.Configuration;
 using BuildingBlocks.WebApplications.Filters;
 using BuildingBlocks.WebApplications.Json;
+using MassTransit;
 using Scheduling.Application;
 using Scheduling.Infrastructure;
 
@@ -20,11 +22,18 @@ builder.Services.AddControllers(options =>
 // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
 builder.Services.AddOpenApi();
 
-//Add infrastructure
+// Add infrastructure
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection") ?? throw new InvalidOperationException("Connection string 'DefaultConnection' not found.");
 builder.Services.AddSchedulingInfrastructure(connectionString);
 builder.Services.AddSchedulingApplication();
 builder.Services.AddDefaultPipelineBehaviors();
+
+// Add MassTransit for event-driven messaging
+builder.Services.AddMassTransitEventBus(builder.Configuration, configure =>
+{
+    // Register consumers from bounded context assemblies
+    configure.AddConsumers(typeof(Scheduling.Infrastructure.ServiceCollectionExtensions).Assembly);
+});
 
 var app = builder.Build();
 

@@ -68,36 +68,52 @@ This setup separates messaging concerns across multiple projects, following Clea
 | Project | Purpose | Contains |
 |---------|---------|----------|
 | **BuildingBlocks.Application** | Application-layer abstractions | `IEventBus`, `IIntegrationEvent`, `IntegrationEventBase` |
-| **BuildingBlocks.Infrastructure.MassTransit** | MassTransit provider | `MassTransitEventBus`, RabbitMQ configuration |
-| **BuildingBlocks.Infrastructure.EfCore** | EF Core provider | EF Core implementations, repositories |
-| **Shared/IntegrationEvents** | Integration event definitions | `AppointmentScheduledIntegrationEvent`, `PatientCreatedIntegrationEvent` |
-| **[BC].Infrastructure** | BC-specific implementation | Event publishers and consumers |
+| **BuildingBlocks.Infrastructure.MassTransit** | MassTransit provider | `MassTransitEventBus`, `AddMassTransitEventBus()` extension |
+| **Shared/IntegrationEvents** | Integration event definitions | `PatientCreatedIntegrationEvent`, etc. |
+| **[BC].Infrastructure** | BC-specific consumers | Message consumers for the bounded context |
+| **WebApi** | Composition root | MassTransit registration with consumer discovery |
 
-### Why This Separation?
+### Where MassTransit Gets Registered
 
-**BuildingBlocks.Application/Messaging/** = Technology-agnostic abstractions
-- Defines `IEventBus` interface for publishing events
-- Contains `IntegrationEventBase` with common event metadata
-- NO dependencies on MassTransit, RabbitMQ, or any specific implementation
-- Can be referenced by Application layer projects without coupling to infrastructure
+MassTransit is registered in `WebApi/Program.cs` (the composition root), **not** in bounded context infrastructure layers:
 
-**BuildingBlocks.Infrastructure.MassTransit/** = MassTransit-specific implementation
-- Implements `IEventBus` using MassTransit
-- Contains RabbitMQ configuration and setup
-- Can be swapped for other providers (e.g., Wolverine, Rebus) without affecting other projects
-- Only referenced by host projects (WebApi, Worker)
+```csharp
+// WebApi/Program.cs
+builder.Services.AddMassTransitEventBus(builder.Configuration, configure =>
+{
+    // Register consumers from bounded context assemblies
+    configure.AddConsumers(typeof(Scheduling.Infrastructure.ServiceCollectionExtensions).Assembly);
+});
+```
 
-**BuildingBlocks.Infrastructure.EfCore/** = EF Core-specific implementation
-- Separate infrastructure concern from messaging
-- Contains repository patterns and database context base classes
-- Follows the same pattern: abstractions in Application, implementation in Infrastructure
+### Why Register in the Host, Not Per-Bounded Context?
 
-**Shared/IntegrationEvents** = Domain-specific public contracts
-- Your healthcare domain's integration events
-- Organized by bounded context: `Scheduling/`, `Billing/`, `MedicalRecords/`
-- Referenced by both publishers and consumers
+**In a modular monolith** (like this project):
+- One WebApi hosts all bounded contexts
+- One MassTransit registration handles all messaging
+- Consumer assemblies are passed to `AddConsumers()` for discovery
 
-**Key Principle**: Bounded contexts never reference each other directly, only the shared IntegrationEvents project. This preserves autonomy and prevents tight coupling. The abstraction layer (`BuildingBlocks.Application`) allows swapping messaging providers without changing business logic.
+**In a microservices architecture**:
+- Each service has its own API/host project
+- Each service registers MassTransit in its own `Program.cs`
+- Each service only knows about its own consumers
+
+**The key insight**: There is no benefit to abstracting MassTransit registration per-bounded context. The host project is already the composition root where infrastructure gets wired up. Adding a per-BC registration layer (like `AddSchedulingMessaging()`) only adds complexity without benefit.
+
+### What Lives Where
+
+**BuildingBlocks.Infrastructure.MassTransit** provides:
+- `MassTransitEventBus` - implements `IEventBus` abstraction
+- `AddMassTransitEventBus()` - extension method for host registration
+- RabbitMQ transport configuration and retry policies
+
+**[BC].Infrastructure** provides:
+- Message consumers (e.g., `PatientCreatedConsumer`)
+- These get discovered via `AddConsumers(assembly)`
+
+**WebApi/Host** does:
+- Calls `AddMassTransitEventBus()` once
+- Passes in assemblies containing consumers
 
 ### Project Structure Diagram
 
@@ -105,57 +121,44 @@ This setup separates messaging concerns across multiple projects, following Clea
 src/
 ├── BuildingBlocks/
 │   ├── BuildingBlocks.Application/           # Application-layer abstractions
-│   │   ├── Cqrs/                            # CQRS abstractions (ICommand, IQuery, etc.)
-│   │   └── Messaging/                       # Messaging abstractions
-│   │       ├── IEventBus.cs                 # Publisher interface
-│   │       ├── IIntegrationEvent.cs         # Marker interface
-│   │       └── IntegrationEventBase.cs      # Base class with metadata
+│   │   └── Messaging/                        # Messaging abstractions
+│   │       ├── IEventBus.cs                  # Publisher interface
+│   │       ├── IIntegrationEvent.cs          # Marker interface
+│   │       └── IntegrationEventBase.cs       # Base class with metadata
 │   │
-│   ├── BuildingBlocks.Infrastructure.EfCore/ # EF Core-specific implementations
-│   │   ├── Repositories/                    # Repository patterns
-│   │   └── DbContextBase.cs                 # Base database context
-│   │
-│   └── BuildingBlocks.Infrastructure.MassTransit/ # MassTransit-specific implementations
-│       ├── MassTransitEventBus.cs           # IEventBus implementation
-│       └── Configuration/                   # RabbitMQ/MassTransit setup
+│   └── BuildingBlocks.Infrastructure.MassTransit/
+│       ├── MassTransitEventBus.cs            # IEventBus implementation
+│       └── MassTransitExtensions.cs          # AddMassTransitEventBus() extension
 │
 ├── Shared/
 │   └── IntegrationEvents/                    # Integration event definitions
-│       ├── Scheduling/                       # AppointmentScheduledIntegrationEvent
+│       ├── Scheduling/                       # PatientCreatedIntegrationEvent, etc.
 │       ├── Billing/                          # PaymentProcessedIntegrationEvent
 │       └── MedicalRecords/                   # RecordUpdatedIntegrationEvent
 │
-├── Scheduling/
+├── Core/Scheduling/
 │   ├── Scheduling.Domain/
-│   ├── Scheduling.Application/               # References: BuildingBlocks.Application
-│   └── Scheduling.Infrastructure/            # References: BuildingBlocks.Application, Shared/IntegrationEvents
-│       ├── Persistence/                      # EF Core, repositories
-│       └── Messaging/                        # Event publishers and consumers
+│   ├── Scheduling.Application/               # Uses IEventBus abstraction
+│   └── Scheduling.Infrastructure/
+│       └── Messaging/                        # Consumers live here
 │
-└── Billing/
-    ├── Billing.Domain/
-    ├── Billing.Application/                  # References: BuildingBlocks.Application
-    └── Billing.Infrastructure/               # References: BuildingBlocks.Application, Shared/IntegrationEvents
-        ├── Persistence/
-        └── Messaging/
+└── WebApi/
+    └── Program.cs                            # MassTransit registered here
 ```
 
 ### Clean Architecture Layer Dependencies
 
-| Project | BuildingBlocks.Application | BuildingBlocks.Infrastructure.* | Shared/IntegrationEvents |
-|---------|---------------------------|--------------------------------|--------------------------|
+| Project | BuildingBlocks.Application | BuildingBlocks.Infrastructure.MassTransit | Shared/IntegrationEvents |
+|---------|---------------------------|------------------------------------------|--------------------------|
 | **{BC}.Domain** | No | No | No |
-| **{BC}.Application** | Yes (abstractions only) | No | Yes (event DTOs) |
-| **{BC}.Infrastructure** | Yes (to implement interfaces) | Yes (specific providers) | Yes (publishers/consumers) |
-| **WebApi/Host** | Yes (abstractions) | Yes (register providers) | No (usually) |
+| **{BC}.Application** | Yes (IEventBus) | No | Yes (event DTOs) |
+| **{BC}.Infrastructure** | Yes | No | Yes (consumers) |
+| **WebApi** | Yes | Yes (registration) | No |
 
-**Why Domain references nothing**: Domain is the innermost layer with zero external dependencies. It remains pure and framework-agnostic.
-
-**Why Application references BuildingBlocks.Application**: Application layer orchestrates use cases and may need to publish integration events via `IEventBus` abstraction (without knowing the implementation details like MassTransit or RabbitMQ).
-
-**Why Infrastructure references BuildingBlocks.Infrastructure.***: Infrastructure provides concrete implementations. It depends on specific providers (EfCore, MassTransit) to implement the abstractions from BuildingBlocks.Application.
-
-**Why Host references both**: The composition root (WebApi/Worker) wires up dependencies by registering concrete implementations (MassTransit, EF Core) for abstractions.
+**Why BC.Infrastructure does NOT reference BuildingBlocks.Infrastructure.MassTransit**:
+- Consumers use MassTransit's `IConsumer<T>` interface (from MassTransit NuGet)
+- They don't need the `AddMassTransitEventBus()` extension
+- Only the host needs the registration extension
 
 ### Provider Swappability
 
@@ -164,7 +167,10 @@ This architecture allows swapping messaging providers without changing business 
 **Current setup** (MassTransit + RabbitMQ):
 ```csharp
 // In WebApi/Program.cs
-builder.Services.AddMassTransitEventBus(builder.Configuration);
+builder.Services.AddMassTransitEventBus(builder.Configuration, configure =>
+{
+    configure.AddConsumers(typeof(Scheduling.Infrastructure.ServiceCollectionExtensions).Assembly);
+});
 ```
 
 **If switching to Wolverine**:
@@ -179,7 +185,7 @@ builder.Services.AddWolverineEventBus(builder.Configuration);
 **No changes required in**:
 - Domain layer (still pure)
 - Application layer (still uses `IEventBus` abstraction)
-- Business logic (command handlers, domain events)
+- Business logic (command handlers)
 
 This is the power of Dependency Inversion: depend on abstractions, not concretions.
 
@@ -429,10 +435,11 @@ Access RabbitMQ Management UI:
 
 ### Step 8: Configure MassTransit
 
-Create `BuildingBlocks.Infrastructure.MassTransit/Configuration/MassTransitExtensions.cs`:
+Create `BuildingBlocks.Infrastructure.MassTransit/MassTransitExtensions.cs`:
 
 ```csharp
 using BuildingBlocks.Application.Messaging;
+using FluentValidation;
 using MassTransit;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -505,20 +512,20 @@ Add RabbitMQ settings to `appsettings.json`:
 }
 ```
 
-Register in `Program.cs`:
+Register in `WebApi/Program.cs` (the composition root):
 
 ```csharp
 using BuildingBlocks.Infrastructure.MassTransit.Configuration;
 
-// Register MassTransit with RabbitMQ
-builder.Services.AddMassTransitEventBus(
-    builder.Configuration,
-    configure =>
-    {
-        // Register consumers from Scheduling.Infrastructure assembly
-        configure.AddConsumers(typeof(Scheduling.Infrastructure.AssemblyReference).Assembly);
-    });
+// Add MassTransit for event-driven messaging
+builder.Services.AddMassTransitEventBus(builder.Configuration, configure =>
+{
+    // Register consumers from bounded context assemblies
+    configure.AddConsumers(typeof(Scheduling.Infrastructure.ServiceCollectionExtensions).Assembly);
+});
 ```
+
+**Why register here?** The WebApi is the composition root - the single place where all infrastructure gets wired up. In a monolith, one registration handles all bounded contexts. In microservices, each service's API would have its own registration.
 
 ### Step 9: Create Test Endpoint
 
@@ -749,19 +756,22 @@ public async Task Should_Consume_PatientCreated_Event()
 
 You've set up the messaging infrastructure following Clean Architecture and Dependency Inversion:
 
-1. **BuildingBlocks.Application/Messaging/** - Technology-agnostic abstractions (IEventBus, IntegrationEventBase)
-2. **BuildingBlocks.Infrastructure.MassTransit/** - MassTransit-specific implementation (MassTransitEventBus)
-3. **BuildingBlocks.Infrastructure.EfCore/** - EF Core-specific implementation (separate concern)
-4. **Shared/IntegrationEvents** - Domain-specific integration events
-5. **[BC].Infrastructure** - BC-specific message handling (publishers, consumers)
+1. **BuildingBlocks.Application/Messaging/** - Technology-agnostic abstractions (`IEventBus`, `IntegrationEventBase`)
+2. **BuildingBlocks.Infrastructure.MassTransit/** - MassTransit implementation (`MassTransitEventBus`, `AddMassTransitEventBus()`)
+3. **Shared/IntegrationEvents** - Domain-specific integration events
+4. **[BC].Infrastructure** - BC-specific consumers
+5. **WebApi/Program.cs** - Single MassTransit registration (composition root)
+
+**Key architectural decision**: MassTransit is registered once in the host (`WebApi/Program.cs`), not per-bounded context. This keeps things simple:
+- In a **monolith**: One API, one MassTransit registration, multiple consumer assemblies
+- In **microservices**: Each service has its own API with its own MassTransit registration
+
+There's no need for per-BC registration abstraction - it adds complexity without benefit. The host is already the composition root where infrastructure gets wired up.
 
 This architecture ensures:
-- **Dependency Inversion**: Application layer depends on abstractions, not implementations
-- **Provider Swappability**: Swap MassTransit for Wolverine/Rebus without changing business logic
-- **Clear Separation**: Abstractions in Application, implementations in Infrastructure
+- **Dependency Inversion**: Application layer depends on `IEventBus`, not MassTransit
+- **Provider Swappability**: Swap MassTransit for Wolverine/Rebus by changing one line in `Program.cs`
+- **Simplicity**: One registration point, no unnecessary abstraction layers
 - **No Coupling**: Bounded contexts only reference Shared/IntegrationEvents
-- **Clean Architecture**: Inner layers know nothing about outer layers
-
-The key insight: by separating abstractions (`IEventBus`) from implementations (`MassTransitEventBus`), you can change messaging providers without touching application or domain code.
 
 Next: [03-integration-events.md](./03-integration-events.md) - Defining and publishing integration events
