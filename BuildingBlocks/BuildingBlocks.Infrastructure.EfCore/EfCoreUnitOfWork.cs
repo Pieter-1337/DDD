@@ -15,7 +15,7 @@ public class EfCoreUnitOfWork<TContext> : IUnitOfWork where TContext : DbContext
     private readonly IMediator? _mediator;
     private readonly List<IIntegrationEvent> _queuedIntegrationEvents = [];
     private IDbContextTransaction? _transaction;
-    private bool _ownsTransaction; // Track if we started the transaction
+    private int _transactionDepth; // Track nested transaction depth
 
     public EfCoreUnitOfWork(TContext context, IEventBus? eventBus = null, IMediator? mediator = null)
     {
@@ -112,29 +112,30 @@ public class EfCoreUnitOfWork<TContext> : IUnitOfWork where TContext : DbContext
 
     public async Task BeginTransactionAsync(CancellationToken cancellationToken = default)
     {
+        _transactionDepth++;
+
         // Don't start a new transaction if one is already active
-        if (_transaction is not null)
+        if (_transactionDepth > 1)
         {
-            _ownsTransaction = false; // We're reusing an existing transaction
-            return;
+            return; // Already in a transaction, reuse it
         }
 
         _transaction = await _context.Database.BeginTransactionAsync(cancellationToken);
-        _ownsTransaction = true; // We started this transaction
     }
 
     public async Task CloseTransactionAsync(Exception? exception = null, CancellationToken cancellationToken = default)
     {
         if (_transaction is null) return;
 
-        // Only commit/rollback if we own the transaction
-        if (!_ownsTransaction)
+        _transactionDepth--;
+
+        // Still in nested calls, don't commit/rollback yet
+        if (_transactionDepth > 0)
         {
-            // Nested command - don't touch the transaction, let the outer command handle it
-            // But if there's an exception, we should still propagate it (the throw will bubble up)
             return;
         }
 
+        // Only commit/rollback when depth reaches 0 (outermost call)
         if (exception is not null)
         {
             await _transaction.RollbackAsync(cancellationToken);
@@ -150,6 +151,5 @@ public class EfCoreUnitOfWork<TContext> : IUnitOfWork where TContext : DbContext
 
         await _transaction.DisposeAsync();
         _transaction = null;
-        _ownsTransaction = false;
     }
 }

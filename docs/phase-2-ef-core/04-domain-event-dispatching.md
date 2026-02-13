@@ -219,33 +219,36 @@ public class EfCoreUnitOfWork<TContext> : IUnitOfWork where TContext : DbContext
 
 ## Nested Transaction Support
 
-When a command handler calls another command via MediatR, both go through `TransactionBehavior`. The `EfCoreUnitOfWork` handles this by tracking transaction ownership - only the outermost command can commit or rollback.
+When a command handler calls another command via MediatR, both go through `TransactionBehavior`. The `EfCoreUnitOfWork` handles this by tracking transaction depth using a counter - only when the depth reaches 0 (outermost caller) does it commit or rollback.
 
 ### How Nesting Works
 
 ```csharp
 // In EfCoreUnitOfWork
 private IDbContextTransaction? _transaction;
-private bool _ownsTransaction;
+private int _transactionDepth;
 
 public async Task BeginTransactionAsync(CancellationToken cancellationToken = default)
 {
     if (_transaction is not null)
     {
-        // Transaction already exists - reuse it, don't own it
-        _ownsTransaction = false;
+        // Transaction already exists - reuse it, increment depth
+        _transactionDepth++;
         return;
     }
 
-    // Start new transaction and take ownership
+    // Start new transaction
     _transaction = await _context.Database.BeginTransactionAsync(cancellationToken);
-    _ownsTransaction = true;
+    _transactionDepth = 1;
 }
 
 public async Task CloseTransactionAsync(Exception? exception = null, CancellationToken cancellationToken = default)
 {
-    // Only the owner can commit/rollback
-    if (!_ownsTransaction || _transaction is null) return;
+    if (_transaction is null) return;
+
+    // Decrement depth - only commit/rollback when we reach 0 (outermost caller)
+    _transactionDepth--;
+    if (_transactionDepth > 0) return;
 
     if (exception is not null)
     {
@@ -260,19 +263,22 @@ public async Task CloseTransactionAsync(Exception? exception = null, Cancellatio
 
     await _transaction.DisposeAsync();
     _transaction = null;
-    _ownsTransaction = false;
 }
 ```
+
+**Why a depth counter instead of a boolean flag?**
+
+The original boolean `_ownsTransaction` approach had a bug: when a nested command called `BeginTransactionAsync()`, it would set `_ownsTransaction = false`, overwriting the outer command's ownership. The depth counter fixes this by incrementing/decrementing on each begin/close call, ensuring only the outermost caller (when depth reaches 0) commits or rolls back.
 
 ### Key Behaviors
 
 | Scenario | Behavior |
 |----------|----------|
-| First command calls `BeginTransactionAsync()` | Starts transaction, takes ownership |
-| Nested command calls `BeginTransactionAsync()` | Detects existing transaction, reuses it |
-| Nested command calls `CloseTransactionAsync()` | Does nothing (not the owner) |
-| Outer command calls `CloseTransactionAsync()` | Commits/rollbacks the shared transaction |
-| Integration events | Published only after outer transaction commits |
+| First command calls `BeginTransactionAsync()` | Starts transaction, depth = 1 |
+| Nested command calls `BeginTransactionAsync()` | Detects existing transaction, depth++ |
+| Nested command calls `CloseTransactionAsync()` | Decrements depth, does nothing if depth > 0 |
+| Outer command calls `CloseTransactionAsync()` | Decrements depth to 0, commits/rollbacks |
+| Integration events | Published only when depth reaches 0 (outermost caller) |
 
 For detailed examples and usage guidance, see [Pipeline Behaviors - Nested Transaction Handling](../phase-3-cqrs/05-pipeline-behaviors.md#nested-transaction-handling).
 

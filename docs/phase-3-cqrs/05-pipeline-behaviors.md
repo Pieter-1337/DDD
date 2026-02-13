@@ -752,17 +752,17 @@ public class TransactionBehavior<TRequest, TResponse> : IPipelineBehavior<TReque
 
 ## Nested Transaction Handling
 
-When a command handler dispatches another command via MediatR, both commands go through the `TransactionBehavior`. The `EfCoreUnitOfWork` detects if a transaction is already active and handles nesting correctly.
+When a command handler dispatches another command via MediatR, both commands go through the `TransactionBehavior`. The `EfCoreUnitOfWork` detects if a transaction is already active and handles nesting correctly using a depth counter.
 
 ### How It Works
 
-The `EfCoreUnitOfWork` tracks transaction ownership using a flag. When a nested command tries to begin a transaction:
+The `EfCoreUnitOfWork` tracks transaction depth using a counter. When a nested command tries to begin a transaction:
 
-1. **Outer command** calls `BeginTransactionAsync()` - starts the actual database transaction
-2. **Nested command** calls `BeginTransactionAsync()` - detects existing transaction, does nothing
-3. **Nested command** completes and calls `CloseTransactionAsync()` - does nothing (not the owner)
-4. **Outer command** completes and calls `CloseTransactionAsync()` - commits/rollbacks the transaction
-5. **Integration events** are published only after the outer command's transaction commits
+1. **Outer command** calls `BeginTransactionAsync()` - starts the actual database transaction, depth becomes 1
+2. **Nested command** calls `BeginTransactionAsync()` - increments depth to 2, reuses existing transaction
+3. **Nested command** completes and calls `CloseTransactionAsync()` - decrements depth to 1, does nothing else
+4. **Outer command** completes and calls `CloseTransactionAsync()` - decrements depth to 0, commits/rollbacks the transaction
+5. **Integration events** are published only after the outer command's transaction commits (when depth reaches 0)
 
 ### Example: Nested Command Execution
 
@@ -795,31 +795,34 @@ public class CreatePatientCommandHandler : IRequestHandler<CreatePatientCommand,
 
 ### Implementation in EfCoreUnitOfWork
 
-The key is the `_ownsTransaction` flag that tracks which layer started the transaction:
+The key is the `_transactionDepth` counter that tracks how many layers have called `BeginTransactionAsync()`:
 
 ```csharp
 // In EfCoreUnitOfWork
 private IDbContextTransaction? _transaction;
-private bool _ownsTransaction;
+private int _transactionDepth;
 
 public async Task BeginTransactionAsync(CancellationToken cancellationToken = default)
 {
     if (_transaction is not null)
     {
-        // Transaction already exists - reuse it, don't own it
-        _ownsTransaction = false;
+        // Transaction already exists - reuse it, increment depth
+        _transactionDepth++;
         return;
     }
 
-    // Start new transaction and take ownership
+    // Start new transaction
     _transaction = await _context.Database.BeginTransactionAsync(cancellationToken);
-    _ownsTransaction = true;
+    _transactionDepth = 1;
 }
 
 public async Task CloseTransactionAsync(Exception? exception = null, CancellationToken cancellationToken = default)
 {
-    // Only the owner can commit/rollback
-    if (!_ownsTransaction || _transaction is null) return;
+    if (_transaction is null) return;
+
+    // Decrement depth - only commit/rollback when we reach 0 (outermost caller)
+    _transactionDepth--;
+    if (_transactionDepth > 0) return;
 
     if (exception is not null)
     {
@@ -834,9 +837,17 @@ public async Task CloseTransactionAsync(Exception? exception = null, Cancellatio
 
     await _transaction.DisposeAsync();
     _transaction = null;
-    _ownsTransaction = false;
 }
 ```
+
+**Why a depth counter instead of a boolean flag?**
+
+The original boolean `_ownsTransaction` approach had a bug: when a nested command called `BeginTransactionAsync()`, it would set `_ownsTransaction = false`, overwriting the outer command's ownership. If there were multiple nesting levels (A calls B calls C), only the immediate caller's ownership was tracked.
+
+The depth counter fixes this by:
+- Incrementing on each `BeginTransactionAsync()` call
+- Decrementing on each `CloseTransactionAsync()` call
+- Only committing/rolling back when depth reaches 0 (the outermost caller)
 
 ### Execution Flow with Nested Commands
 
@@ -845,7 +856,7 @@ TransactionBehavior (Outer: CreatePatientCommand)
   |
   +-- BeginTransactionAsync()
   |     +-- _transaction = new  [STARTED]
-  |     +-- _ownsTransaction = true
+  |     +-- _transactionDepth = 1
   |
   +-- CreatePatientCommandHandler.Handle()
         |
@@ -857,21 +868,21 @@ TransactionBehavior (Outer: CreatePatientCommand)
         |           |
         |           +-- BeginTransactionAsync()
         |           |     +-- _transaction already exists
-        |           |     +-- _ownsTransaction = false  [REUSING]
+        |           |     +-- _transactionDepth = 2  [INCREMENTED]
         |           |
         |           +-- CreateAuditLogCommandHandler.Handle()
         |           |     +-- ... audit logic ...
         |           |     +-- _uow.SaveChangesAsync()
         |           |
         |           +-- CloseTransactionAsync()
-        |                 +-- _ownsTransaction = false
-        |                 +-- [DOES NOTHING - not the owner]
+        |                 +-- _transactionDepth = 1  [DECREMENTED]
+        |                 +-- [DOES NOTHING - depth > 0]
         |
         +-- _uow.SaveChangesAsync()
         |
   +-- CloseTransactionAsync()
-        +-- _ownsTransaction = true
-        +-- CommitAsync()  [COMMITTED]
+        +-- _transactionDepth = 0  [DECREMENTED]
+        +-- CommitAsync()  [COMMITTED - depth reached 0]
         +-- PublishAndClearIntegrationEventsAsync()  [EVENTS PUBLISHED]
 ```
 
@@ -879,12 +890,12 @@ TransactionBehavior (Outer: CreatePatientCommand)
 
 | Rule | Behavior |
 |------|----------|
-| First `BeginTransactionAsync()` | Starts transaction, takes ownership |
-| Subsequent `BeginTransactionAsync()` | Reuses transaction, no ownership |
-| `CloseTransactionAsync()` without ownership | Does nothing |
-| `CloseTransactionAsync()` with ownership | Commits/rollbacks, publishes events |
+| First `BeginTransactionAsync()` | Starts transaction, depth = 1 |
+| Subsequent `BeginTransactionAsync()` | Reuses transaction, depth++ |
+| `CloseTransactionAsync()` when depth > 1 | Decrements depth, does nothing else |
+| `CloseTransactionAsync()` when depth = 1 | Decrements to 0, commits/rollbacks, publishes events |
 | Rollback | Discards all queued integration events |
-| Integration events | Published only after outer transaction commits |
+| Integration events | Published only when depth reaches 0 (outermost caller) |
 
 ### When to Use Nested Commands
 
