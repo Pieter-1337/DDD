@@ -306,8 +306,7 @@ This allows using `nameof(GetPatientAsync)` in `CreatedAtAction` calls.
 
 ### Planned Topics
 
-- Multiple bounded contexts
-- Event-driven communication
-- CQRS in each service
-- API Gateway pattern
+- Multiple bounded contexts (Billing, Medical Records)
+- Cross-context communication via integration events
+- API Gateway pattern (optional)
 - Health checks and observability
