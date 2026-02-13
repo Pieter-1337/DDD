@@ -10,7 +10,8 @@
 | Phase 4: Testing | Complete | 2026-01-09 | 2026-01-23 |
 | Phase 5: Event-Driven Architecture | Complete | 2026-01-23 | 2026-02-13 |
 | Phase 6: Integration | Not Started | - | - |
-| Phase 7: Authentication & Authorization | Not Started | - | - |
+| Phase 7: Blazor & FluentUI | Not Started | - | - |
+| Phase 8: Authentication & Authorization | Not Started | - | - |
 
 ---
 
@@ -330,20 +331,42 @@ This allows using `nameof(GetPatientAsync)` in `CreatedAtAction` calls.
 
 ---
 
-## Phase 7: Authentication & Authorization
+## Phase 7: Blazor & FluentUI
 
 *Not started*
 
 ### Planned Topics
 
-- Authentication strategies (JWT, OAuth 2.0, OpenID Connect)
+- Blazor Server vs Blazor WebAssembly vs Blazor United
+- FluentUI Blazor components setup
+- Project structure for Blazor frontend
+- Consuming API endpoints from Blazor
+- Component architecture and patterns
+- State management in Blazor
+- Forms and validation with FluentValidation
+- Navigation and routing
+
+### Docs Available
+
+- `phase-7-blazor/` - (to be created)
+
+---
+
+## Phase 8: Authentication & Authorization
+
+*Not started*
+
+### Planned Topics
+
+- Cookie-based authentication (Blazor Server)
 - ASP.NET Core Identity integration
 - Authorization policies and requirements
 - Role-based vs claims-based authorization
-- Securing API endpoints
+- Securing pages and components
+- AuthenticationStateProvider
 - User context in domain layer
 - Multi-tenant considerations (optional)
 
 ### Docs Available
 
-- `phase-7-auth/` - (to be created)
+- `phase-8-auth/` - (to be created)
