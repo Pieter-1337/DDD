@@ -406,29 +406,57 @@ For simpler flows, choreography with events may be enough:
 
 ```csharp
 // Service A publishes event
-await _publishEndpoint.Publish(new AppointmentCreatedEvent { ... });
+await _publishEndpoint.Publish(new AppointmentCreatedIntegrationEvent { ... });
 
-// Service B consumes and publishes
-public class AppointmentCreatedConsumer : IConsumer<AppointmentCreatedEvent>
+// Service B consumes and publishes next event in chain
+public class AppointmentCreatedIntegrationEventHandler
+    : IntegrationEventHandler<AppointmentCreatedIntegrationEvent>
 {
-    public async Task Consume(ConsumeContext<AppointmentCreatedEvent> context)
-    {
-        var invoice = await _billingService.CreateInvoice(...);
+    private readonly IBillingService _billingService;
+    private readonly IPublishEndpoint _publishEndpoint;
 
-        await context.Publish(new InvoiceCreatedEvent
+    public AppointmentCreatedIntegrationEventHandler(
+        IBillingService billingService,
+        IPublishEndpoint publishEndpoint,
+        ILogger<AppointmentCreatedIntegrationEventHandler> logger) : base(logger)
+    {
+        _billingService = billingService;
+        _publishEndpoint = publishEndpoint;
+    }
+
+    protected override async Task HandleAsync(
+        AppointmentCreatedIntegrationEvent message,
+        CancellationToken cancellationToken)
+    {
+        var invoice = await _billingService.CreateInvoice(message, cancellationToken);
+
+        // Publish next event in chain
+        await _publishEndpoint.Publish(new InvoiceCreatedIntegrationEvent
         {
             InvoiceId = invoice.Id,
-            AppointmentId = context.Message.AppointmentId
-        });
+            AppointmentId = message.AppointmentId
+        }, cancellationToken);
     }
 }
 
 // Service C consumes
-public class InvoiceCreatedConsumer : IConsumer<InvoiceCreatedEvent>
+public class InvoiceCreatedIntegrationEventHandler
+    : IntegrationEventHandler<InvoiceCreatedIntegrationEvent>
 {
-    public async Task Consume(ConsumeContext<InvoiceCreatedEvent> context)
+    private readonly INotificationService _notificationService;
+
+    public InvoiceCreatedIntegrationEventHandler(
+        INotificationService notificationService,
+        ILogger<InvoiceCreatedIntegrationEventHandler> logger) : base(logger)
     {
-        await _notificationService.SendConfirmation(...);
+        _notificationService = notificationService;
+    }
+
+    protected override async Task HandleAsync(
+        InvoiceCreatedIntegrationEvent message,
+        CancellationToken cancellationToken)
+    {
+        await _notificationService.SendConfirmation(message, cancellationToken);
     }
 }
 ```

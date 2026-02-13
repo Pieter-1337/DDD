@@ -241,7 +241,7 @@ This allows using `nameof(GetPatientAsync)` in `CreatedAtAction` calls.
 - [x] MassTransit configuration in Infrastructure
 - [x] First integration event (`PatientCreatedIntegrationEvent`)
 - [x] Event publisher implementation (`MassTransitEventBus`)
-- [x] Event consumer implementation (`PatientCreatedEventConsumer`)
+- [x] Event consumer implementation (`PatientCreatedIntegrationEventHandler`)
 - [x] `IUnitOfWork.QueueIntegrationEvent()` pattern
 - [ ] End-to-end integration test
 - [ ] Additional integration events

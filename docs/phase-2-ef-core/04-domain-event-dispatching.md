@@ -72,6 +72,7 @@ SaveChangesAsync() (no transaction)
 | Integration events publish AFTER commit | Guarantees data is persisted before notifying other systems |
 | Rollback discards queued events | Prevents publishing events for operations that failed |
 | No transaction = immediate publish | Maintains backwards compatibility for non-command flows |
+| Automatic logging on publish | Every integration event is logged with EventType and EventId for observability |
 
 ---
 

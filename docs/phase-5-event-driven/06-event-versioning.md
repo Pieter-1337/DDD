@@ -166,28 +166,41 @@ public async Task Handle(PatientCreatedEvent notification, CancellationToken ct)
 }
 ```
 
-### Consumer Handles Both
+### Handler Handles Both
 
 ```csharp
-// Handles v1
-public class PatientCreatedConsumer : IConsumer<PatientCreatedIntegrationEvent>
+// Handles v1 (base class provides logging)
+public class PatientCreatedIntegrationEventHandler
+    : IntegrationEventHandler<PatientCreatedIntegrationEvent>
 {
-    public async Task Consume(ConsumeContext<PatientCreatedIntegrationEvent> context)
+    public PatientCreatedIntegrationEventHandler(
+        ILogger<PatientCreatedIntegrationEventHandler> logger) : base(logger) { }
+
+    protected override async Task HandleAsync(
+        PatientCreatedIntegrationEvent message,
+        CancellationToken cancellationToken)
     {
-        var (firstName, lastName) = ParseFullName(context.Message.FullName);
-        await CreateProfile(context.Message.PatientId, firstName, lastName);
+        var (firstName, lastName) = ParseFullName(message.FullName);
+        await CreateProfile(message.PatientId, firstName, lastName, cancellationToken);
     }
 }
 
-// Handles v2
-public class PatientCreatedV2Consumer : IConsumer<PatientCreatedIntegrationEventV2>
+// Handles v2 (base class provides logging)
+public class PatientCreatedIntegrationEventV2Handler
+    : IntegrationEventHandler<PatientCreatedIntegrationEventV2>
 {
-    public async Task Consume(ConsumeContext<PatientCreatedIntegrationEventV2> context)
+    public PatientCreatedIntegrationEventV2Handler(
+        ILogger<PatientCreatedIntegrationEventV2Handler> logger) : base(logger) { }
+
+    protected override async Task HandleAsync(
+        PatientCreatedIntegrationEventV2 message,
+        CancellationToken cancellationToken)
     {
         await CreateProfile(
-            context.Message.PatientId,
-            context.Message.FirstName,
-            context.Message.LastName);
+            message.PatientId,
+            message.FirstName,
+            message.LastName,
+            cancellationToken);
     }
 }
 ```
@@ -224,26 +237,33 @@ public record PatientCreatedIntegrationEvent : IntegrationEvent
 }
 ```
 
-Consumer checks version:
+Handler checks version:
 
 ```csharp
-public async Task Consume(ConsumeContext<PatientCreatedIntegrationEvent> context)
+public class PatientCreatedIntegrationEventHandler
+    : IntegrationEventHandler<PatientCreatedIntegrationEvent>
 {
-    var message = context.Message;
+    public PatientCreatedIntegrationEventHandler(
+        ILogger<PatientCreatedIntegrationEventHandler> logger) : base(logger) { }
 
-    string firstName, lastName;
-
-    if (message.Version >= 2)
+    protected override async Task HandleAsync(
+        PatientCreatedIntegrationEvent message,
+        CancellationToken cancellationToken)
     {
-        firstName = message.FirstName!;
-        lastName = message.LastName!;
-    }
-    else
-    {
-        (firstName, lastName) = ParseFullName(message.FullName!);
-    }
+        string firstName, lastName;
 
-    await CreateProfile(message.PatientId, firstName, lastName);
+        if (message.Version >= 2)
+        {
+            firstName = message.FirstName!;
+            lastName = message.LastName!;
+        }
+        else
+        {
+            (firstName, lastName) = ParseFullName(message.FullName!);
+        }
+
+        await CreateProfile(message.PatientId, firstName, lastName, cancellationToken);
+    }
 }
 ```
 
@@ -278,11 +298,25 @@ public record PatientCreatedV2 : IPatientCreated, IntegrationEvent
     public string LastName { get; init; }
 }
 
-// Consumer handles any implementation
-public class PatientCreatedConsumer : IConsumer<IPatientCreated>
+// Handler handles any implementation via interface
+// Note: For interface-based consumers, use IConsumer<T> directly
+// IntegrationEventHandler<T> is for concrete event types
+public class PatientCreatedInterfaceHandler : IConsumer<IPatientCreated>
 {
+    private readonly ILogger<PatientCreatedInterfaceHandler> _logger;
+
+    public PatientCreatedInterfaceHandler(
+        ILogger<PatientCreatedInterfaceHandler> logger)
+    {
+        _logger = logger;
+    }
+
     public async Task Consume(ConsumeContext<IPatientCreated> context)
     {
+        _logger.LogInformation(
+            "Handling IPatientCreated for patient {PatientId}",
+            context.Message.PatientId);
+
         // Works with V1 or V2
         await CreateProfile(context.Message.PatientId, context.Message.Email);
     }
@@ -343,16 +377,24 @@ Timeline:
 ### Logging for Deprecation Monitoring
 
 ```csharp
-public class PatientCreatedV1Consumer : IConsumer<PatientCreatedIntegrationEvent>
+public class PatientCreatedV1IntegrationEventHandler
+    : IntegrationEventHandler<PatientCreatedIntegrationEvent>
 {
-    public async Task Consume(ConsumeContext<PatientCreatedIntegrationEvent> context)
+    public PatientCreatedV1IntegrationEventHandler(
+        ILogger<PatientCreatedV1IntegrationEventHandler> logger) : base(logger) { }
+
+    protected override async Task HandleAsync(
+        PatientCreatedIntegrationEvent message,
+        CancellationToken cancellationToken)
     {
-        _logger.LogWarning(
-            "Received deprecated PatientCreatedIntegrationEvent v1. " +
-            "Please migrate to v2. CorrelationId: {CorrelationId}",
-            context.CorrelationId);
+        // Log deprecation warning (in addition to base class logging)
+        Logger.LogWarning(
+            "Received deprecated PatientCreatedIntegrationEvent v1 for EventId {EventId}. " +
+            "Please migrate to v2.",
+            message.EventId);
 
         // Process anyway...
+        await ProcessV1(message, cancellationToken);
     }
 }
 ```
@@ -431,7 +473,7 @@ public record PatientCreatedIntegrationEvent { }
 - [ ] New fields are nullable or have defaults
 - [ ] Breaking changes use new event types (v2)
 - [ ] Deprecation process documented
-- [ ] Consumers handle multiple versions (during migration)
+- [ ] Handlers handle multiple versions (during migration)
 - [ ] Logging for deprecated event usage
 
 ---

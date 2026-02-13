@@ -3,7 +3,7 @@
 ## Overview
 
 With at-least-once delivery, messages can be delivered multiple times. This document covers:
-- Making consumers idempotent (safe to reprocess)
+- Making handlers idempotent (safe to reprocess)
 - Retry strategies
 - Dead Letter Queues (DLQ)
 - Error handling patterns
@@ -13,7 +13,7 @@ With at-least-once delivery, messages can be delivered multiple times. This docu
 ## Why Idempotency Matters
 
 Messages can be redelivered because:
-- Consumer crashes after processing but before acknowledgment
+- Handler crashes after processing but before acknowledgment
 - Network issues during acknowledgment
 - Broker failover
 - Manual reprocessing from DLQ
@@ -34,7 +34,7 @@ Messages can be redelivered because:
              │
              ▼
     ┌──────────────────┐
-    │  Acknowledge     │  💥 Consumer crashes here
+    │  Acknowledge     │  💥 Handler crashes here
     │  message         │
     └──────────────────┘
              │
@@ -55,21 +55,30 @@ Messages can be redelivered because:
 Check if you've already processed this event:
 
 ```csharp
-public class PatientCreatedConsumer : IConsumer<PatientCreatedIntegrationEvent>
+public class PatientCreatedIntegrationEventHandler
+    : IntegrationEventHandler<PatientCreatedIntegrationEvent>
 {
     private readonly BillingDbContext _context;
 
-    public async Task Consume(ConsumeContext<PatientCreatedIntegrationEvent> context)
+    public PatientCreatedIntegrationEventHandler(
+        BillingDbContext context,
+        ILogger<PatientCreatedIntegrationEventHandler> logger) : base(logger)
     {
-        var message = context.Message;
+        _context = context;
+    }
 
+    protected override async Task HandleAsync(
+        PatientCreatedIntegrationEvent message,
+        CancellationToken cancellationToken)
+    {
         // Check if already processed
         var exists = await _context.BillingProfiles
-            .AnyAsync(p => p.ExternalPatientId == message.PatientId);
+            .AnyAsync(p => p.ExternalPatientId == message.PatientId, cancellationToken);
 
         if (exists)
         {
-            _logger.LogInformation(
+            // Business-specific log (idempotency skip is worth logging)
+            Logger.LogInformation(
                 "Billing profile already exists for patient {PatientId}, skipping",
                 message.PatientId);
             return; // Idempotent - already processed
@@ -84,7 +93,7 @@ public class PatientCreatedConsumer : IConsumer<PatientCreatedIntegrationEvent>
         };
 
         _context.BillingProfiles.Add(profile);
-        await _context.SaveChangesAsync();
+        await _context.SaveChangesAsync(cancellationToken);
     }
 }
 ```
@@ -94,25 +103,38 @@ public class PatientCreatedConsumer : IConsumer<PatientCreatedIntegrationEvent>
 Use database upsert capabilities:
 
 ```csharp
-public async Task Consume(ConsumeContext<PatientCreatedIntegrationEvent> context)
+public class PatientCreatedIntegrationEventHandler
+    : IntegrationEventHandler<PatientCreatedIntegrationEvent>
 {
-    var message = context.Message;
+    private readonly BillingDbContext _context;
 
-    // Upsert - insert if not exists, update if exists
-    var profile = await _context.BillingProfiles
-        .FirstOrDefaultAsync(p => p.ExternalPatientId == message.PatientId);
-
-    if (profile is null)
+    public PatientCreatedIntegrationEventHandler(
+        BillingDbContext context,
+        ILogger<PatientCreatedIntegrationEventHandler> logger) : base(logger)
     {
-        profile = new BillingProfile { ExternalPatientId = message.PatientId };
-        _context.BillingProfiles.Add(profile);
+        _context = context;
     }
 
-    // Update properties (works for both insert and update)
-    profile.Email = message.Email;
-    profile.FullName = message.FullName;
+    protected override async Task HandleAsync(
+        PatientCreatedIntegrationEvent message,
+        CancellationToken cancellationToken)
+    {
+        // Upsert - insert if not exists, update if exists
+        var profile = await _context.BillingProfiles
+            .FirstOrDefaultAsync(p => p.ExternalPatientId == message.PatientId, cancellationToken);
 
-    await _context.SaveChangesAsync();
+        if (profile is null)
+        {
+            profile = new BillingProfile { ExternalPatientId = message.PatientId };
+            _context.BillingProfiles.Add(profile);
+        }
+
+        // Update properties (works for both insert and update)
+        profile.Email = message.Email;
+        profile.FullName = message.FullName;
+
+        await _context.SaveChangesAsync(cancellationToken);
+    }
 }
 ```
 
@@ -129,26 +151,37 @@ public class ProcessedEvent
     public DateTime ProcessedAt { get; set; }
 }
 
-public class PatientCreatedConsumer : IConsumer<PatientCreatedIntegrationEvent>
+public class PatientCreatedIntegrationEventHandler
+    : IntegrationEventHandler<PatientCreatedIntegrationEvent>
 {
-    public async Task Consume(ConsumeContext<PatientCreatedIntegrationEvent> context)
-    {
-        var message = context.Message;
+    private readonly BillingDbContext _context;
 
+    public PatientCreatedIntegrationEventHandler(
+        BillingDbContext context,
+        ILogger<PatientCreatedIntegrationEventHandler> logger) : base(logger)
+    {
+        _context = context;
+    }
+
+    protected override async Task HandleAsync(
+        PatientCreatedIntegrationEvent message,
+        CancellationToken cancellationToken)
+    {
         // Check if already processed (by EventId)
-        if (await _context.ProcessedEvents.AnyAsync(e => e.EventId == message.EventId))
+        if (await _context.ProcessedEvents.AnyAsync(
+            e => e.EventId == message.EventId, cancellationToken))
         {
-            _logger.LogInformation("Event {EventId} already processed, skipping", message.EventId);
+            Logger.LogInformation("Event {EventId} already processed, skipping", message.EventId);
             return;
         }
 
         // Process in a transaction
-        using var transaction = await _context.Database.BeginTransactionAsync();
+        await using var transaction = await _context.Database.BeginTransactionAsync(cancellationToken);
 
         try
         {
             // 1. Do the work
-            var profile = new BillingProfile { ... };
+            var profile = new BillingProfile { /* ... */ };
             _context.BillingProfiles.Add(profile);
 
             // 2. Mark event as processed
@@ -159,13 +192,13 @@ public class PatientCreatedConsumer : IConsumer<PatientCreatedIntegrationEvent>
                 ProcessedAt = DateTime.UtcNow
             });
 
-            await _context.SaveChangesAsync();
-            await transaction.CommitAsync();
+            await _context.SaveChangesAsync(cancellationToken);
+            await transaction.CommitAsync(cancellationToken);
         }
         catch
         {
-            await transaction.RollbackAsync();
-            throw; // Will trigger retry
+            await transaction.RollbackAsync(cancellationToken);
+            throw; // Will trigger retry (error logged by base class)
         }
     }
 }
@@ -221,15 +254,15 @@ x.UsingRabbitMq((context, cfg) =>
 });
 ```
 
-### Per-Consumer Retry
+### Per-Handler Retry
 
 ```csharp
-public class PatientCreatedConsumerDefinition
-    : ConsumerDefinition<PatientCreatedConsumer>
+public class PatientCreatedIntegrationEventHandlerDefinition
+    : ConsumerDefinition<PatientCreatedIntegrationEventHandler>
 {
     protected override void ConfigureConsumer(
         IReceiveEndpointConfigurator endpointConfigurator,
-        IConsumerConfigurator<PatientCreatedConsumer> consumerConfigurator,
+        IConsumerConfigurator<PatientCreatedIntegrationEventHandler> consumerConfigurator,
         IRegistrationContext context)
     {
         // This consumer gets more retries
@@ -319,8 +352,21 @@ public async Task ReprocessDeadLetters(string queueName)
 Option 3: MassTransit fault handling
 ```csharp
 // Handle faults programmatically
-public class PatientCreatedFaultConsumer : IConsumer<Fault<PatientCreatedIntegrationEvent>>
+// Note: Fault handlers use IConsumer<Fault<T>> directly - this is a MassTransit
+// wrapper type for failed messages, not a regular integration event
+public class PatientCreatedFaultHandler : IConsumer<Fault<PatientCreatedIntegrationEvent>>
 {
+    private readonly ILogger<PatientCreatedFaultHandler> _logger;
+    private readonly IAlertService _alertService;
+
+    public PatientCreatedFaultHandler(
+        ILogger<PatientCreatedFaultHandler> logger,
+        IAlertService alertService)
+    {
+        _logger = logger;
+        _alertService = alertService;
+    }
+
     public async Task Consume(ConsumeContext<Fault<PatientCreatedIntegrationEvent>> context)
     {
         var faultedMessage = context.Message.Message;
@@ -343,13 +389,28 @@ public class PatientCreatedFaultConsumer : IConsumer<Fault<PatientCreatedIntegra
 
 ### Pattern 1: Let It Fail
 
-Simple approach - let exceptions bubble up:
+Simple approach - let exceptions bubble up (base class logs errors automatically):
 
 ```csharp
-public async Task Consume(ConsumeContext<PatientCreatedIntegrationEvent> context)
+public class PatientCreatedIntegrationEventHandler
+    : IntegrationEventHandler<PatientCreatedIntegrationEvent>
 {
-    // If this throws, MassTransit handles retry + DLQ
-    await _billingService.CreateProfile(context.Message);
+    private readonly IBillingService _billingService;
+
+    public PatientCreatedIntegrationEventHandler(
+        IBillingService billingService,
+        ILogger<PatientCreatedIntegrationEventHandler> logger) : base(logger)
+    {
+        _billingService = billingService;
+    }
+
+    protected override async Task HandleAsync(
+        PatientCreatedIntegrationEvent message,
+        CancellationToken cancellationToken)
+    {
+        // If this throws, base class logs error, MassTransit handles retry + DLQ
+        await _billingService.CreateProfile(message, cancellationToken);
+    }
 }
 ```
 
@@ -360,21 +421,22 @@ public async Task Consume(ConsumeContext<PatientCreatedIntegrationEvent> context
 Handle expected errors, let unexpected ones fail:
 
 ```csharp
-public async Task Consume(ConsumeContext<PatientCreatedIntegrationEvent> context)
+protected override async Task HandleAsync(
+    PatientCreatedIntegrationEvent message,
+    CancellationToken cancellationToken)
 {
     try
     {
-        await _billingService.CreateProfile(context.Message);
+        await _billingService.CreateProfile(message, cancellationToken);
     }
     catch (DuplicateProfileException)
     {
         // Expected - already processed (idempotency)
-        _logger.LogInformation("Profile already exists, skipping");
+        Logger.LogInformation("Profile already exists, skipping");
         return;
     }
-    // Other exceptions bubble up -> retry -> DLQ
+    // Other exceptions bubble up -> retry -> DLQ (logged by base class)
 }
-```
 
 ### Pattern 3: Circuit Breaker
 
@@ -450,28 +512,25 @@ cfg.UseMessageRetry(r =>
 
 ### Logging
 
+The `IntegrationEventHandler<T>` base class provides automatic logging:
+- **Start:** "Handling {EventType} with EventId {EventId}"
+- **Success:** "Handled {EventType} with EventId {EventId}"
+- **Error:** "Error handling {EventType} with EventId {EventId}" (with exception details)
+
+For business-specific context, add logging in your handler:
+
 ```csharp
-public async Task Consume(ConsumeContext<PatientCreatedIntegrationEvent> context)
+protected override async Task HandleAsync(
+    PatientCreatedIntegrationEvent message,
+    CancellationToken cancellationToken)
 {
-    using var scope = _logger.BeginScope(new Dictionary<string, object>
-    {
-        ["EventId"] = context.Message.EventId,
-        ["CorrelationId"] = context.CorrelationId,
-        ["PatientId"] = context.Message.PatientId
-    });
+    // Add business-specific context to logs
+    Logger.LogInformation(
+        "Creating billing profile for patient {PatientId} - {FullName}",
+        message.PatientId,
+        $"{message.FirstName} {message.LastName}");
 
-    _logger.LogInformation("Processing PatientCreated event");
-
-    try
-    {
-        await ProcessAsync(context.Message);
-        _logger.LogInformation("Successfully processed PatientCreated event");
-    }
-    catch (Exception ex)
-    {
-        _logger.LogError(ex, "Failed to process PatientCreated event");
-        throw;
-    }
+    await _billingService.CreateProfile(message, cancellationToken);
 }
 ```
 
@@ -498,7 +557,7 @@ public class MetricsConsumeObserver : IConsumeObserver
 
 ## Verification Checklist
 
-- [ ] Consumers are idempotent (choose a strategy)
+- [ ] Handlers are idempotent (choose a strategy)
 - [ ] Retry policy configured (global or per-consumer)
 - [ ] Transient exceptions are retried
 - [ ] Permanent exceptions go to DLQ immediately
@@ -512,25 +571,35 @@ public class MetricsConsumeObserver : IConsumeObserver
 ## Quick Reference
 
 ```csharp
-// Idempotent consumer template
-public class MyEventConsumer : IConsumer<MyIntegrationEvent>
+// Idempotent handler template (base class provides logging)
+public class MyIntegrationEventHandler
+    : IntegrationEventHandler<MyIntegrationEvent>
 {
-    public async Task Consume(ConsumeContext<MyIntegrationEvent> context)
-    {
-        var message = context.Message;
+    private readonly MyDbContext _context;
 
+    public MyIntegrationEventHandler(
+        MyDbContext context,
+        ILogger<MyIntegrationEventHandler> logger) : base(logger)
+    {
+        _context = context;
+    }
+
+    protected override async Task HandleAsync(
+        MyIntegrationEvent message,
+        CancellationToken cancellationToken)
+    {
         // 1. Check idempotency
-        if (await AlreadyProcessed(message.EventId))
+        if (await AlreadyProcessed(message.EventId, cancellationToken))
         {
-            _logger.LogInformation("Event {EventId} already processed", message.EventId);
+            Logger.LogInformation("Event {EventId} already processed", message.EventId);
             return;
         }
 
         // 2. Process
-        await DoWork(message);
+        await DoWork(message, cancellationToken);
 
         // 3. Mark as processed (if using processed events table)
-        await MarkAsProcessed(message.EventId);
+        await MarkAsProcessed(message.EventId, cancellationToken);
     }
 }
 ```

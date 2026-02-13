@@ -180,7 +180,7 @@ Core/Scheduling/
     |   +-- Migrations/
     |       +-- (generated migration files)
     +-- Consumers/                         <- MassTransit consumers
-    |   +-- PatientCreatedEventConsumer.cs
+    |   +-- PatientCreatedIntegrationEventHandler.cs
     +-- ServiceCollectionExtensions.cs
     +-- Scheduling.Infrastructure.csproj
 ```

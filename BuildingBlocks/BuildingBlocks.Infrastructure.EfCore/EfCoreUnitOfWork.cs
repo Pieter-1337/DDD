@@ -5,6 +5,8 @@ using BuildingBlocks.Domain.Events;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace BuildingBlocks.Infrastructure.EfCore;
 
@@ -13,15 +15,21 @@ public class EfCoreUnitOfWork<TContext> : IUnitOfWork where TContext : DbContext
     private readonly TContext _context;
     private readonly IEventBus? _eventBus;
     private readonly IMediator? _mediator;
+    private readonly ILogger<EfCoreUnitOfWork<TContext>> _logger;
     private readonly List<IIntegrationEvent> _queuedIntegrationEvents = [];
     private IDbContextTransaction? _transaction;
     private int _transactionDepth; // Track nested transaction depth
 
-    public EfCoreUnitOfWork(TContext context, IEventBus? eventBus = null, IMediator? mediator = null)
+    public EfCoreUnitOfWork(
+        TContext context,
+        IEventBus? eventBus = null,
+        IMediator? mediator = null,
+        ILogger<EfCoreUnitOfWork<TContext>>? logger = null)
     {
         _context = context;
         _eventBus = eventBus;
         _mediator = mediator;
+        _logger = logger ?? NullLogger<EfCoreUnitOfWork<TContext>>.Instance;
     }
 
     public void QueueIntegrationEvent(IIntegrationEvent integrationEvent)
@@ -101,6 +109,13 @@ public class EfCoreUnitOfWork<TContext> : IUnitOfWork where TContext : DbContext
 
     private async Task PublishEventAsync(IIntegrationEvent integrationEvent, CancellationToken cancellationToken)
     {
+        var eventType = integrationEvent.GetType().Name;
+
+        _logger.LogInformation(
+            "Publishing integration event {EventType} with EventId {EventId}",
+            eventType,
+            integrationEvent.EventId);
+
         // Use reflection to call the generic PublishAsync method with the correct type
         var publishMethod = typeof(IEventBus)
             .GetMethod(nameof(IEventBus.PublishAsync))!
@@ -108,6 +123,11 @@ public class EfCoreUnitOfWork<TContext> : IUnitOfWork where TContext : DbContext
 
         var task = (Task)publishMethod.Invoke(_eventBus, [integrationEvent, cancellationToken])!;
         await task;
+
+        _logger.LogDebug(
+            "Successfully published integration event {EventType} with EventId {EventId}",
+            eventType,
+            integrationEvent.EventId);
     }
 
     public async Task BeginTransactionAsync(CancellationToken cancellationToken = default)

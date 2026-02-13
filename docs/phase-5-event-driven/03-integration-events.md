@@ -309,6 +309,58 @@ public class PatientCreatedEventHandler : INotificationHandler<PatientCreatedEve
 
 **Note:** If the transaction rolls back (due to an exception), queued integration events are discarded and nothing is published to RabbitMQ.
 
+### Automatic Logging
+
+The `EfCoreUnitOfWork` automatically logs every integration event when published:
+
+```
+info: BuildingBlocks.Infrastructure.EfCore.EfCoreUnitOfWork[0]
+      Publishing integration event PatientCreatedIntegrationEvent with EventId 2046b276-be9f-4945-b3ee-315053a0e969
+```
+
+This provides visibility into all integration events leaving your bounded context without adding logging to each handler.
+
+### IntegrationEventHandler Base Class
+
+Handlers inherit from `IntegrationEventHandler<TEvent>` which provides automatic logging on the consumer side:
+
+```csharp
+// BuildingBlocks.Infrastructure.MassTransit/IntegrationEventHandler.cs
+public abstract class IntegrationEventHandler<TEvent> : IConsumer<TEvent>
+    where TEvent : class, IIntegrationEvent
+{
+    protected readonly ILogger Logger;
+
+    public async Task Consume(ConsumeContext<TEvent> context)
+    {
+        Logger.LogInformation("Handling {EventType} with EventId {EventId}", ...);
+
+        try
+        {
+            await HandleAsync(context.Message, context.CancellationToken);
+            Logger.LogInformation("Handled {EventType} with EventId {EventId}", ...);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error handling {EventType} with EventId {EventId}", ...);
+            throw;
+        }
+    }
+
+    protected abstract Task HandleAsync(TEvent message, CancellationToken cancellationToken);
+}
+```
+
+**Log output:**
+```
+info: Scheduling.Infrastructure.Consumers.PatientCreatedIntegrationEventHandler[0]
+      Handling PatientCreatedIntegrationEvent with EventId 2046b276-be9f-4945-b3ee-315053a0e969
+info: Scheduling.Infrastructure.Consumers.PatientCreatedIntegrationEventHandler[0]
+      Processing patient 2046b276-be9f-4945-b3ee-315053a0e969 - John Doe (john.doe@example.com)
+info: Scheduling.Infrastructure.Consumers.PatientCreatedIntegrationEventHandler[0]
+      Handled PatientCreatedIntegrationEvent with EventId 2046b276-be9f-4945-b3ee-315053a0e969
+```
+
 ### Why This Pattern?
 
 | Benefit | Description |
@@ -324,59 +376,54 @@ public class PatientCreatedEventHandler : INotificationHandler<PatientCreatedEve
 
 ## Consuming Integration Events
 
-### Creating a Consumer
+### Creating a Handler
 
-Consumers handle incoming messages from RabbitMQ:
+Handlers inherit from `IntegrationEventHandler<TEvent>` which provides automatic logging:
 
 ```csharp
-// Billing.Infrastructure/Consumers/PatientCreatedEventConsumer.cs
-using MassTransit;
-using Shared.IntegrationEvents.Scheduling;
+// Billing.Infrastructure/Consumers/PatientCreatedIntegrationEventHandler.cs
+using BuildingBlocks.Infrastructure.MassTransit;
+using IntegrationEvents.Scheduling;
+using Microsoft.Extensions.Logging;
 
 namespace Billing.Infrastructure.Consumers;
 
-public class PatientCreatedEventConsumer : IConsumer<PatientCreatedIntegrationEvent>
+public class PatientCreatedIntegrationEventHandler
+    : IntegrationEventHandler<PatientCreatedIntegrationEvent>
 {
     private readonly IMediator _mediator;
-    private readonly ILogger<PatientCreatedEventConsumer> _logger;
 
-    public PatientCreatedEventConsumer(
+    public PatientCreatedIntegrationEventHandler(
         IMediator mediator,
-        ILogger<PatientCreatedEventConsumer> logger)
+        ILogger<PatientCreatedIntegrationEventHandler> logger) : base(logger)
     {
         _mediator = mediator;
-        _logger = logger;
     }
 
-    public async Task Consume(ConsumeContext<PatientCreatedIntegrationEvent> context)
+    protected override async Task HandleAsync(
+        PatientCreatedIntegrationEvent message,
+        CancellationToken cancellationToken)
     {
-        var evt = context.Message;
-
-        _logger.LogInformation(
-            "Received PatientCreatedIntegrationEvent {EventId} for patient {PatientId}",
-            evt.EventId,
-            evt.PatientId);
-
-        // Handle in Billing BC - create a billing profile
+        // Business logic only - logging is automatic via base class
         var command = new CreateBillingProfileCommand
         {
-            ExternalPatientId = evt.PatientId,
-            Email = evt.Email,
-            FullName = evt.FullName
+            ExternalPatientId = message.PatientId,
+            Email = message.Email,
+            FullName = message.FullName
         };
 
-        await _mediator.Send(command, context.CancellationToken);
+        await _mediator.Send(command, cancellationToken);
 
-        _logger.LogInformation(
+        Logger.LogInformation(
             "Created billing profile for patient {PatientId}",
-            evt.PatientId);
+            message.PatientId);
     }
 }
 ```
 
-### Registering Consumers
+### Registering Handlers
 
-Consumers are registered in MassTransit configuration:
+Handlers are registered in MassTransit configuration:
 
 ```csharp
 // WebApi/Program.cs
@@ -386,68 +433,86 @@ builder.Services.AddMassTransitEventBus(builder.Configuration, configure =>
     configure.AddConsumers(typeof(Billing.Infrastructure.ServiceCollectionExtensions).Assembly);
 
     // Or register explicitly
-    configure.AddConsumer<PatientCreatedEventConsumer>();
+    configure.AddConsumer<PatientCreatedIntegrationEventHandler>();
 });
 ```
 
 ---
 
-## Multiple Consumers
+## Multiple Handlers
 
-Multiple bounded contexts can consume the same event:
+Multiple bounded contexts can handle the same event:
 
 ```csharp
 // In Billing context
-public class PatientCreatedConsumer_Billing : IConsumer<PatientCreatedIntegrationEvent>
+public class PatientCreatedIntegrationEventHandler_Billing
+    : IntegrationEventHandler<PatientCreatedIntegrationEvent>
 {
-    public async Task Consume(ConsumeContext<PatientCreatedIntegrationEvent> context)
+    public PatientCreatedIntegrationEventHandler_Billing(
+        ILogger<PatientCreatedIntegrationEventHandler_Billing> logger) : base(logger) { }
+
+    protected override Task HandleAsync(
+        PatientCreatedIntegrationEvent message, CancellationToken ct)
     {
-        // Create billing profile
+        // Create billing profile (logging is automatic)
+        return Task.CompletedTask;
     }
 }
 
 // In Notification context
-public class PatientCreatedConsumer_Notification : IConsumer<PatientCreatedIntegrationEvent>
+public class PatientCreatedIntegrationEventHandler_Notification
+    : IntegrationEventHandler<PatientCreatedIntegrationEvent>
 {
-    public async Task Consume(ConsumeContext<PatientCreatedIntegrationEvent> context)
+    public PatientCreatedIntegrationEventHandler_Notification(
+        ILogger<PatientCreatedIntegrationEventHandler_Notification> logger) : base(logger) { }
+
+    protected override Task HandleAsync(
+        PatientCreatedIntegrationEvent message, CancellationToken ct)
     {
-        // Send welcome email
+        // Send welcome email (logging is automatic)
+        return Task.CompletedTask;
     }
 }
 
 // In Analytics context
-public class PatientCreatedConsumer_Analytics : IConsumer<PatientCreatedIntegrationEvent>
+public class PatientCreatedIntegrationEventHandler_Analytics
+    : IntegrationEventHandler<PatientCreatedIntegrationEvent>
 {
-    public async Task Consume(ConsumeContext<PatientCreatedIntegrationEvent> context)
+    public PatientCreatedIntegrationEventHandler_Analytics(
+        ILogger<PatientCreatedIntegrationEventHandler_Analytics> logger) : base(logger) { }
+
+    protected override Task HandleAsync(
+        PatientCreatedIntegrationEvent message, CancellationToken ct)
     {
-        // Track signup metric
+        // Track signup metric (logging is automatic)
+        return Task.CompletedTask;
     }
 }
 ```
 
-Each consumer gets its own queue:
+Each handler gets its own queue:
 
 ```
 Exchange: PatientCreatedIntegrationEvent
     |
-    +-- Queue: billing-patient-created ------> Billing Consumer
+    +-- Queue: billing-patient-created ------> Billing Handler
     |
-    +-- Queue: notification-patient-created -> Notification Consumer
+    +-- Queue: notification-patient-created -> Notification Handler
     |
-    +-- Queue: analytics-patient-created ----> Analytics Consumer
+    +-- Queue: analytics-patient-created ----> Analytics Handler
 ```
 
 ---
 
-## Consumer Definition (Advanced Configuration)
+## Handler Definition (Advanced Configuration)
 
-For fine-grained control, use consumer definitions:
+For fine-grained control, use handler definitions:
 
 ```csharp
-public class PatientCreatedConsumerDefinition
-    : ConsumerDefinition<PatientCreatedEventConsumer>
+public class PatientCreatedIntegrationEventHandlerDefinition
+    : ConsumerDefinition<PatientCreatedIntegrationEventHandler>
 {
-    public PatientCreatedConsumerDefinition()
+    public PatientCreatedIntegrationEventHandlerDefinition()
     {
         // Custom endpoint name
         EndpointName = "billing-patient-created";
@@ -458,7 +523,7 @@ public class PatientCreatedConsumerDefinition
 
     protected override void ConfigureConsumer(
         IReceiveEndpointConfigurator endpointConfigurator,
-        IConsumerConfigurator<PatientCreatedEventConsumer> consumerConfigurator,
+        IConsumerConfigurator<PatientCreatedIntegrationEventHandler> consumerConfigurator,
         IRegistrationContext context)
     {
         // Retry policy for this consumer
@@ -496,11 +561,24 @@ public record GetPatientResponse
     public string Email { get; init; }
 }
 
-// Consumer responds
-public class GetPatientRequestConsumer : IConsumer<GetPatientRequest>
+// Handler responds
+// Note: Request/response handlers use IConsumer<T> directly since they need
+// ConsumeContext.RespondAsync() - IntegrationEventHandler<T> is for fire-and-forget events
+public class GetPatientRequestHandler : IConsumer<GetPatientRequest>
 {
+    private readonly ILogger<GetPatientRequestHandler> _logger;
+
+    public GetPatientRequestHandler(ILogger<GetPatientRequestHandler> logger)
+    {
+        _logger = logger;
+    }
+
     public async Task Consume(ConsumeContext<GetPatientRequest> context)
     {
+        _logger.LogInformation(
+            "Processing request for patient {PatientId}",
+            context.Message.PatientId);
+
         var patient = await _repository.GetById(context.Message.PatientId);
 
         await context.RespondAsync(new GetPatientResponse
@@ -592,9 +670,9 @@ public record PaymentReceivedIntegrationEvent : IntegrationEventBase
 - [ ] Domain event handlers queue integration events via `_uow.QueueIntegrationEvent()`
 - [ ] Domain event handlers implement `INotificationHandler<TDomainEvent>`
 - [ ] Command handlers are clean (just entity ops + save)
-- [ ] Consumers registered in MassTransit
-- [ ] Each consumer has its own queue (verified in RabbitMQ UI)
-- [ ] Consumer logs message receipt and processing
+- [ ] Handlers registered in MassTransit
+- [ ] Each handler has its own queue (verified in RabbitMQ UI)
+- [ ] Handler logs message receipt and processing
 - [ ] Integration events visible in RabbitMQ Management UI
 
 ---

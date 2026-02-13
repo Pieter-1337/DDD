@@ -163,6 +163,7 @@ builder.Services.AddMassTransitEventBus(builder.Configuration, configure =>
 
 **BuildingBlocks.Infrastructure.MassTransit** provides:
 - `MassTransitEventBus` - implements `IEventBus` abstraction
+- `IntegrationEventHandler<T>` - base class for handlers with automatic logging
 - `AddMassTransitEventBus()` - extension method for host registration
 - RabbitMQ transport configuration and retry policies
 
@@ -171,7 +172,7 @@ builder.Services.AddMassTransitEventBus(builder.Configuration, configure =>
 - These are the public contracts between bounded contexts
 
 **[BC].Infrastructure/Consumers** provides:
-- MassTransit consumers (e.g., `PatientCreatedEventConsumer`)
+- MassTransit handlers (e.g., `PatientCreatedIntegrationEventHandler`)
 - These get discovered via `AddConsumers(assembly)`
 
 **WebApi/Host** does:
@@ -194,6 +195,7 @@ src/
 |   |
 |   +-- BuildingBlocks.Infrastructure.MassTransit/
 |       +-- MassTransitEventBus.cs            # IEventBus implementation
+|       +-- IntegrationEventHandler.cs        # Base class with automatic logging
 |       +-- MassTransitExtensions.cs          # AddMassTransitEventBus() extension
 |
 +-- Shared/
@@ -209,8 +211,8 @@ src/
 |   +-- Scheduling.Application/               # Uses IUnitOfWork.QueueIntegrationEvent()
 |   |
 |   +-- Scheduling.Infrastructure/
-|       +-- Consumers/                        # MassTransit consumers
-|           +-- PatientCreatedEventConsumer.cs
+|       +-- Consumers/                        # MassTransit handlers
+|           +-- PatientCreatedIntegrationEventHandler.cs
 |
 +-- WebApi/
     +-- Program.cs                            # MassTransit registered here
@@ -222,8 +224,10 @@ src/
 |---------|---------------------------|------------------------------------------|--------------------------|
 | **{BC}.Domain** | No | No | No |
 | **{BC}.Application** | Yes (IUnitOfWork, IEventBus) | No | Yes (event DTOs) |
-| **{BC}.Infrastructure** | Yes | No | Yes (consumers) |
+| **{BC}.Infrastructure** | Yes | Yes (IntegrationEventHandler base) | Yes (handlers) |
 | **WebApi** | Yes | Yes (registration) | No |
+
+> **Note:** `{BC}.Infrastructure` references `BuildingBlocks.Infrastructure.MassTransit` for the `IntegrationEventHandler<T>` base class. MassTransit packages flow transitively - no direct package reference needed in BC infrastructure.
 
 ### Provider Swappability
 
@@ -302,9 +306,10 @@ dotnet add reference ../../BuildingBlocks/BuildingBlocks.Application
 cd ../../Core/Scheduling/Scheduling.Application
 dotnet add reference ../../../BuildingBlocks/BuildingBlocks.Application
 
-# Scheduling.Infrastructure references both
+# Scheduling.Infrastructure references BuildingBlocks.Infrastructure.MassTransit and IntegrationEvents
+# (MassTransit packages flow transitively - no direct package reference needed)
 cd ../Scheduling.Infrastructure
-dotnet add reference ../../../BuildingBlocks/BuildingBlocks.Application
+dotnet add reference ../../../BuildingBlocks/BuildingBlocks.Infrastructure.MassTransit
 dotnet add reference ../../../Shared/IntegrationEvents
 
 # WebApi references BuildingBlocks.Infrastructure.MassTransit (composition root)
@@ -606,42 +611,44 @@ app.MapPost("/test-publish", async (IEventBus eventBus) =>
 
 Notice we inject `IEventBus` (abstraction) instead of `IPublishEndpoint` (MassTransit-specific). This keeps the endpoint decoupled from the messaging provider.
 
-### Step 10: Create a Consumer
+### Step 10: Create a Handler
 
-Create a consumer in `Scheduling.Infrastructure/Consumers/PatientCreatedEventConsumer.cs`:
+Handlers inherit from `IntegrationEventHandler<TEvent>` which provides automatic logging (start, complete, error).
+
+Create a handler in `Scheduling.Infrastructure/Consumers/PatientCreatedIntegrationEventHandler.cs`:
 
 ```csharp
+using BuildingBlocks.Infrastructure.MassTransit;
 using IntegrationEvents.Scheduling;
-using MassTransit;
 using Microsoft.Extensions.Logging;
 
 namespace Scheduling.Infrastructure.Consumers;
 
 /// <summary>
-/// MassTransit consumer for PatientCreatedIntegrationEvent.
+/// Handler for PatientCreatedIntegrationEvent.
 /// Handles cross-bounded-context processing when a new patient is created.
 /// </summary>
-public class PatientCreatedEventConsumer : IConsumer<PatientCreatedIntegrationEvent>
+public class PatientCreatedIntegrationEventHandler
+    : IntegrationEventHandler<PatientCreatedIntegrationEvent>
 {
-    private readonly ILogger<PatientCreatedEventConsumer> _logger;
-
-    public PatientCreatedEventConsumer(ILogger<PatientCreatedEventConsumer> logger)
+    public PatientCreatedIntegrationEventHandler(
+        ILogger<PatientCreatedIntegrationEventHandler> logger) : base(logger)
     {
-        _logger = logger;
     }
 
-    public Task Consume(ConsumeContext<PatientCreatedIntegrationEvent> context)
+    protected override Task HandleAsync(
+        PatientCreatedIntegrationEvent message,
+        CancellationToken cancellationToken)
     {
-        var message = context.Message;
-
-        _logger.LogInformation(
-            "Consumed PatientCreatedIntegrationEvent: {PatientId} - {FirstName} {LastName} ({Email})",
+        // Business logic only - logging is automatic via base class
+        Logger.LogInformation(
+            "Processing patient {PatientId} - {FirstName} {LastName} ({Email})",
             message.PatientId,
             message.FirstName,
             message.LastName,
             message.Email);
 
-        // Add cross-bounded-context logic here
+        // TODO: Add cross-bounded-context logic here
         // Example: notify Billing or MedicalRecords bounded contexts
 
         return Task.CompletedTask;
@@ -804,11 +811,17 @@ x.UsingRabbitMq((context, cfg) =>
 
 For integration tests, use the in-memory transport:
 
+**Naming convention**: Handler classes should match the event class name with `Handler` suffix:
+- Event: `PatientCreatedIntegrationEvent`
+- Handler: `PatientCreatedIntegrationEventHandler`
+
+This makes it easy to find handlers using Ctrl+T by typing the event name.
+
 ```csharp
 // In test setup
 services.AddMassTransitTestHarness(x =>
 {
-    x.AddConsumer<PatientCreatedIntegrationEventConsumer>();
+    x.AddConsumer<PatientCreatedIntegrationEventHandler>();
 });
 
 // In tests

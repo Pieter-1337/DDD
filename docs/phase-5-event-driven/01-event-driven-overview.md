@@ -25,6 +25,21 @@ Event-Driven (Asynchronous):
 
 ---
 
+## Naming Conventions
+
+Consistent naming makes it easy to find related classes using Ctrl+T:
+
+| Type | Event Class | Handler Class |
+|------|-------------|---------------|
+| **Domain Events** | `PatientCreatedEvent` | `PatientCreatedEventHandler` |
+| **Integration Events** | `PatientCreatedIntegrationEvent` | `PatientCreatedIntegrationEventHandler` |
+
+**Pattern:** All event handlers use `{EventName}Handler` suffix.
+
+This way, typing the event class name finds both the event and its handler.
+
+---
+
 ## Two Types of Events
 
 This project uses **two types of events** for different purposes:
@@ -116,11 +131,17 @@ _uow.QueueIntegrationEvent(new PatientSuspendedIntegrationEvent
 });
 
 // Consumed in another bounded context
-public class PatientSuspendedConsumer : IConsumer<PatientSuspendedIntegrationEvent>
+public class PatientSuspendedIntegrationEventHandler
+    : IntegrationEventHandler<PatientSuspendedIntegrationEvent>
 {
-    public Task Consume(ConsumeContext<PatientSuspendedIntegrationEvent> context)
+    public PatientSuspendedIntegrationEventHandler(
+        ILogger<PatientSuspendedIntegrationEventHandler> logger) : base(logger) { }
+
+    protected override Task HandleAsync(
+        PatientSuspendedIntegrationEvent message,
+        CancellationToken cancellationToken)
     {
-        // Billing: pause invoicing
+        // Billing: pause invoicing (logging is automatic)
         return Task.CompletedTask;
     }
 }
@@ -311,22 +332,21 @@ public class CreatePatientCommandHandler : IRequestHandler<CreatePatientCommand,
 
 ### Consuming Integration Events
 
+Handlers inherit from `IntegrationEventHandler<T>` which provides automatic logging (start, complete, error):
+
 ```csharp
-// Scheduling.Infrastructure/Consumers/PatientCreatedEventConsumer.cs
-public class PatientCreatedEventConsumer : IConsumer<PatientCreatedIntegrationEvent>
+// Scheduling.Infrastructure/Consumers/PatientCreatedIntegrationEventHandler.cs
+public class PatientCreatedIntegrationEventHandler
+    : IntegrationEventHandler<PatientCreatedIntegrationEvent>
 {
-    private readonly ILogger<PatientCreatedEventConsumer> _logger;
+    public PatientCreatedIntegrationEventHandler(
+        ILogger<PatientCreatedIntegrationEventHandler> logger) : base(logger) { }
 
-    public Task Consume(ConsumeContext<PatientCreatedIntegrationEvent> context)
+    protected override Task HandleAsync(
+        PatientCreatedIntegrationEvent message,
+        CancellationToken cancellationToken)
     {
-        var message = context.Message;
-
-        _logger.LogInformation(
-            "Consumed PatientCreatedIntegrationEvent: {PatientId} - {FirstName} {LastName}",
-            message.PatientId,
-            message.FirstName,
-            message.LastName);
-
+        // Business logic only - start/end/error logging is automatic
         // React to the event: send email, create billing profile, etc.
 
         return Task.CompletedTask;
@@ -416,11 +436,24 @@ public async Task Handle(InitiatePatientMigrationCommand cmd, CancellationToken 
     // Returns immediately
 }
 
-// Step 2: Consumer processes each patient independently
-public class MigratePatientMessageConsumer : IConsumer<MigratePatientMessage>
+// Step 2: Handler processes each patient independently
+// Note: Internal messages use IConsumer<T> directly since IntegrationEventHandler<T>
+// is specifically for integration events that implement IIntegrationEvent
+public class MigratePatientMessageHandler : IConsumer<MigratePatientMessage>
 {
+    private readonly ILogger<MigratePatientMessageHandler> _logger;
+
+    public MigratePatientMessageHandler(ILogger<MigratePatientMessageHandler> logger)
+    {
+        _logger = logger;
+    }
+
     public async Task Consume(ConsumeContext<MigratePatientMessage> context)
     {
+        _logger.LogInformation(
+            "Migrating patient {PatientId}",
+            context.Message.PatientId);
+
         var patient = await _repository.GetById(context.Message.PatientId);
         patient.Migrate();
         await _unitOfWork.SaveChanges();
@@ -491,7 +524,7 @@ Message Published
 
 1. **RabbitMQ + MassTransit Setup** - Infrastructure for messaging
 2. **Integration Events** - Define events that cross boundaries
-3. **Consumers** - Handle events from other contexts
+3. **Handlers** - Handle events from other contexts
 4. **Idempotent Handlers** - Safe message processing
 5. **Error Handling** - Retries and dead letter queues
 6. **Saga Pattern** - Coordinate multi-step processes (optional/advanced)
