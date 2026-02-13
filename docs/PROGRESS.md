@@ -10,6 +10,7 @@
 | Phase 4: Testing | Complete | 2026-01-09 | 2026-01-23 |
 | Phase 5: Event-Driven Architecture | Complete | 2026-01-23 | 2026-02-13 |
 | Phase 6: Integration | Not Started | - | - |
+| Phase 7: Authentication & Authorization | Not Started | - | - |
 
 ---
 
@@ -326,3 +327,23 @@ This allows using `nameof(GetPatientAsync)` in `CreatedAtAction` calls.
 - `phase-6-integration/03-rabbitmq-with-aspire.md` - Moving RabbitMQ to Aspire
 - `phase-6-integration/04-billing-bounded-context.md` - Adding second bounded context
 - `phase-6-integration/05-observability.md` - Logs, traces, metrics with Aspire Dashboard
+
+---
+
+## Phase 7: Authentication & Authorization
+
+*Not started*
+
+### Planned Topics
+
+- Authentication strategies (JWT, OAuth 2.0, OpenID Connect)
+- ASP.NET Core Identity integration
+- Authorization policies and requirements
+- Role-based vs claims-based authorization
+- Securing API endpoints
+- User context in domain layer
+- Multi-tenant considerations (optional)
+
+### Docs Available
+
+- `phase-7-auth/` - (to be created)
