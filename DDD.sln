@@ -107,6 +107,15 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "BuildingBlocks.Infrastructu
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "BuildingBlocks.Infrastructure.EfCore", "BuildingBlocks\BuildingBlocks.Infrastructure.EfCore\BuildingBlocks.Infrastructure.EfCore.csproj", "{D6138951-BF60-493D-99E8-13BD5571B5FF}"
 EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "phase-6-integration", "phase-6-integration", "{F7A3C4B2-1D8E-4F5A-9B6C-2E3D4F5A6B7C}"
+	ProjectSection(SolutionItems) = preProject
+		docs\phase-6-integration\01-aspire-introduction.md = docs\phase-6-integration\01-aspire-introduction.md
+		docs\phase-6-integration\02-aspire-setup.md = docs\phase-6-integration\02-aspire-setup.md
+		docs\phase-6-integration\03-rabbitmq-with-aspire.md = docs\phase-6-integration\03-rabbitmq-with-aspire.md
+		docs\phase-6-integration\04-billing-bounded-context.md = docs\phase-6-integration\04-billing-bounded-context.md
+		docs\phase-6-integration\05-observability.md = docs\phase-6-integration\05-observability.md
+	EndProjectSection
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -297,6 +306,7 @@ Global
 		{E5BDBC41-F519-4868-B5C2-3CBC06C943C5} = {864C7D7F-7A10-4CD5-B358-C6EBE4A79957}
 		{7ECAA534-DA19-4D17-B6C5-E69B415BD8A1} = {7266C4A9-E384-DC00-0EB6-47F6002CFBA7}
 		{D6138951-BF60-493D-99E8-13BD5571B5FF} = {7266C4A9-E384-DC00-0EB6-47F6002CFBA7}
+		{F7A3C4B2-1D8E-4F5A-9B6C-2E3D4F5A6B7C} = {68ECA03B-0FF4-4C25-A648-C83FCB98C045}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {C211A4F3-E9B4-4BC3-9EE5-6536CAAF6F04}

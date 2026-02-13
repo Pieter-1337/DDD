@@ -298,15 +298,31 @@ This allows using `nameof(GetPatientAsync)` in `CreatedAtAction` calls.
 
 ## Phase 6: Integration
 
-*Not started*
+*Documentation complete, implementation not started*
+
+### Concepts to Learn
+
+- [x] .NET Aspire for distributed app orchestration
+- [ ] AppHost and ServiceDefaults projects
+- [ ] RabbitMQ with Aspire (replacing manual docker-compose)
+- [ ] Multiple bounded contexts (Billing)
+- [ ] Cross-context communication via integration events
+- [ ] Observability with Aspire Dashboard (logs, traces, metrics)
+
+### Implementation Progress
+
+- [x] Documentation created (all 5 documents)
+- [ ] Add Aspire AppHost project
+- [ ] Add ServiceDefaults project
+- [ ] Migrate RabbitMQ to Aspire orchestration
+- [ ] Add Billing bounded context
+- [ ] Test cross-context event flow
+- [ ] Verify observability in Aspire Dashboard
 
 ### Docs Available
 
-- `phase-6-integration/` - (to be created)
-
-### Planned Topics
-
-- Multiple bounded contexts (Billing, Medical Records)
-- Cross-context communication via integration events
-- API Gateway pattern (optional)
-- Health checks and observability
+- `phase-6-integration/01-aspire-introduction.md` - What is Aspire, why use it
+- `phase-6-integration/02-aspire-setup.md` - AppHost and ServiceDefaults setup
+- `phase-6-integration/03-rabbitmq-with-aspire.md` - Moving RabbitMQ to Aspire
+- `phase-6-integration/04-billing-bounded-context.md` - Adding second bounded context
+- `phase-6-integration/05-observability.md` - Logs, traces, metrics with Aspire Dashboard
