@@ -307,9 +307,10 @@ This allows using `nameof(GetPatientAsync)` in `CreatedAtAction` calls.
 - [x] .NET Aspire for distributed app orchestration
 - [ ] AppHost and ServiceDefaults projects
 - [ ] RabbitMQ with Aspire (replacing manual docker-compose)
-- [ ] Multiple bounded contexts (Billing)
+- [ ] Multiple bounded contexts (Billing) with separate APIs
 - [ ] Cross-context communication via integration events
 - [ ] Observability with Aspire Dashboard (logs, traces, metrics)
+- [ ] API Gateway with YARP (optional - single entry point for multiple APIs)
 
 ### Implementation Progress
 
@@ -328,6 +329,7 @@ This allows using `nameof(GetPatientAsync)` in `CreatedAtAction` calls.
 - `phase-6-integration/03-rabbitmq-with-aspire.md` - Moving RabbitMQ to Aspire
 - `phase-6-integration/04-billing-bounded-context.md` - Adding second bounded context
 - `phase-6-integration/05-observability.md` - Logs, traces, metrics with Aspire Dashboard
+- `phase-6-integration/06-api-gateway-optional.md` - YARP API Gateway (optional)
 
 ---
 

@@ -114,6 +114,7 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "phase-6-integration", "phas
 		docs\phase-6-integration\03-rabbitmq-with-aspire.md = docs\phase-6-integration\03-rabbitmq-with-aspire.md
 		docs\phase-6-integration\04-billing-bounded-context.md = docs\phase-6-integration\04-billing-bounded-context.md
 		docs\phase-6-integration\05-observability.md = docs\phase-6-integration\05-observability.md
+		docs\phase-6-integration\06-api-gateway-optional.md = docs\phase-6-integration\06-api-gateway-optional.md
 	EndProjectSection
 EndProject
 Global
