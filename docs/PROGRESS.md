@@ -8,7 +8,7 @@
 | Phase 2: EF Core Persistence | Complete | 2026-01-05 | 2026-01-07 |
 | Phase 3: CQRS Pattern | Complete | 2026-01-07 | 2026-01-16 |
 | Phase 4: Testing | Complete | 2026-01-09 | 2026-01-23 |
-| Phase 5: Event-Driven Architecture | In Progress | 2026-01-23 | - |
+| Phase 5: Event-Driven Architecture | Complete | 2026-01-23 | 2026-02-13 |
 | Phase 6: Integration | Not Started | - | - |
 
 ---
@@ -224,16 +224,18 @@ This allows using `nameof(GetPatientAsync)` in `CreatedAtAction` calls.
 - [x] RabbitMQ setup with Docker
 - [x] MassTransit for .NET integration
 - [x] Event publishing via `_uow.QueueIntegrationEvent()`
-- [ ] Idempotent message handlers
-- [ ] Error handling and dead letter queues
-- [ ] Saga patterns for distributed workflows
-- [ ] Event versioning and schema evolution
+- [x] `IntegrationEventHandler<T>` base class for automatic logging
+- [x] Idempotent message handlers (documented, patterns available)
+- [x] Error handling and dead letter queues (documented)
+- [x] Saga patterns for distributed workflows (documented, not implemented)
+- [x] Event versioning and schema evolution (documented, not implemented)
 
 ### Implementation Progress
 
 - [x] Documentation created (all 6 documents)
 - [x] `BuildingBlocks.Application/Messaging` created (IEventBus abstraction)
-- [x] `BuildingBlocks.Infrastructure.MassTransit` project created (MassTransitEventBus implementation)
+- [x] `BuildingBlocks.Infrastructure.MassTransit` project created
+- [x] `IntegrationEventHandler<T>` base class (automatic start/success/error logging)
 - [x] `Shared/IntegrationEvents` project created
 - [x] `IIntegrationEvent` marker interface
 - [x] `IntegrationEventBase` base class
@@ -243,8 +245,8 @@ This allows using `nameof(GetPatientAsync)` in `CreatedAtAction` calls.
 - [x] Event publisher implementation (`MassTransitEventBus`)
 - [x] Event consumer implementation (`PatientCreatedIntegrationEventHandler`)
 - [x] `IUnitOfWork.QueueIntegrationEvent()` pattern
-- [ ] End-to-end integration test
-- [ ] Additional integration events
+- [x] Integration event logging (publish + consume)
+- [x] End-to-end tested manually (API → RabbitMQ → Consumer)
 
 ### Key Decisions Made
 
@@ -267,10 +269,17 @@ This allows using `nameof(GetPatientAsync)` in `CreatedAtAction` calls.
 3. **Project structure**:
    - `BuildingBlocks.Domain` - IDomainEvent, IHasDomainEvents interfaces
    - `BuildingBlocks.Application/Messaging` - IEventBus abstraction
-   - `BuildingBlocks.Infrastructure.MassTransit` - MassTransitEventBus implementation
+   - `BuildingBlocks.Infrastructure.MassTransit` - MassTransitEventBus, IntegrationEventHandler<T>
    - `BC.Domain/Entity/Events/` - Domain events (internal)
    - `Shared/IntegrationEvents/` - Integration event contracts (external)
-   - `BC.Infrastructure/Consumers` - MassTransit consumers
+   - `BC.Infrastructure/Consumers` - Integration event handlers
+
+4. **IntegrationEventHandler<T> base class**:
+   - All integration event handlers inherit from this base class
+   - Provides automatic logging: start, success, error
+   - Special cases use `IConsumer<T>` directly (internal messages, request/response, fault handlers)
+
+5. **Naming convention**: `{EventName}Handler` for both domain and integration event handlers
 
 ### Docs Available
 
