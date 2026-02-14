@@ -496,10 +496,13 @@ builder.Services.ConfigureHttpClientDefaults(http =>
 
 Before starting Phase 6:
 
-- .NET 9 SDK (Aspire requires .NET 8+)
-- Docker Desktop (for container resources)
-- Visual Studio 2022 17.9+ or VS Code with C# Dev Kit
-- Completed Phase 5 (Event-Driven Architecture with MassTransit/RabbitMQ)
+- **.NET 9 SDK** - Aspire 9 is distributed as NuGet packages and project templates
+- **Docker Desktop** - For running container resources (RabbitMQ, SQL Server, Redis, etc.)
+- **Visual Studio 2022 17.9+** or **VS Code with C# Dev Kit**
+- **Aspire Project Templates** - Install via `dotnet new install Aspire.ProjectTemplates`
+- **Completed Phase 5** - Event-Driven Architecture with MassTransit/RabbitMQ
+
+> **Note**: Starting with Aspire 9, the .NET Aspire workload (`dotnet workload install aspire`) is no longer required. Aspire is now distributed entirely through NuGet packages and `dotnet new` templates, simplifying the installation process.
 
 ---
 

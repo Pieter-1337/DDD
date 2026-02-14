@@ -44,24 +44,28 @@ Before setting up Aspire, ensure you have:
 | Visual Studio 2022 | 17.9+ | Help > About |
 | .NET SDK | 9.0+ | `dotnet --version` |
 | Docker Desktop | Latest | `docker --version` |
-| .NET Aspire Workload | 9.0+ | `dotnet workload list` |
+| Aspire Project Templates | 9.0+ | `dotnet new list aspire` |
 
-### Install the Aspire Workload
+### Install the Aspire Templates
+
+Starting with .NET Aspire 9, the workload is **no longer required**. Aspire is now fully NuGet-based. Install the project templates:
 
 ```bash
-# Install the Aspire workload
-dotnet workload install aspire
+# Install the Aspire project templates
+dotnet new install Aspire.ProjectTemplates
 
-# Verify installation
-dotnet workload list
-# Should show: aspire   9.x.x
+# Verify installation - should show aspire-apphost, aspire-servicedefaults, etc.
+dotnet new list aspire
 ```
 
-### Visual Studio Configuration
+### Visual Studio Configuration (Optional)
 
+The .NET Aspire SDK component in Visual Studio is **optional** for Aspire 9+. The NuGet packages provide all necessary functionality.
+
+If you still want to install it:
 1. Open **Visual Studio Installer**
 2. Click **Modify** on your VS 2022 installation
-3. Ensure **.NET Aspire SDK** is checked under **Individual Components**
+3. Check **.NET Aspire SDK** under **Individual Components**
 4. Click **Modify** to apply changes
 
 ---
@@ -594,7 +598,7 @@ AppHost respects `launchSettings.json`:
 
 After completing this setup:
 
-- [ ] Aspire workload installed (`dotnet workload list` shows aspire)
+- [ ] Aspire templates installed (`dotnet new list aspire` shows templates)
 - [ ] DDD.ServiceDefaults project created and added to solution
 - [ ] DDD.AppHost project created and added to solution
 - [ ] AppHost references WebApi project
@@ -612,10 +616,13 @@ After completing this setup:
 
 ### Common Issues
 
-**"Aspire workload not found"**
+**"Aspire templates not found"**
 ```bash
-dotnet workload install aspire
-dotnet workload update
+# Install Aspire project templates (Aspire 9+ uses NuGet, not workloads)
+dotnet new install Aspire.ProjectTemplates
+
+# Update to latest version
+dotnet new update
 ```
 
 **"Projects.WebApi not found in AppHost"**
