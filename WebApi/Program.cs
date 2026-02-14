@@ -8,8 +8,10 @@ using Scheduling.Infrastructure;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Add services to the container.
+// Add Aspire ServiceDefaults (OpenTelemetry, health checks, resilience)
+builder.AddServiceDefaults();
 
+// Add services to the container.
 builder.Services.AddControllers(options =>
 {
     options.SuppressAsyncSuffixInActionNames = false;
@@ -37,16 +39,15 @@ builder.Services.AddMassTransitEventBus(builder.Configuration, configure =>
 
 var app = builder.Build();
 
+// Map Aspire default endpoints (health checks)
+app.MapDefaultEndpoints();
 // Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())
 {
     app.MapOpenApi();
 }
-
 app.UseHttpsRedirection();
-
 app.UseAuthorization();
-
 app.MapControllers();
 
 app.Run();

@@ -76,13 +76,13 @@ Aspire adds two new projects to your solution:
 
 ```
 DDD.sln
-+-- DDD.AppHost/                    <- NEW: Orchestration project
-|   +-- Program.cs                  <- Defines app topology
-|   +-- DDD.AppHost.csproj
++-- Aspire.AppHost/                 <- NEW: Orchestration project
+|   +-- AppHost.cs                  <- Defines app topology
+|   +-- Aspire.AppHost.csproj
 |
-+-- DDD.ServiceDefaults/            <- NEW: Shared service configuration
++-- ServiceDefaults/                <- NEW: Shared service configuration
 |   +-- Extensions.cs               <- OpenTelemetry, health checks, etc.
-|   +-- DDD.ServiceDefaults.csproj
+|   +-- Aspire.ServiceDefaults.csproj
 |
 +-- WebApi/                         <- Existing: Your Scheduling API
 |   +-- Program.cs                  <- Modified to use ServiceDefaults
@@ -95,8 +95,8 @@ DDD.sln
 
 | Project | Purpose |
 |---------|---------|
-| **DDD.AppHost** | The "control tower" - orchestrates all services and resources |
-| **DDD.ServiceDefaults** | Shared configuration for observability, resilience, health checks |
+| **Aspire.AppHost** | The "control tower" - orchestrates all services and resources |
+| **Aspire.ServiceDefaults** | Shared configuration for observability, resilience, health checks |
 | **WebApi** | Your existing API, now enhanced with Aspire defaults |
 
 ---
@@ -112,17 +112,17 @@ The ServiceDefaults project contains shared configuration that all services in y
 cd C:/projects/DDD/DDD
 
 # Create ServiceDefaults project using Aspire template
-dotnet new aspire-servicedefaults -n DDD.ServiceDefaults -o DDD.ServiceDefaults
+dotnet new aspire-servicedefaults -n Aspire.ServiceDefaults -o ServiceDefaults
 
 # Add to solution
-dotnet sln add DDD.ServiceDefaults/DDD.ServiceDefaults.csproj
+dotnet sln add ServiceDefaults/Aspire.ServiceDefaults.csproj
 ```
 
 ### Step 2: Review the Generated Code
 
 The template creates `Extensions.cs` with standard configuration:
 
-**DDD.ServiceDefaults/Extensions.cs**:
+**ServiceDefaults/Extensions.cs**:
 ```csharp
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
@@ -242,10 +242,10 @@ The AppHost project is the orchestrator that defines your distributed applicatio
 cd C:/projects/DDD/DDD
 
 # Create AppHost project using Aspire template
-dotnet new aspire-apphost -n DDD.AppHost -o DDD.AppHost
+dotnet new aspire-apphost -n Aspire.AppHost -o Aspire.AppHost
 
 # Add to solution
-dotnet sln add DDD.AppHost/DDD.AppHost.csproj
+dotnet sln add Aspire.AppHost/Aspire.AppHost.csproj
 ```
 
 ### Step 2: Add Project References
@@ -253,7 +253,7 @@ dotnet sln add DDD.AppHost/DDD.AppHost.csproj
 The AppHost needs references to all projects it orchestrates:
 
 ```bash
-cd DDD.AppHost
+cd Aspire.AppHost
 
 # Reference the WebApi project
 dotnet add reference ../WebApi/WebApi.csproj
@@ -261,9 +261,9 @@ dotnet add reference ../WebApi/WebApi.csproj
 
 ### Step 3: Configure the App Model
 
-Edit the generated `Program.cs` to define your distributed application:
+Edit the generated `AppHost.cs` to define your distributed application:
 
-**DDD.AppHost/Program.cs**:
+**Aspire.AppHost/AppHost.cs**:
 ```csharp
 var builder = DistributedApplication.CreateBuilder(args);
 
@@ -300,7 +300,7 @@ Update your existing WebApi to use the shared ServiceDefaults configuration.
 
 ```bash
 cd WebApi
-dotnet add reference ../DDD.ServiceDefaults/DDD.ServiceDefaults.csproj
+dotnet add reference ../ServiceDefaults/Aspire.ServiceDefaults.csproj
 ```
 
 ### Step 2: Update Program.cs
@@ -383,24 +383,24 @@ app.Run();
 After setup, your project references should look like:
 
 ```
-DDD.AppHost
+Aspire.AppHost
 +-- References: WebApi (for orchestration)
 
-DDD.ServiceDefaults
+Aspire.ServiceDefaults
 +-- References: (none - standalone)
 
 WebApi
-+-- References: DDD.ServiceDefaults
-+-- References: Scheduling.Infrastructure
-+-- References: Scheduling.Application
-+-- References: BuildingBlocks.*
++-- References: Aspire.ServiceDefaults
++-- References: Scheduling.Infrastructure (transitively includes Scheduling.Application, Scheduling.Domain)
++-- References: BuildingBlocks.Infrastructure.MassTransit
++-- References: BuildingBlocks.WebApplications
 ```
 
 ### Verify with csproj Files
 
-**DDD.AppHost/DDD.AppHost.csproj**:
+**Aspire.AppHost/Aspire.AppHost.csproj**:
 ```xml
-<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Aspire.AppHost.Sdk/13.1.1">
 
   <PropertyGroup>
     <OutputType>Exe</OutputType>
@@ -421,7 +421,7 @@ WebApi
 </Project>
 ```
 
-**DDD.ServiceDefaults/DDD.ServiceDefaults.csproj**:
+**ServiceDefaults/Aspire.ServiceDefaults.csproj**:
 ```xml
 <Project Sdk="Microsoft.NET.Sdk">
 
@@ -447,17 +447,20 @@ WebApi
 </Project>
 ```
 
-**Note:** If using Central Package Management (CPM), add these to `Directory.Packages.props`:
+**Important:** This project uses Central Package Management (CPM). The ServiceDefaults csproj must **not** have `Version` attributes on `PackageReference` items. Instead, add the versions to `Directory.Packages.props`:
+
 ```xml
-<PackageVersion Include="Aspire.Hosting.AppHost" Version="9.0.*" />
-<PackageVersion Include="Microsoft.Extensions.Http.Resilience" Version="9.0.*" />
-<PackageVersion Include="Microsoft.Extensions.ServiceDiscovery" Version="9.0.*" />
-<PackageVersion Include="OpenTelemetry.Exporter.OpenTelemetryProtocol" Version="1.10.*" />
-<PackageVersion Include="OpenTelemetry.Extensions.Hosting" Version="1.10.*" />
-<PackageVersion Include="OpenTelemetry.Instrumentation.AspNetCore" Version="1.10.*" />
-<PackageVersion Include="OpenTelemetry.Instrumentation.Http" Version="1.10.*" />
-<PackageVersion Include="OpenTelemetry.Instrumentation.Runtime" Version="1.10.*" />
+<!-- Aspire ServiceDefaults -->
+<PackageVersion Include="Microsoft.Extensions.Http.Resilience" Version="10.1.0" />
+<PackageVersion Include="Microsoft.Extensions.ServiceDiscovery" Version="10.1.0" />
+<PackageVersion Include="OpenTelemetry.Exporter.OpenTelemetryProtocol" Version="1.14.0" />
+<PackageVersion Include="OpenTelemetry.Extensions.Hosting" Version="1.14.0" />
+<PackageVersion Include="OpenTelemetry.Instrumentation.AspNetCore" Version="1.14.0" />
+<PackageVersion Include="OpenTelemetry.Instrumentation.Http" Version="1.14.0" />
+<PackageVersion Include="OpenTelemetry.Instrumentation.Runtime" Version="1.14.0" />
 ```
+
+> **Tip:** The Aspire template generates the csproj with hardcoded versions. If you have `ManagePackageVersionsCentrally` enabled in `Directory.Packages.props`, you must move the versions there and remove them from the csproj, otherwise you'll get `NU1008` build errors.
 
 ---
 
@@ -465,7 +468,7 @@ WebApi
 
 ### Set AppHost as Startup Project
 
-1. In Visual Studio, right-click **DDD.AppHost**
+1. In Visual Studio, right-click **Aspire.AppHost**
 2. Select **Set as Startup Project**
 3. Press **F5** to start debugging
 
@@ -473,7 +476,7 @@ WebApi
 
 ```
 1. Aspire Dashboard starts (localhost:18888 by default)
-2. AppHost reads Program.cs to understand app topology
+2. AppHost reads AppHost.cs to understand app topology
 3. Each AddProject<T> project is started
 4. OpenTelemetry is configured to export to Dashboard
 5. Browser opens to Dashboard
@@ -483,7 +486,7 @@ WebApi
 
 ```bash
 # Navigate to AppHost project
-cd C:/projects/DDD/DDD/DDD.AppHost
+cd C:/projects/DDD/DDD/Aspire.AppHost
 
 # Run the distributed application
 dotnet run
@@ -544,7 +547,7 @@ Aspire simplifies configuration management.
 ### How Configuration Works
 
 ```csharp
-// In AppHost/Program.cs
+// In Aspire.AppHost/AppHost.cs
 var api = builder.AddProject<Projects.WebApi>("scheduling-api")
     .WithEnvironment("MyKey", "MyValue");
 
@@ -572,7 +575,7 @@ var api = builder.AddProject<Projects.WebApi>("scheduling-api")
 
 AppHost respects `launchSettings.json`:
 
-**DDD.AppHost/Properties/launchSettings.json**:
+**Aspire.AppHost/Properties/launchSettings.json**:
 ```json
 {
   "profiles": {
@@ -599,8 +602,8 @@ AppHost respects `launchSettings.json`:
 After completing this setup:
 
 - [ ] Aspire templates installed (`dotnet new list aspire` shows templates)
-- [ ] DDD.ServiceDefaults project created and added to solution
-- [ ] DDD.AppHost project created and added to solution
+- [ ] Aspire.ServiceDefaults project created and added to solution
+- [ ] Aspire.AppHost project created and added to solution
 - [ ] AppHost references WebApi project
 - [ ] WebApi references ServiceDefaults
 - [ ] WebApi Program.cs calls `AddServiceDefaults()` and `MapDefaultEndpoints()`
@@ -647,14 +650,14 @@ dotnet new update
 
 You've set up .NET Aspire for your DDD learning project:
 
-1. **DDD.ServiceDefaults** - Shared configuration for OpenTelemetry, health checks, and resilience
-2. **DDD.AppHost** - Orchestrator that defines your distributed application topology
+1. **Aspire.ServiceDefaults** - Shared configuration for OpenTelemetry, health checks, and resilience
+2. **Aspire.AppHost** - Orchestrator that defines your distributed application topology
 3. **Modified WebApi** - Now uses ServiceDefaults for observability
 
 ### Current Architecture
 
 ```
-DDD.AppHost (Orchestrator)
+Aspire.AppHost (Orchestrator)
     |
     +-- starts --> WebApi (scheduling-api)
                       |

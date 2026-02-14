@@ -87,7 +87,7 @@ docker logs -f rabbitmq
 With Aspire:
 ```bash
 # Just press F5 in Visual Studio, or:
-dotnet run --project AppHost
+dotnet run --project Aspire.AppHost
 
 # Browser: Opens Aspire Dashboard automatically
 # - All logs
@@ -105,7 +105,7 @@ dotnet run --project AppHost
 The **AppHost** is the orchestrator - it defines what services run and how they connect:
 
 ```csharp
-// AppHost/Program.cs
+// Aspire.AppHost/AppHost.cs
 var builder = DistributedApplication.CreateBuilder(args);
 
 // Add infrastructure
@@ -241,8 +241,8 @@ DDD/
 |
 +-- WebApi/                         # References ServiceDefaults
 |
-+-- AppHost/                        # NEW: Aspire orchestrator
-|   +-- Program.cs                  # Defines entire system topology
++-- Aspire.AppHost/                 # NEW: Aspire orchestrator
+|   +-- AppHost.cs                  # Defines entire system topology
 |
 +-- ServiceDefaults/                # NEW: Shared Aspire configuration
 |   +-- Extensions.cs               # OpenTelemetry, health checks, etc.
@@ -312,7 +312,7 @@ services:
 
 ### After Aspire: Unified Orchestration
 
-**AppHost/Program.cs:**
+**Aspire.AppHost/AppHost.cs:**
 ```csharp
 var builder = DistributedApplication.CreateBuilder(args);
 
@@ -333,7 +333,7 @@ builder.Build().Run();
 
 **Workflow:**
 ```
-1. F5 (or dotnet run --project AppHost)
+1. F5 (or dotnet run --project Aspire.AppHost)
 2. Aspire Dashboard opens automatically
 3. All logs, traces, metrics in one place
 4. Service endpoints listed in dashboard
@@ -463,7 +463,7 @@ builder.Services.ConfigureHttpClientDefaults(http =>
 
 ## What You Will Build in This Phase
 
-1. **AppHost project** - Orchestrate WebApi, RabbitMQ, SQL Server
+1. **Aspire.AppHost project** - Orchestrate WebApi, RabbitMQ, SQL Server
 2. **ServiceDefaults project** - Shared observability and resilience
 3. **Aspire integrations** - SQL Server and RabbitMQ components
 4. **Dashboard exploration** - Logs, traces, metrics
