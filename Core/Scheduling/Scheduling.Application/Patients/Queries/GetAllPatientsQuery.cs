@@ -17,10 +17,13 @@ namespace Scheduling.Application.Patients.Queries
     {
         public GetAllPatientsQueryValidator()
         {
-            RuleFor(q => q.Status)
+            When(q => !string.IsNullOrWhiteSpace(q.Status), () => {
+                RuleFor(q => q.Status)
                 .Must(PatientStatus.IsInEnum)
                 .WithErrorCode(ErrorCode.InvalidStatus.Value)
                 .WithMessage(ErrorCode.InvalidStatus.Message);
+            });
+            
         }
     }
     #endregion Validators

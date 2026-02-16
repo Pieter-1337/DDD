@@ -30,7 +30,7 @@ namespace WebApi.Controllers
         [HttpGet("")]
         [ProducesResponseType<IEnumerable<PatientDto>>(StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
-        public async Task<IActionResult> GetAllPatientsAsync(string status)
+        public async Task<IActionResult> GetAllPatientsAsync(string? status)
         {
             var response = await _mediator.Send(new GetAllPatientsQuery { Status = status });
 

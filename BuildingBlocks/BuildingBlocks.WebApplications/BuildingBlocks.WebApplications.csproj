@@ -13,5 +13,7 @@
 	<ItemGroup>
 		<PackageReference Include="Ardalis.SmartEnum.SystemTextJson" />
 		<PackageReference Include="FluentValidation" />
+		<PackageReference Include="Microsoft.AspNetCore.OpenApi" />
+		<PackageReference Include="Scalar.AspNetCore" />
 	</ItemGroup>
 </Project>

@@ -2,6 +2,7 @@ using BuildingBlocks.Application;
 using BuildingBlocks.Infrastructure.MassTransit.Configuration;
 using BuildingBlocks.WebApplications.Filters;
 using BuildingBlocks.WebApplications.Json;
+using BuildingBlocks.WebApplications.OpenApi;
 using MassTransit;
 using Scheduling.Application;
 using Scheduling.Infrastructure;
@@ -46,7 +47,7 @@ app.MapDefaultEndpoints();
 // Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())
 {
-    app.MapOpenApi();
+    app.UseOpenApiWithScalar("Scheduling API");
 }
 app.UseHttpsRedirection();
 app.UseAuthorization();

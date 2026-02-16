@@ -503,6 +503,270 @@ public class PatientsController : ControllerBase
 
 ---
 
+## Dynamic Query Composition with PredicateBuilder
+
+### What Is PredicateBuilder?
+
+`PredicateBuilder` is a utility for dynamically composing LINQ predicate expressions (`Expression<Func<T, bool>>`) at runtime. It lives in `BuildingBlocks.Domain.Specifications` and has zero dependencies—it uses pure expression trees that EF Core can translate to SQL.
+
+### Where Does It Live?
+
+```
+BuildingBlocks/
+└── BuildingBlocks.Domain/
+    └── Specifications/
+        └── PredicateBuilder.cs
+```
+
+No package references required. It's a self-contained utility using only `System.Linq.Expressions`.
+
+### Why Is It Useful?
+
+Consider a query with optional filters from a search form:
+
+```csharp
+// Without PredicateBuilder - this breaks when status is null
+public async Task<IEnumerable<PatientDto>> Handle(GetAllPatientsQuery query, CancellationToken ct)
+{
+    return await _uow.RepositoryFor<Patient>()
+        .GetAllAsDtosAsync<PatientDto>(p => p.Status == query.Status, ct);
+        // ❌ When query.Status is null, this queries for patients where Status == null
+}
+```
+
+**Problems:**
+- Can't conditionally apply filters
+- Hardcoded predicate fails with null values
+- No way to combine multiple optional filters dynamically
+
+**Solution with PredicateBuilder:**
+
+```csharp
+// Start with a base that matches everything
+var predicate = PredicateBuilder.BaseAnd<Patient>();
+
+// Conditionally add filters
+if (!string.IsNullOrWhiteSpace(query.Status))
+{
+    var status = PatientStatus.FromName(query.Status);
+    predicate = predicate.And(p => p.Status == status);
+}
+
+// If no filters were added, predicate is still valid (matches all)
+return await _uow.RepositoryFor<Patient>()
+    .GetAllAsDtosAsync<PatientDto>(predicate, ct);
+```
+
+**Benefits:**
+- Conditional filtering without string-based queries
+- Composable AND/OR/NOT operations
+- Type-safe at compile time
+- Works with EF Core's expression tree translation
+- No SQL injection risk
+
+### API Overview
+
+| Method | Purpose | Example |
+|--------|---------|---------|
+| `BaseAnd<T>()` | Start an AND chain (`p => true`) | `var predicate = PredicateBuilder.BaseAnd<Patient>();` |
+| `BaseOr<T>()` | Start an OR chain (`p => false`) | `var predicate = PredicateBuilder.BaseOr<Patient>();` |
+| `Create<T>(expr)` | Wrap an expression | `var predicate = PredicateBuilder.Create<Patient>(p => p.IsActive);` |
+| `.And(expr)` | Combine with AND | `predicate = predicate.And(p => p.Status == status);` |
+| `.Or(expr)` | Combine with OR | `predicate = predicate.Or(p => p.Status == other);` |
+| `.Not()` | Negate the predicate | `predicate = predicate.Not();` |
+| `.EqualsBaseAnd()` | Check if still `p => true` | `if (!predicate.EqualsBaseAnd()) { /* filters applied */ }` |
+| `.EqualsBaseOr()` | Check if still `p => false` | `if (!predicate.EqualsBaseOr()) { /* filters applied */ }` |
+
+### Real-World Example: GetAllPatientsQueryHandler
+
+**Before - Broken with null status:**
+
+```csharp
+public async Task<IEnumerable<PatientDto>> Handle(GetAllPatientsQuery query, CancellationToken ct)
+{
+    // ❌ This queries for Status == null when query.Status is null
+    return await _uow.RepositoryFor<Patient>()
+        .GetAllAsDtosAsync<PatientDto>(p => p.Status == query.Status, ct);
+}
+```
+
+**After - Correct conditional filtering:**
+
+```csharp
+public async Task<IEnumerable<PatientDto>> Handle(GetAllPatientsQuery query, CancellationToken ct)
+{
+    // Start with a base predicate that matches all patients (p => true)
+    var predicate = PredicateBuilder.BaseAnd<Patient>();
+
+    // Only add the status filter if a status was provided
+    if (!string.IsNullOrWhiteSpace(query.Status))
+    {
+        var status = PatientStatus.FromName(query.Status);
+        predicate = predicate.And(p => p.Status == status);
+    }
+
+    // If query.Status was null/empty, predicate is still (p => true) - matches all patients
+    // If query.Status was provided, predicate is (p => p.Status == status)
+    return await _uow.RepositoryFor<Patient>()
+        .GetAllAsDtosAsync<PatientDto>(predicate, ct);
+}
+```
+
+### More Complex Example: Multiple Optional Filters
+
+Search form with many optional fields:
+
+```csharp
+public class SearchPatientsQuery : IRequest<IEnumerable<PatientDto>>
+{
+    public string? Status { get; set; }
+    public string? EmailSearchTerm { get; set; }
+    public string? LastNameSearchTerm { get; set; }
+    public DateTime? RegisteredAfter { get; set; }
+}
+
+public class SearchPatientsQueryHandler : IRequestHandler<SearchPatientsQuery, IEnumerable<PatientDto>>
+{
+    private readonly IUnitOfWork _uow;
+
+    public async Task<IEnumerable<PatientDto>> Handle(SearchPatientsQuery query, CancellationToken ct)
+    {
+        var predicate = PredicateBuilder.BaseAnd<Patient>();
+
+        if (!string.IsNullOrWhiteSpace(query.Status))
+        {
+            var status = PatientStatus.FromName(query.Status);
+            predicate = predicate.And(p => p.Status == status);
+        }
+
+        if (!string.IsNullOrWhiteSpace(query.EmailSearchTerm))
+        {
+            predicate = predicate.And(p => p.Email.Contains(query.EmailSearchTerm));
+        }
+
+        if (!string.IsNullOrWhiteSpace(query.LastNameSearchTerm))
+        {
+            predicate = predicate.And(p => p.LastName.Contains(query.LastNameSearchTerm));
+        }
+
+        if (query.RegisteredAfter.HasValue)
+        {
+            predicate = predicate.And(p => p.CreatedAt >= query.RegisteredAfter.Value);
+        }
+
+        // Each filter is conditionally added—only the ones with values are included
+        return await _uow.RepositoryFor<Patient>()
+            .GetAllAsDtosAsync<PatientDto>(predicate, ct);
+    }
+}
+```
+
+**Generated SQL when only `Status` and `EmailSearchTerm` are provided:**
+
+```sql
+SELECT p.Id, p.FirstName, p.LastName, p.Email, p.Status
+FROM Patients p
+WHERE p.Status = @status
+  AND p.Email LIKE '%' + @emailTerm + '%'
+```
+
+Only the filters with values are included in the WHERE clause.
+
+### OR Example: Match Any of Multiple Criteria
+
+```csharp
+// Find patients who are either Active OR have a recent appointment
+var predicate = PredicateBuilder.BaseOr<Patient>();
+predicate = predicate.Or(p => p.Status == PatientStatus.Active);
+predicate = predicate.Or(p => p.Appointments.Any(a => a.Date >= DateTime.UtcNow.AddDays(-30)));
+
+// Equivalent to: WHERE (p.Status = 'Active') OR (p.Appointments have recent dates)
+```
+
+### NOT Example: Exclude Criteria
+
+```csharp
+// Find all patients who are NOT suspended
+var predicate = PredicateBuilder.Create<Patient>(p => p.Status == PatientStatus.Suspended);
+predicate = predicate.Not();
+
+// Equivalent to: WHERE NOT (p.Status = 'Suspended')
+```
+
+### When to Use vs When Not to Use
+
+**Use PredicateBuilder when:**
+- Query has multiple optional filters from user input (search forms, filter dropdowns)
+- Need to combine filters with OR logic
+- Need negation (NOT)
+- Building complex dynamic queries at runtime
+
+**Don't use PredicateBuilder when:**
+- Query has a single required filter → use `.Where(p => p.Id == id)` directly
+- Query has one or two optional filters → simple chaining is more readable:
+  ```csharp
+  var query = _context.Patients.AsQueryable();
+  if (status.HasValue)
+      query = query.Where(p => p.Status == status);
+  return await query.ToListAsync(ct);
+  ```
+
+**Readability guideline:** For 1-2 optional filters, simple `.Where()` chaining is clearer. PredicateBuilder shines when you have 3+ dynamic conditions or need OR/NOT combinations.
+
+### How It Works Under the Hood
+
+The core challenge: You can't just combine two `Expression<Func<T, bool>>` instances with `&&` because each expression has its own parameter (`p1` and `p2`). You need a single shared parameter.
+
+**Problem:**
+
+```csharp
+Expression<Func<Patient, bool>> expr1 = p1 => p1.Status == PatientStatus.Active;
+Expression<Func<Patient, bool>> expr2 = p2 => p2.Email.Contains("example");
+
+// Can't do this - different parameters (p1 vs p2)
+var combined = expr1.Body && expr2.Body;  // ❌ Won't compile
+```
+
+**Solution: Parameter Rebinding**
+
+PredicateBuilder uses `ReplaceVisitor` to replace the parameter in the second expression with the parameter from the first:
+
+```csharp
+public static Expression<Func<T, bool>> And<T>(
+    this Expression<Func<T, bool>> expr1,
+    Expression<Func<T, bool>> expr2)
+{
+    // Replace expr2's parameter (p2) with expr1's parameter (p1)
+    var secondBody = expr2.Body.Replace(expr2.Parameters[0], expr1.Parameters[0]);
+
+    // Now both bodies use the same parameter - combine with AndAlso
+    return Expression.Lambda<Func<T, bool>>(
+        Expression.AndAlso(expr1.Body, secondBody),
+        expr1.Parameters);
+}
+
+private class ReplaceVisitor(Expression from, Expression to) : ExpressionVisitor
+{
+    public override Expression Visit(Expression? node)
+    {
+        return node == from ? to : base.Visit(node)!;
+    }
+}
+```
+
+**Result:**
+
+Both expressions now share the same parameter, so they can be combined into a single expression tree that EF Core translates to SQL:
+
+```csharp
+// Before: p1 => p1.Status == Active  AND  p2 => p2.Email.Contains("example")
+// After:  p => (p.Status == Active) AND (p.Email.Contains("example"))
+```
+
+This technique is from [Joseph Albahari's article on LINQ expressions](http://www.albahari.com/expressions).
+
+---
+
 ## Query Design Guidelines
 
 ### 1. Queries Are Read-Only

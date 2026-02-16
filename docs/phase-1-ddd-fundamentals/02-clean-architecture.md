@@ -54,16 +54,17 @@ Make the **domain layer depend on NOTHING**:
 
 Create the following structure:
 ```
-BuildingBlocks/                    ← Shared building blocks (split by concern)
-├── BuildingBlocks.Domain/         ← Entity, interfaces
-└── BuildingBlocks.Infrastructure/ ← Repository, UnitOfWork implementations
+BuildingBlocks/                       ← Shared building blocks (split by concern)
+├── BuildingBlocks.Domain/            ← Entity, interfaces
+├── BuildingBlocks.Infrastructure/    ← Repository, UnitOfWork implementations
+└── BuildingBlocks.WebApplications/   ← Web infrastructure (OpenAPI, JSON converters)
 Core/
-└── Scheduling/                    ← Bounded context
+└── Scheduling/                       ← Bounded context
     ├── Scheduling.Domain/
     ├── Scheduling.Application/
     ├── Scheduling.Infrastructure/
     └── Scheduling.Domain.Tests/
-WebApi/                            ← API project
+WebApi/                               ← API project
 ```
 
 ### Step 2: Create BuildingBlocks.Domain project (pure domain abstractions)
@@ -117,6 +118,64 @@ Location: `BuildingBlocks/BuildingBlocks.Infrastructure/BuildingBlocks.Infrastru
 ```
 
 This project contains infrastructure implementations: `EfCoreRepository<TContext, TEntity>`, `EfCoreUnitOfWork<TContext>`.
+
+### Step 3a: Create BuildingBlocks.WebApplications project
+
+Location: `BuildingBlocks/BuildingBlocks.WebApplications/BuildingBlocks.WebApplications.csproj`
+
+```xml
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.OpenApi" />
+    <PackageReference Include="Scalar.AspNetCore" />
+  </ItemGroup>
+
+</Project>
+```
+
+This project contains shared web application infrastructure including OpenAPI configuration and JSON converters.
+
+**OpenApi/OpenApiExtensions.cs:**
+
+```csharp
+using Microsoft.AspNetCore.Builder;
+using Scalar.AspNetCore;
+
+namespace BuildingBlocks.WebApplications.OpenApi;
+
+public static class OpenApiExtensions
+{
+    public static IApplicationBuilder UseOpenApiWithScalar(this WebApplication app, string title)
+    {
+        app.MapOpenApi();
+        app.MapScalarApiReference(options =>
+        {
+            options.WithTitle(title);
+            options.WithDefaultHttpClient(ScalarTarget.CSharp, ScalarClient.HttpClient);
+        });
+
+        return app;
+    }
+}
+```
+
+**Why Scalar over Swagger?**
+- Modern, actively maintained UI built specifically for OpenAPI 3.x
+- Better developer experience with cleaner, more intuitive interface
+- Superior code generation examples (multiple languages, frameworks)
+- Lightweight and performant
+- Each bounded context passes its own title for clear API documentation
 
 ### Step 4: Create Scheduling.Domain.csproj
 
@@ -238,6 +297,7 @@ Location: `Core/Scheduling/Scheduling.Domain.Tests/Scheduling.Domain.Tests.cspro
 ```bash
 dotnet sln DDD.sln add BuildingBlocks/BuildingBlocks.Domain/BuildingBlocks.Domain.csproj
 dotnet sln DDD.sln add BuildingBlocks/BuildingBlocks.Infrastructure/BuildingBlocks.Infrastructure.csproj
+dotnet sln DDD.sln add BuildingBlocks/BuildingBlocks.WebApplications/BuildingBlocks.WebApplications.csproj
 dotnet sln DDD.sln add Core/Scheduling/Scheduling.Domain/Scheduling.Domain.csproj
 dotnet sln DDD.sln add Core/Scheduling/Scheduling.Application/Scheduling.Application.csproj
 dotnet sln DDD.sln add Core/Scheduling/Scheduling.Infrastructure/Scheduling.Infrastructure.csproj
@@ -263,6 +323,10 @@ Create `Directory.Packages.props` at solution root to manage package versions ce
 
     <!-- MediatR -->
     <PackageVersion Include="MediatR" Version="12.4.1" />
+
+    <!-- ASP.NET Core -->
+    <PackageVersion Include="Microsoft.AspNetCore.OpenApi" Version="9.0.11" />
+    <PackageVersion Include="Scalar.AspNetCore" Version="2.0.36" />
 
     <!-- Testing -->
     <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="17.12.0" />
@@ -294,7 +358,7 @@ Patients/
 Location: `WebApi/Program.cs`
 
 ```csharp
-using System.Text.Json.Serialization;
+using BuildingBlocks.WebApplications.OpenApi;
 using Scheduling.Application;
 using Scheduling.Infrastructure;
 
@@ -303,6 +367,7 @@ var builder = WebApplication.CreateBuilder(args);
 // Add controllers
 builder.Services.AddControllers();
 
+// Add OpenAPI document generation
 builder.Services.AddOpenApi();
 
 // Get connection string
@@ -319,7 +384,8 @@ var app = builder.Build();
 
 if (app.Environment.IsDevelopment())
 {
-    app.MapOpenApi();
+    // Use Scalar for OpenAPI documentation UI
+    app.UseOpenApiWithScalar("Scheduling API");
 }
 
 app.UseHttpsRedirection();
@@ -332,6 +398,10 @@ app.Run();
 **Key configuration:**
 - `AddSchedulingInfrastructure` - Registers DbContext and UnitOfWork
 - `AddSchedulingApplication` - Registers MediatR handlers
+- `UseOpenApiWithScalar("Scheduling API")` - Configures OpenAPI document and Scalar UI
+  - Each bounded context passes its own title (e.g., "Scheduling API", "Billing API")
+  - Scalar UI available at `/scalar/v1` in development
+  - Raw OpenAPI JSON document remains at `/openapi/v1.json`
 
 ### Step 12: Build and verify
 
@@ -349,11 +419,13 @@ After completing the steps, verify:
 
 - [ ] `BuildingBlocks.Domain.csproj` exists with MediatR package only
 - [ ] `BuildingBlocks.Infrastructure.csproj` exists with EF Core packages
+- [ ] `BuildingBlocks.WebApplications.csproj` exists with Scalar.AspNetCore
 - [ ] `Scheduling.Domain.csproj` only references `BuildingBlocks.Domain`
 - [ ] `Scheduling.Application.csproj` references `Scheduling.Domain` and has MediatR
 - [ ] `Scheduling.Infrastructure.csproj` references Domain, Application, and `BuildingBlocks.Infrastructure`
 - [ ] `Directory.Packages.props` exists at solution root
 - [ ] Solution builds successfully
+- [ ] Scalar UI accessible at `/scalar/v1` when running in development
 
 ---
 
