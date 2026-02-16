@@ -94,13 +94,7 @@ Update `DDD.AppHost/Program.cs`:
 ```csharp
 var builder = DistributedApplication.CreateBuilder(args);
 
-var sqlServer = builder.AddSqlServer("sql")
-    .WithDataVolume()
-    .AddDatabase("scheduling-db");
-
-var webApi = builder.AddProject<Projects.WebApi>("webapi")
-    .WithReference(sqlServer)
-    .WaitFor(sqlServer);
+var webApi = builder.AddProject<Projects.WebApi>("webapi");
 
 builder.Build().Run();
 ```
@@ -109,19 +103,13 @@ builder.Build().Run();
 ```csharp
 var builder = DistributedApplication.CreateBuilder(args);
 
-var sqlServer = builder.AddSqlServer("sql")
-    .WithDataVolume()
-    .AddDatabase("scheduling-db");
-
 // Add RabbitMQ with management plugin enabled
 var messaging = builder.AddRabbitMQ("messaging")
     .WithManagementPlugin()
     .WithDataVolume();
 
 var webApi = builder.AddProject<Projects.WebApi>("webapi")
-    .WithReference(sqlServer)
     .WithReference(messaging)
-    .WaitFor(sqlServer)
     .WaitFor(messaging);
 
 builder.Build().Run();
@@ -505,13 +493,7 @@ app.Run();
 ```csharp
 var builder = DistributedApplication.CreateBuilder(args);
 
-var sqlServer = builder.AddSqlServer("sql")
-    .WithDataVolume()
-    .AddDatabase("scheduling-db");
-
-builder.AddProject<Projects.WebApi>("webapi")
-    .WithReference(sqlServer)
-    .WaitFor(sqlServer);
+builder.AddProject<Projects.WebApi>("webapi");
 
 builder.Build().Run();
 ```
@@ -520,18 +502,12 @@ builder.Build().Run();
 ```csharp
 var builder = DistributedApplication.CreateBuilder(args);
 
-var sqlServer = builder.AddSqlServer("sql")
-    .WithDataVolume()
-    .AddDatabase("scheduling-db");
-
 var messaging = builder.AddRabbitMQ("messaging")
     .WithManagementPlugin()
     .WithDataVolume();
 
 builder.AddProject<Projects.WebApi>("webapi")
-    .WithReference(sqlServer)
     .WithReference(messaging)
-    .WaitFor(sqlServer)
     .WaitFor(messaging);
 
 builder.Build().Run();
@@ -688,4 +664,4 @@ Keep `docker-compose.yml` as a fallback for CI/CD and team members who may not h
 
 ---
 
-Next: [05-billing-bounded-context.md](./05-billing-bounded-context.md) - Creating the Billing bounded context with cross-context integration events
+> Next: [04-billing-bounded-context.md](./04-billing-bounded-context.md) - Creating the Billing bounded context with cross-context integration events

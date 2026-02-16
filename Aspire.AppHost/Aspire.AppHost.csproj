@@ -13,8 +13,7 @@
   </ItemGroup>
 
   <ItemGroup>
-	  <PackageReference Include="Aspire.Hosting.RabbitMQ" />
-	  <PackageReference Include="Aspire.Hosting.SqlServer" />
+    <PackageReference Include="Aspire.Hosting.RabbitMQ" />
   </ItemGroup>
 
 </Project>
