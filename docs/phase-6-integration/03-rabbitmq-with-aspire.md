@@ -393,21 +393,37 @@ var webApi = builder.AddProject<Projects.WebApi>("webapi")
 builder.Build().Run();
 ```
 
-### Setting the Password via User Secrets
+### Shared User Secrets Across Projects
 
-To set a known password for local development:
+All WebApi projects should reference the **same `UserSecretsId`** as the Aspire AppHost. This creates a single secrets store for all development configuration.
 
-```bash
-dotnet user-secrets set "Parameters:messaging-password" "guest" --project DDD.AppHost
+Add the AppHost's `UserSecretsId` to each WebApi project's `.csproj`:
+
+```xml
+<PropertyGroup>
+  <UserSecretsId>12d3119a-ea1f-43ad-b1f3-6c5072eb7dcd</UserSecretsId>
+</PropertyGroup>
 ```
 
-This stores the password in your local user secrets file (not in source control).
+This way, secrets set via `--project Aspire.AppHost` are also available to WebApi when running standalone (without Aspire).
+
+### Setting Secrets for Local Development
+
+```bash
+# RabbitMQ password (for Aspire-managed container)
+dotnet user-secrets set "Parameters:messaging-password" "guest" --project Aspire.AppHost
+
+# SQL Server connection string (used by WebApi directly, not managed by Aspire)
+dotnet user-secrets set "ConnectionStrings:DefaultConnection" "Data Source=MSI;Initial Catalog=DDD;Integrated Security=true;MultipleActiveResultSets=true;TrustServerCertificate=True" --project Aspire.AppHost
+```
+
+This keeps connection strings and credentials **out of `appsettings.json`** and out of source control.
 
 ### Resulting Credentials
 
-After setting the user secret, the Management UI credentials are:
-- **Username:** `guest`
-- **Password:** `guest`
+After setting the user secrets:
+- **RabbitMQ Management UI:** `guest` / `guest`
+- **SQL Server:** via connection string in user secrets (no credentials in appsettings.json)
 
 ### Production Considerations
 
@@ -418,15 +434,6 @@ For production environments:
 - Aspire supports Azure Key Vault integration via `AddAzureKeyVault()`
 - Never commit secrets to source control
 - Use managed identities for production authentication
-
-### Future Secret Management
-
-As the application grows, you can manage other secrets through the same pattern:
-- **SQL Server passwords:** `Parameters:db-password`
-- **API keys:** `Parameters:external-api-key`
-- **JWT signing keys:** `Parameters:jwt-secret`
-
-For development, use `dotnet user-secrets set` commands. For production, migrate these parameters to Azure Key Vault.
 
 ---
 
