@@ -12,4 +12,9 @@
     <ProjectReference Include="..\WebApi\WebApi.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+	  <PackageReference Include="Aspire.Hosting.RabbitMQ" />
+	  <PackageReference Include="Aspire.Hosting.SqlServer" />
+  </ItemGroup>
+
 </Project>

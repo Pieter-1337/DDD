@@ -679,4 +679,4 @@ In the next document, we'll add RabbitMQ and SQL Server as Aspire resources, rep
 
 ---
 
-Next: [03-rabbitmq-with-aspire.md](./03-rabbitmq-with-aspire.md) - Adding RabbitMQ and SQL Server as Aspire resources
+Next: [03-sqlserver-with-aspire.md](./03-sqlserver-with-aspire.md) - Adding SQL Server with Aspire

@@ -80,6 +80,8 @@ This is a comprehensive learning project to master Domain-Driven Design (DDD) an
 
 **Message Broker**: RabbitMQ (running in Docker)
 
+> **Note**: The current Docker setup (docker-compose scripts, startup checks) is temporary. This will be replaced by .NET Aspire for container orchestration in a later phase.
+
 ### Phase 6: Integration
 **Goal**: Build a cohesive system integrating all concepts
 

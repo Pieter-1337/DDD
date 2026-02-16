@@ -1,6 +1,8 @@
 # RabbitMQ with .NET Aspire
 
-This document covers migrating RabbitMQ from docker-compose to .NET Aspire, simplifying configuration and gaining automatic health checks, connection string injection, and dashboard integration.
+This document covers migrating RabbitMQ from docker-compose to .NET Aspire, simplifying configuration and gaining automatic connection string injection, health checks, and dashboard integration.
+
+**Key Insight:** MassTransit is already your RabbitMQ client. You don't need `Aspire.RabbitMQ.Client` - it would create a redundant second connection. Instead, configure MassTransit to read the connection string that Aspire injects.
 
 ---
 
@@ -59,13 +61,14 @@ AppHost (Orchestrator)
 | Project | Package | Purpose |
 |---------|---------|---------|
 | **AppHost** | `Aspire.Hosting.RabbitMQ` | Orchestrates RabbitMQ container |
-| **WebApi** | `Aspire.RabbitMQ.Client` | RabbitMQ client with health checks |
+
+**Note:** You do NOT need `Aspire.RabbitMQ.Client` in WebApi. MassTransit is your RabbitMQ client and manages its own connections. Adding the Aspire client package would create two separate connections to RabbitMQ, which is wasteful and confusing.
 
 ---
 
 ## 3. Implementation Steps
 
-### Step 1: Add NuGet Packages
+### Step 1: Add NuGet Package
 
 Add the hosting package to the AppHost.
 
@@ -74,18 +77,14 @@ cd DDD.AppHost
 dotnet add package Aspire.Hosting.RabbitMQ
 ```
 
-Add the client package to WebApi.
-
-```bash
-cd WebApi
-dotnet add package Aspire.RabbitMQ.Client
-```
-
 Verify `Directory.Packages.props` contains:
 ```xml
-<PackageVersion Include="Aspire.Hosting.RabbitMQ" Version="9.*" />
-<PackageVersion Include="Aspire.RabbitMQ.Client" Version="9.*" />
+<PackageVersion Include="Aspire.Hosting.RabbitMQ" Version="13.1.1" />
 ```
+
+**Note:** This project uses Central Package Management (`ManagePackageVersionsCentrally=true`), which does not allow floating versions such as `9.*`. Always pin Aspire package versions to match the Aspire SDK version declared in `global.json` or `Directory.Build.props`. The current Aspire SDK version is `13.1.1`.
+
+**Important:** Do NOT add `Aspire.RabbitMQ.Client` to WebApi. MassTransit handles all RabbitMQ client functionality.
 
 ### Step 2: Add RabbitMQ to AppHost
 
@@ -138,46 +137,9 @@ builder.Build().Run();
 | `WithReference(messaging)` | Injects connection string into the project |
 | `WaitFor(messaging)` | Delays startup until RabbitMQ is healthy |
 
-### Step 3: Register Aspire RabbitMQ Client in WebApi
+### Step 3: Update MassTransit to Use Aspire's Connection String
 
-Update `WebApi/Program.cs` to use Aspire's RabbitMQ client.
-
-**Before (manual configuration):**
-```csharp
-using BuildingBlocks.Infrastructure.MassTransit.Configuration;
-
-var builder = WebApplication.CreateBuilder(args);
-
-// Manual RabbitMQ connection from appsettings.json
-builder.Services.AddMassTransitEventBus(builder.Configuration, configure =>
-{
-    configure.AddConsumers(typeof(Scheduling.Infrastructure.ServiceCollectionExtensions).Assembly);
-});
-```
-
-**After (Aspire-managed):**
-```csharp
-using BuildingBlocks.Infrastructure.MassTransit.Configuration;
-
-var builder = WebApplication.CreateBuilder(args);
-
-// Register Aspire's RabbitMQ client (provides IConnection, health checks)
-builder.AddRabbitMQClient("messaging");
-
-// MassTransit now uses Aspire's connection
-builder.Services.AddMassTransitEventBus(builder.Configuration, configure =>
-{
-    configure.AddConsumers(typeof(Scheduling.Infrastructure.ServiceCollectionExtensions).Assembly);
-});
-```
-
-**Note:** `builder.AddRabbitMQClient("messaging")` (extension on `IHostApplicationBuilder`) versus `builder.Services.Add...` (extension on `IServiceCollection`). Aspire client extensions use the builder directly.
-
-### Step 4: Update MassTransit to Use Aspire's Connection
-
-Aspire provides the connection string via `ConnectionStrings__messaging`. Update MassTransit to read from this.
-
-**Option A: Read from Aspire's injected connection string**
+Aspire injects the connection string as `ConnectionStrings__messaging` when you use `.WithReference(messaging)`. Update MassTransit to read from this.
 
 Update `BuildingBlocks.Infrastructure.MassTransit/MassTransitExtensions.cs`:
 
@@ -272,16 +234,11 @@ public static IServiceCollection AddMassTransitEventBus(
 }
 ```
 
-**Option B: Use MassTransit's Aspire integration (recommended)**
-
-MassTransit has built-in Aspire support via `Aspire.MassTransit.RabbitMQ`.
-
-```bash
-cd BuildingBlocks/BuildingBlocks.Infrastructure.MassTransit
-dotnet add package Aspire.MassTransit.RabbitMQ
-```
-
-This package automatically configures MassTransit to use Aspire's connection string when available.
+**Why this approach?**
+- MassTransit is already your RabbitMQ client - no need for a separate Aspire RabbitMQ client
+- Fallback to manual configuration works for non-Aspire environments (CI/CD, production)
+- Single connection to RabbitMQ, managed by MassTransit
+- MassTransit provides its own health checks (covered in the next section)
 
 ---
 
@@ -319,56 +276,60 @@ MassTransit's `cfg.Host(new Uri(connectionString))` parses this format directly.
 
 ## 5. Health Checks
 
-### Automatic Health Checks with Aspire
+### MassTransit Provides Built-In Health Checks
 
-`Aspire.RabbitMQ.Client` automatically registers health checks.
+MassTransit automatically registers health checks for RabbitMQ when you add the event bus. No additional packages or configuration needed.
 
+When you call:
 ```csharp
-// This is automatic - no manual setup required
-builder.AddRabbitMQClient("messaging");
+builder.Services.AddMassTransitEventBus(builder.Configuration, configure =>
+{
+    configure.AddConsumers(typeof(Scheduling.Infrastructure.ServiceCollectionExtensions).Assembly);
+});
 ```
 
-The health check endpoint reports RabbitMQ status:
+MassTransit registers:
+- RabbitMQ connection health check
+- Consumer health checks
+- Bus health check
+
+### Health Check Response
+
+The health check endpoint will report MassTransit status:
 ```json
 {
   "status": "Healthy",
   "results": {
-    "RabbitMQ": {
+    "masstransit-bus": {
       "status": "Healthy",
-      "description": "RabbitMQ connection is established"
+      "description": "Bus is ready"
     }
   }
 }
 ```
 
-### Manual Health Check Registration (if needed)
-
-If you need custom health check configuration:
-
-```csharp
-builder.AddRabbitMQClient("messaging", configureSettings: settings =>
-{
-    settings.DisableHealthChecks = false;
-    settings.HealthCheckTimeout = 5000; // 5 seconds
-});
-```
-
 ### Exposing Health Endpoints
 
-Ensure health endpoints are mapped:
+Ensure health endpoints are mapped in `Program.cs`:
 
 ```csharp
-// In Program.cs
+var app = builder.Build();
+
 app.MapHealthChecks("/health");
 app.MapHealthChecks("/health/ready", new HealthCheckOptions
 {
     Predicate = check => check.Tags.Contains("ready")
 });
-app.MapHealthChecks("/health/live", new HealthCheckOptions
-{
-    Predicate = check => !check.Tags.Contains("ready")
-});
+
+app.Run();
 ```
+
+### Aspire Dashboard Integration
+
+The Aspire Dashboard automatically discovers and displays health check results. You'll see:
+- Green status when RabbitMQ connection is healthy
+- Red status when connection fails
+- Health check details in the resource view
 
 ---
 
@@ -522,9 +483,7 @@ app.Run();
 ```csharp
 var builder = WebApplication.CreateBuilder(args);
 
-// Aspire RabbitMQ client with health checks
-builder.AddRabbitMQClient("messaging");
-
+// MassTransit reads Aspire connection string automatically
 builder.Services.AddMassTransitEventBus(builder.Configuration, configure =>
 {
     configure.AddConsumers(typeof(Scheduling.Infrastructure.ServiceCollectionExtensions).Assembly);
@@ -534,6 +493,11 @@ var app = builder.Build();
 app.MapHealthChecks("/health");
 app.Run();
 ```
+
+**What changed?**
+- MassTransit now reads `configuration.GetConnectionString("messaging")` internally
+- Health checks are provided by MassTransit (no separate client needed)
+- Added health endpoint mapping for monitoring
 
 ### AppHost (Program.cs)
 
@@ -663,17 +627,8 @@ RabbitMQ logs are visible in:
 | `WithDataVolume()` | Persist data across restarts |
 | `WithDataBindMount(path)` | Bind mount for data persistence |
 | `WithEnvironment(key, value)` | Set environment variables |
-
-### Aspire Client Configuration
-
-```csharp
-builder.AddRabbitMQClient("messaging", configureSettings: settings =>
-{
-    settings.DisableHealthChecks = false;
-    settings.HealthCheckTimeout = 5000;
-    settings.DisableTracing = false;
-});
-```
+| `WithReference(messaging)` | Inject connection string into consuming project |
+| `WaitFor(messaging)` | Delay startup until RabbitMQ is healthy |
 
 ### Useful Commands
 
@@ -696,16 +651,16 @@ docker logs ddd-rabbitmq
 ## Verification Checklist
 
 - [ ] `Aspire.Hosting.RabbitMQ` added to AppHost
-- [ ] `Aspire.RabbitMQ.Client` added to WebApi
-- [ ] RabbitMQ added to AppHost with `AddRabbitMQ()`
+- [ ] RabbitMQ added to AppHost with `AddRabbitMQ("messaging")`
 - [ ] Management plugin enabled with `WithManagementPlugin()`
 - [ ] WebApi references messaging with `.WithReference(messaging)`
 - [ ] WebApi waits for messaging with `.WaitFor(messaging)`
-- [ ] MassTransit reads Aspire connection string
-- [ ] Health checks registered and accessible
-- [ ] RabbitMQ Management UI accessible via Dashboard
+- [ ] MassTransit reads Aspire connection string via `configuration.GetConnectionString("messaging")`
+- [ ] Health checks accessible at `/health` endpoint (provided by MassTransit)
+- [ ] RabbitMQ Management UI accessible via Aspire Dashboard
 - [ ] Application starts successfully via F5 on AppHost
 - [ ] Messages publish and consume correctly
+- [ ] Verify only ONE connection to RabbitMQ (from MassTransit, not a separate Aspire client)
 
 ---
 
@@ -715,18 +670,22 @@ Migrating RabbitMQ to Aspire provides:
 
 1. **Simplified configuration** - No manual connection strings in appsettings.json
 2. **Automatic container management** - No more `docker-compose up -d`
-3. **Built-in health checks** - Readiness verification out of the box
+3. **Built-in health checks** - MassTransit provides health checks out of the box
 4. **Integrated dashboard** - View all services, logs, and endpoints in one place
-5. **Service discovery** - Connection strings injected automatically
+5. **Service discovery** - Connection strings injected automatically via `.WithReference()`
 6. **Consistent developer experience** - Same workflow for all infrastructure
 
 The key changes are:
-- AppHost: `AddRabbitMQ("messaging").WithManagementPlugin()`
-- WebApi: `builder.AddRabbitMQClient("messaging")`
-- MassTransit: Read from `configuration.GetConnectionString("messaging")`
+- **AppHost**: `AddRabbitMQ("messaging").WithManagementPlugin()` and `.WithReference(messaging)`
+- **MassTransit**: Read from `configuration.GetConnectionString("messaging")` with fallback to manual config
+- **No Aspire RabbitMQ client needed** - MassTransit is already your RabbitMQ client
+
+**Why no `Aspire.RabbitMQ.Client`?**
+
+MassTransit is a full-featured message bus abstraction that manages its own RabbitMQ connections. Adding `Aspire.RabbitMQ.Client` would create a second, separate connection to RabbitMQ that goes unused. The Aspire hosting package (`Aspire.Hosting.RabbitMQ`) handles container orchestration and connection string injection - that's all you need. MassTransit reads the injected connection string and manages the actual RabbitMQ client connection.
 
 Keep `docker-compose.yml` as a fallback for CI/CD and team members who may not have Aspire set up yet.
 
 ---
 
-Next: [04-billing-bounded-context.md](./04-billing-bounded-context.md) - Creating the Billing bounded context with cross-context integration events
+Next: [05-billing-bounded-context.md](./05-billing-bounded-context.md) - Creating the Billing bounded context with cross-context integration events

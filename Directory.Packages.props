@@ -40,5 +40,8 @@
     <PackageVersion Include="OpenTelemetry.Instrumentation.AspNetCore" Version="1.14.0" />
     <PackageVersion Include="OpenTelemetry.Instrumentation.Http" Version="1.14.0" />
     <PackageVersion Include="OpenTelemetry.Instrumentation.Runtime" Version="1.14.0" />
+    <!-- Aspire Hosting -->
+    <PackageVersion Include="Aspire.Hosting.RabbitMQ" Version="13.1.1" />
+    <PackageVersion Include="Aspire.Hosting.SqlServer" Version="13.1.1" />
   </ItemGroup>
 </Project>

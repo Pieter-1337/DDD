@@ -1015,4 +1015,4 @@ The Billing context is now fully reactive to the Scheduling context, automatical
 
 ---
 
-> Next: [05-observability.md](./05-observability.md) - Adding distributed tracing and logging with .NET Aspire
+> Next: [06-observability.md](./06-observability.md) - Adding distributed tracing and logging with .NET Aspire

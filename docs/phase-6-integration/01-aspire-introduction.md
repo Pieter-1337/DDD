@@ -473,9 +473,11 @@ builder.Services.ConfigureHttpClientDefaults(http =>
 
 1. **01-aspire-introduction.md** - This file
 2. **02-aspire-setup.md** - Creating AppHost and ServiceDefaults projects
-3. **03-aspire-integrations.md** - Adding SQL Server and RabbitMQ integrations
-4. **04-observability-dashboard.md** - Using the Aspire dashboard
-5. **05-deployment-considerations.md** - Production deployment options
+3. **03-sqlserver-with-aspire.md** - Adding SQL Server with Aspire
+4. **04-rabbitmq-with-aspire.md** - Adding RabbitMQ with Aspire
+5. **05-billing-bounded-context.md** - Creating the Billing bounded context
+6. **06-observability.md** - Observability and distributed tracing
+7. **07-api-gateway-optional.md** - API Gateway with YARP (optional)
 
 ---
 
