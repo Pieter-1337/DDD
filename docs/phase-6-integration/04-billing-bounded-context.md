@@ -578,19 +578,10 @@ public static class ServiceCollectionExtensions
         this IServiceCollection services,
         string connectionString)
     {
-        // Register DbContext with SQL Server connection from user secrets
         services.AddDbContext<BillingDbContext>(options =>
             options.UseSqlServer(connectionString));
 
-        // Register Unit of Work
-        services.AddScoped<IUnitOfWork>(sp =>
-        {
-            var context = sp.GetRequiredService<BillingDbContext>();
-            var mediator = sp.GetRequiredService<MediatR.IMediator>();
-            var eventBus = sp.GetRequiredService<BuildingBlocks.Application.Messaging.IEventBus>();
-            var logger = sp.GetRequiredService<Microsoft.Extensions.Logging.ILogger<EfCoreUnitOfWork<BillingDbContext>>>();
-            return new EfCoreUnitOfWork<BillingDbContext>(context, mediator, eventBus, logger);
-        });
+        services.AddScoped<IUnitOfWork, EfCoreUnitOfWork<BillingDbContext>>();
 
         return services;
     }
