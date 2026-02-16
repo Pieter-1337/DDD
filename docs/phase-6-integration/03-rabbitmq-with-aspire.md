@@ -103,8 +103,11 @@ builder.Build().Run();
 ```csharp
 var builder = DistributedApplication.CreateBuilder(args);
 
+// Add password parameter (reads from user secrets or generates random)
+var messagingPassword = builder.AddParameter("messaging-password");
+
 // Add RabbitMQ with management plugin enabled
-var messaging = builder.AddRabbitMQ("messaging")
+var messaging = builder.AddRabbitMQ("messaging", password: messagingPassword)
     .WithManagementPlugin()
     .WithDataVolume();
 
@@ -341,9 +344,11 @@ Typical format:
 http://localhost:{random-port}
 ```
 
-Login credentials (default):
+Login credentials:
 - Username: `guest`
-- Password: `guest`
+- Password: `guest` (configured via user secrets - see Section 7 below)
+
+**Note:** By default, Aspire generates a random password for RabbitMQ and stores it in user secrets. For local development convenience, we override this with a known password. See the "User Secrets & Credentials" section below for configuration details.
 
 ### Viewing in Dashboard
 
@@ -356,7 +361,76 @@ The Aspire Dashboard shows:
 
 ---
 
-## 7. What Happens to docker-compose.yml?
+## 7. User Secrets & Credentials
+
+### Default Aspire Behavior
+
+By default, Aspire generates a random password for RabbitMQ and stores it in user secrets under the key `Parameters:messaging-password`. This password is unique per developer machine and is used to secure the RabbitMQ instance.
+
+### Overriding for Local Development
+
+For local development convenience, we override the default random password with a known password (`guest`) so team members can easily access the Management UI without hunting for auto-generated credentials.
+
+### AppHost Configuration
+
+Update `DDD.AppHost/Program.cs` to use a parameterized password:
+
+```csharp
+var builder = DistributedApplication.CreateBuilder(args);
+
+// Add password parameter (reads from user secrets or generates random)
+var messagingPassword = builder.AddParameter("messaging-password");
+
+// Add RabbitMQ with management plugin and parameterized password
+var messaging = builder.AddRabbitMQ("messaging", password: messagingPassword)
+    .WithManagementPlugin()
+    .WithDataVolume();
+
+var webApi = builder.AddProject<Projects.WebApi>("webapi")
+    .WithReference(messaging)
+    .WaitFor(messaging);
+
+builder.Build().Run();
+```
+
+### Setting the Password via User Secrets
+
+To set a known password for local development:
+
+```bash
+dotnet user-secrets set "Parameters:messaging-password" "guest" --project DDD.AppHost
+```
+
+This stores the password in your local user secrets file (not in source control).
+
+### Resulting Credentials
+
+After setting the user secret, the Management UI credentials are:
+- **Username:** `guest`
+- **Password:** `guest`
+
+### Production Considerations
+
+**Important:** User secrets are for local development only. They are stored on your local machine and are not deployed to production.
+
+For production environments:
+- Use **Azure Key Vault** to store sensitive credentials
+- Aspire supports Azure Key Vault integration via `AddAzureKeyVault()`
+- Never commit secrets to source control
+- Use managed identities for production authentication
+
+### Future Secret Management
+
+As the application grows, you can manage other secrets through the same pattern:
+- **SQL Server passwords:** `Parameters:db-password`
+- **API keys:** `Parameters:external-api-key`
+- **JWT signing keys:** `Parameters:jwt-secret`
+
+For development, use `dotnet user-secrets set` commands. For production, migrate these parameters to Azure Key Vault.
+
+---
+
+## 8. What Happens to docker-compose.yml?
 
 ### Development: Aspire Replaces docker-compose
 
@@ -408,22 +482,30 @@ volumes:
 
 ### Disable MSBuild Docker Target
 
-If you added the `EnsureDockerServices` target from Phase 5, update it to skip when running via Aspire:
+If you added the `EnsureDockerServices` target from Phase 5, update it to automatically set `SKIP_DOCKER_CHECK=1` when Aspire is the launcher. This keeps a single condition on the target:
 
 ```xml
 <!-- Directory.Build.targets -->
-<Target Name="EnsureDockerServices"
-        BeforeTargets="Build"
-        Condition="'$(ASPIRE_LAUNCHER)' == ''">
-  <!-- Only runs when NOT launched by Aspire -->
-  <Exec Command="powershell -ExecutionPolicy Bypass -File &quot;$(MSBuildThisFileDirectory)scripts\ensure-docker.ps1&quot;"
-        IgnoreExitCode="false" />
+<PropertyGroup Condition="'$(ASPIRE_LAUNCHER)' != ''">
+  <SKIP_DOCKER_CHECK>1</SKIP_DOCKER_CHECK>
+</PropertyGroup>
+
+<Target Name="EnsureDockerServices" BeforeTargets="Build" Condition="'$(SKIP_DOCKER_CHECK)' != '1'">
+  <Exec Command="powershell -ExecutionPolicy Bypass -File &quot;$(MSBuildThisFileDirectory)scripts\ensure-docker.ps1&quot; -TimeoutSeconds 60"
+        IgnoreExitCode="false"
+        Timeout="90000" />
+  <!-- Timeout is in milliseconds: 90000ms = 90 seconds (script timeout 60s + 30s buffer) -->
 </Target>
 ```
 
+This ensures the docker check:
+- **Skips** when launched via Aspire (`ASPIRE_LAUNCHER` automatically sets `SKIP_DOCKER_CHECK=1`)
+- **Skips** when `SKIP_DOCKER_CHECK=1` is set manually
+- **Runs** with all existing timeouts and parameters in every other case
+
 ---
 
-## 8. Before/After Comparison
+## 9. Before/After Comparison
 
 ### Configuration (appsettings.json)
 
@@ -502,7 +584,9 @@ builder.Build().Run();
 ```csharp
 var builder = DistributedApplication.CreateBuilder(args);
 
-var messaging = builder.AddRabbitMQ("messaging")
+var messagingPassword = builder.AddParameter("messaging-password");
+
+var messaging = builder.AddRabbitMQ("messaging", password: messagingPassword)
     .WithManagementPlugin()
     .WithDataVolume();
 
@@ -539,7 +623,7 @@ dotnet run --project DDD.AppHost
 
 ---
 
-## 9. Troubleshooting
+## 10. Troubleshooting
 
 ### Common Issues
 
@@ -577,7 +661,8 @@ Console.WriteLine($"RabbitMQ connection: {connectionString}");
 
 Ensure `WithManagementPlugin()` is called:
 ```csharp
-var messaging = builder.AddRabbitMQ("messaging")
+var messagingPassword = builder.AddParameter("messaging-password");
+var messaging = builder.AddRabbitMQ("messaging", password: messagingPassword)
     .WithManagementPlugin();  // Required for Management UI
 ```
 
@@ -592,7 +677,7 @@ RabbitMQ logs are visible in:
 
 ---
 
-## 10. Reference
+## 11. Reference
 
 ### Aspire RabbitMQ Methods
 
@@ -627,13 +712,15 @@ docker logs ddd-rabbitmq
 ## Verification Checklist
 
 - [ ] `Aspire.Hosting.RabbitMQ` added to AppHost
-- [ ] RabbitMQ added to AppHost with `AddRabbitMQ("messaging")`
+- [ ] Password parameter configured with `AddParameter("messaging-password")`
+- [ ] RabbitMQ added to AppHost with `AddRabbitMQ("messaging", password: messagingPassword)`
+- [ ] User secret set: `dotnet user-secrets set "Parameters:messaging-password" "guest" --project DDD.AppHost`
 - [ ] Management plugin enabled with `WithManagementPlugin()`
 - [ ] WebApi references messaging with `.WithReference(messaging)`
 - [ ] WebApi waits for messaging with `.WaitFor(messaging)`
 - [ ] MassTransit reads Aspire connection string via `configuration.GetConnectionString("messaging")`
 - [ ] Health checks accessible at `/health` endpoint (provided by MassTransit)
-- [ ] RabbitMQ Management UI accessible via Aspire Dashboard
+- [ ] RabbitMQ Management UI accessible via Aspire Dashboard with guest/guest credentials
 - [ ] Application starts successfully via F5 on AppHost
 - [ ] Messages publish and consume correctly
 - [ ] Verify only ONE connection to RabbitMQ (from MassTransit, not a separate Aspire client)
@@ -652,7 +739,8 @@ Migrating RabbitMQ to Aspire provides:
 6. **Consistent developer experience** - Same workflow for all infrastructure
 
 The key changes are:
-- **AppHost**: `AddRabbitMQ("messaging").WithManagementPlugin()` and `.WithReference(messaging)`
+- **AppHost**: `AddRabbitMQ("messaging", password: messagingPassword).WithManagementPlugin()` and `.WithReference(messaging)`
+- **User Secrets**: Set `Parameters:messaging-password` to `guest` for local development convenience
 - **MassTransit**: Read from `configuration.GetConnectionString("messaging")` with fallback to manual config
 - **No Aspire RabbitMQ client needed** - MassTransit is already your RabbitMQ client
 

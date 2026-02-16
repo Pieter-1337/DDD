@@ -11,7 +11,12 @@
     - Timeout prevents indefinite hangs if Docker is not running
 
     To temporarily disable: Set environment variable SKIP_DOCKER_CHECK=1
+    Automatically skipped when launched via Aspire (ASPIRE_LAUNCHER sets SKIP_DOCKER_CHECK=1)
   -->
+
+  <PropertyGroup Condition="'$(ASPIRE_LAUNCHER)' != ''">
+    <SKIP_DOCKER_CHECK>1</SKIP_DOCKER_CHECK>
+  </PropertyGroup>
 
   <Target Name="EnsureDockerServices" BeforeTargets="Build" Condition="'$(SKIP_DOCKER_CHECK)' != '1'">
     <Exec Command="powershell -ExecutionPolicy Bypass -File &quot;$(MSBuildThisFileDirectory)scripts\ensure-docker.ps1&quot; -TimeoutSeconds 60"

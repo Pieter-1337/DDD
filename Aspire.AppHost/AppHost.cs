@@ -1,7 +1,8 @@
 var builder = DistributedApplication.CreateBuilder(args);
 
 // Add RabbitMQ with management plugin enabled
-var messaging = builder.AddRabbitMQ("messaging")
+var messagingPassword = builder.AddParameter("messaging-password");
+var messaging = builder.AddRabbitMQ("messaging", password: messagingPassword)
     .WithManagementPlugin()
     .WithDataVolume();
 

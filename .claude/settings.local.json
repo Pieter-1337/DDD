@@ -95,7 +95,9 @@
       "Bash(taskkill:*)",
       "Bash(dotnet workload:*)",
       "Bash(dotnet --version:*)",
-      "Bash(dotnet --info:*)"
+      "Bash(dotnet --info:*)",
+      "Bash(dotnet user-secrets list:*)",
+      "Bash(dotnet user-secrets set:*)"
     ]
   }
 }

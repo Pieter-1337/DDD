@@ -20,16 +20,28 @@ public static class MassTransitExtensions
 
             x.UsingRabbitMq((context, cfg) =>
             {
-                var rabbitMqSettings = configuration.GetSection("RabbitMQ");
+                // Try Aspire connection string first, fall back to manual config
+                var connectionString = configuration.GetConnectionString("messaging");
 
-                cfg.Host(
-                    rabbitMqSettings["Host"] ?? "localhost",
-                    rabbitMqSettings["VirtualHost"] ?? "/",
-                    h =>
-                    {
-                        h.Username(rabbitMqSettings["Username"] ?? "guest");
-                        h.Password(rabbitMqSettings["Password"] ?? "guest");
-                    });
+                if (!string.IsNullOrEmpty(connectionString))
+                {
+                    // Aspire provides: amqp://guest:guest@localhost:5672
+                    cfg.Host(new Uri(connectionString));
+                }
+                else
+                {
+                    // Fallback for non-Aspire environments (CI, production)
+                    var rabbitMqSettings = configuration.GetSection("RabbitMQ");
+                    cfg.Host(
+                        rabbitMqSettings["Host"] ?? "localhost",
+                        rabbitMqSettings["VirtualHost"] ?? "/",
+                        h =>
+                        {
+                            h.Username(rabbitMqSettings["Username"] ?? "guest");
+                            h.Password(rabbitMqSettings["Password"] ?? "guest");
+                        });
+                }
+
 
                 // Configure retry policy
                 cfg.UseMessageRetry(r =>
