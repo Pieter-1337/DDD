@@ -578,7 +578,7 @@ public static class ServiceCollectionExtensions
         this IServiceCollection services,
         string connectionString)
     {
-        // Register DbContext
+        // Register DbContext with SQL Server connection from user secrets
         services.AddDbContext<BillingDbContext>(options =>
             options.UseSqlServer(connectionString));
 
@@ -624,13 +624,15 @@ builder.Services.AddControllers(options =>
 builder.Services.AddOpenApi();
 
 // Add Billing infrastructure
-var connectionString = builder.Configuration.GetConnectionString("BillingConnection")
-    ?? throw new InvalidOperationException("Connection string 'BillingConnection' not found.");
+// Connection string from user secrets (shared UserSecretsId with AppHost)
+var connectionString = builder.Configuration.GetConnectionString("DefaultConnection")
+    ?? throw new InvalidOperationException("Connection string 'DefaultConnection' not found.");
 builder.Services.AddBillingInfrastructure(connectionString);
 builder.Services.AddBillingApplication();
 builder.Services.AddDefaultPipelineBehaviors();
 
 // Add MassTransit for event consumption
+// RabbitMQ connection string injected by Aspire via WithReference(messaging)
 builder.Services.AddMassTransitEventBus(builder.Configuration, configure =>
 {
     // Register consumers from Billing.Infrastructure
@@ -661,18 +663,14 @@ app.Run();
       "Microsoft.AspNetCore": "Warning"
     }
   },
-  "ConnectionStrings": {
-    "BillingConnection": "Server=(localdb)\\mssqllocaldb;Database=DDD_Billing;Trusted_Connection=True;MultipleActiveResultSets=true"
-  },
-  "RabbitMQ": {
-    "Host": "localhost",
-    "VirtualHost": "/",
-    "Username": "guest",
-    "Password": "guest"
-  },
   "AllowedHosts": "*"
 }
 ```
+
+**Note:**
+- `ConnectionStrings` section removed (moved to user secrets)
+- `RabbitMQ` section removed (injected by Aspire)
+- Connection strings are now in user secrets (shared `UserSecretsId` with AppHost)
 
 ---
 
@@ -686,38 +684,39 @@ app.Run();
 var builder = DistributedApplication.CreateBuilder(args);
 
 // Infrastructure
-var rabbitMq = builder.AddRabbitMQ("rabbitmq")
+// NOTE: In this project, only RabbitMQ is managed by Aspire.
+// SQL Server runs locally and uses connection strings from user secrets.
+var messagingPassword = builder.AddParameter("messaging-password");
+var messaging = builder.AddRabbitMQ("messaging", password: messagingPassword)
     .WithManagementPlugin();
 
-var sqlServer = builder.AddSqlServer("sqlserver")
-    .AddDatabase("scheduling", "DDD_Scheduling")
-    .AddDatabase("billing", "DDD_Billing");
-
 // Services
+// Each service reads its SQL Server connection string from user secrets (DefaultConnection)
 var scheduling = builder.AddProject<Projects.Scheduling_WebApi>("scheduling-api")
-    .WithReference(rabbitMq)
-    .WithReference(sqlServer.GetDatabase("scheduling"));
+    .WithReference(messaging);
 
 var billing = builder.AddProject<Projects.Billing_WebApi>("billing-api")
-    .WithReference(rabbitMq)
-    .WithReference(sqlServer.GetDatabase("billing"));
+    .WithReference(messaging);
 
 builder.Build().Run();
 ```
 
-### Aspire Service Discovery
+### Configuration with User Secrets
 
-With Aspire, connection strings are injected automatically:
+In this project, SQL Server is NOT managed by Aspire. Connection strings come from user secrets:
 
 ```csharp
-// In Billing.WebApi/Program.cs (when using Aspire)
-var connectionString = builder.Configuration.GetConnectionString("billing")
-    ?? throw new InvalidOperationException("Connection string 'billing' not found.");
+// In Billing.WebApi/Program.cs
+// SQL Server connection from user secrets (shared across all WebApi projects)
+var connectionString = builder.Configuration.GetConnectionString("DefaultConnection")
+    ?? throw new InvalidOperationException("Connection string 'DefaultConnection' not found.");
 ```
 
-Aspire injects:
-- `ConnectionStrings:billing` - SQL Server connection
-- `ConnectionStrings:rabbitmq` - RabbitMQ connection
+Aspire injects (via `WithReference(messaging)`):
+- `ConnectionStrings:messaging` - RabbitMQ connection (Aspire-managed)
+
+User secrets provide (via `dotnet user-secrets set`):
+- `ConnectionStrings:DefaultConnection` - SQL Server connection (NOT Aspire-managed)
 
 ---
 

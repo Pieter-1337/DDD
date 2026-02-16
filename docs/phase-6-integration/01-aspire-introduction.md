@@ -110,13 +110,13 @@ var builder = DistributedApplication.CreateBuilder(args);
 
 // Add infrastructure
 var rabbitMq = builder.AddRabbitMQ("messaging");
-var sqlServer = builder.AddSqlServer("sql")
-    .AddDatabase("scheduling");
+
+// NOTE: In this project, SQL Server is NOT managed by Aspire.
+// It runs locally and uses connection strings from user secrets.
 
 // Add application services
 var webApi = builder.AddProject<Projects.WebApi>("webapi")
-    .WithReference(rabbitMq)
-    .WithReference(sqlServer);
+    .WithReference(rabbitMq);
 
 var worker = builder.AddProject<Projects.WorkerService>("worker")
     .WithReference(rabbitMq);
@@ -175,25 +175,31 @@ Aspire provides pre-built integrations for common services. Each integration:
 | Integration | Package | What It Configures |
 |-------------|---------|-------------------|
 | SQL Server | `Aspire.Microsoft.EntityFrameworkCore.SqlServer` | EF Core DbContext |
-| RabbitMQ | `Aspire.RabbitMQ.Client` | RabbitMQ connection |
+| RabbitMQ (hosting) | `Aspire.Hosting.RabbitMQ` | RabbitMQ container orchestration |
 | Redis | `Aspire.StackExchange.Redis` | Redis connection |
 | PostgreSQL | `Aspire.Npgsql.EntityFrameworkCore.PostgreSQL` | EF Core with Npgsql |
 
-**Example - SQL Server integration:**
+**Note on this project's approach:**
+- **SQL Server** is NOT managed by Aspire - it uses direct connection strings from user secrets
+- **RabbitMQ** is orchestrated by Aspire using `Aspire.Hosting.RabbitMQ`
+- MassTransit is the RabbitMQ client (no separate `Aspire.RabbitMQ.Client` package needed)
+
+**Example - RabbitMQ integration (this project):**
 
 ```csharp
 // In AppHost
-var sqlServer = builder.AddSqlServer("sql")
-    .AddDatabase("scheduling");
+var messagingPassword = builder.AddParameter("messaging-password");
+var messaging = builder.AddRabbitMQ("messaging", password: messagingPassword)
+    .WithManagementPlugin();
 
 var webApi = builder.AddProject<Projects.WebApi>("webapi")
-    .WithReference(sqlServer);
+    .WithReference(messaging);  // Injects connection string
 ```
 
 ```csharp
 // In WebApi/Program.cs
-builder.AddSqlServerDbContext<SchedulingDbContext>("scheduling");
-// Connection string injected automatically!
+// MassTransit reads the Aspire-injected connection string automatically
+builder.Services.AddMassTransitEventBus(builder.Configuration, configure => { ... });
 ```
 
 ---
@@ -252,13 +258,13 @@ DDD/
 
 ### Integration Points
 
-| Component | Before Aspire | With Aspire |
+| Component | Before Aspire | With Aspire (This Project) |
 |-----------|--------------|-------------|
-| **RabbitMQ** | docker-compose, manual connection string | Aspire container or reference existing |
-| **SQL Server** | docker-compose, appsettings.json | Aspire container or reference existing |
-| **MassTransit** | Configure in Program.cs | Same, but connection string injected |
-| **EF Core** | Configure in Program.cs | Use Aspire integration for DbContext |
-| **Health Checks** | Manual setup | Automatic from ServiceDefaults |
+| **RabbitMQ** | docker-compose, manual connection string | Aspire container with injected connection string |
+| **SQL Server** | appsettings.json | **Still uses direct connection via user secrets (NOT managed by Aspire)** |
+| **MassTransit** | Configure in Program.cs | Same, reads Aspire-injected RabbitMQ connection string |
+| **EF Core** | Configure in Program.cs | Same, reads connection string from user secrets |
+| **Health Checks** | Manual setup | Automatic from ServiceDefaults + MassTransit |
 | **Logging** | Serilog to console/file | Same, but visible in dashboard |
 
 ---
@@ -317,16 +323,14 @@ services:
 var builder = DistributedApplication.CreateBuilder(args);
 
 // Infrastructure as code
-var messaging = builder.AddRabbitMQ("messaging")
+var messagingPassword = builder.AddParameter("messaging-password");
+var messaging = builder.AddRabbitMQ("messaging", password: messagingPassword)
     .WithManagementPlugin();  // Enables management UI
 
-var sql = builder.AddSqlServer("sql")
-    .AddDatabase("scheduling");
 
 // Application services
 builder.AddProject<Projects.WebApi>("webapi")
-    .WithReference(messaging)
-    .WithReference(sql);
+    .WithReference(messaging);  // Only RabbitMQ is injected
 
 builder.Build().Run();
 ```
@@ -341,15 +345,15 @@ builder.Build().Run();
 
 ### Comparison Table
 
-| Aspect | Docker Compose | .NET Aspire |
+| Aspect | Docker Compose | .NET Aspire (This Project) |
 |--------|---------------|-------------|
 | **Starting** | `docker-compose up` then run projects | Single F5 or `dotnet run` |
-| **Connection strings** | Manual in appsettings.json | Injected automatically |
+| **Connection strings** | Manual in appsettings.json | **RabbitMQ injected; SQL Server in user secrets** |
 | **Logs** | Multiple terminals/tools | Single dashboard |
 | **Distributed tracing** | Manual setup (Jaeger, etc.) | Built-in |
 | **Health checks** | Manual implementation | Automatic |
-| **Service discovery** | Hardcoded URLs | Automatic by name |
-| **Container management** | Separate from app code | Defined in AppHost |
+| **Service discovery** | Hardcoded URLs | Automatic by name (for Aspire-managed resources) |
+| **Container management** | Separate from app code | RabbitMQ defined in AppHost; SQL Server runs locally |
 | **Learning curve** | Low (familiar tools) | Medium (new concepts) |
 | **Production deployment** | Docker Compose or K8s | Azure Container Apps, K8s, or custom |
 
@@ -380,13 +384,16 @@ builder.Build().Run();
 No more hardcoded URLs or connection strings:
 
 ```csharp
-// Before: Hardcoded
+// Before: Hardcoded in appsettings.json
 services.AddDbContext<SchedulingDbContext>(options =>
     options.UseSqlServer("Server=localhost;Database=Scheduling;..."));
 
-// After: Service discovery
-builder.AddSqlServerDbContext<SchedulingDbContext>("scheduling");
-// Connection string comes from AppHost automatically
+// After: From user secrets (in this project, SQL Server is NOT managed by Aspire)
+var connectionString = builder.Configuration.GetConnectionString("DefaultConnection")
+    ?? throw new InvalidOperationException("Connection string 'DefaultConnection' not found.");
+services.AddDbContext<SchedulingDbContext>(options =>
+    options.UseSqlServer(connectionString));
+// Connection string stored in user secrets, NOT injected by Aspire
 ```
 
 ### 3. Observability Dashboard

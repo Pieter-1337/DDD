@@ -641,16 +641,15 @@ public static IHostApplicationBuilder AddDefaultHealthChecks(this IHostApplicati
 
 ```csharp
 // Check database connectivity
+// NOTE: In this project, SQL Server health checks use the connection string from user secrets
+// RabbitMQ health checks are provided automatically by MassTransit
 builder.Services.AddHealthChecks()
     .AddCheck("self", () => HealthCheckResult.Healthy(), ["live"])
     .AddSqlServer(
         connectionString: builder.Configuration.GetConnectionString("DefaultConnection")!,
         name: "sqlserver",
-        tags: ["ready", "db"])
-    .AddRabbitMQ(
-        connectionString: builder.Configuration.GetConnectionString("RabbitMQ")!,
-        name: "rabbitmq",
-        tags: ["ready", "messaging"]);
+        tags: ["ready", "db"]);
+    // MassTransit automatically adds RabbitMQ health checks (no manual AddRabbitMQ needed)
 ```
 
 ### Health Check Endpoints

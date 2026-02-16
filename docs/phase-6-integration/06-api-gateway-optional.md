@@ -224,21 +224,19 @@ app.Run();
 var builder = DistributedApplication.CreateBuilder(args);
 
 // Infrastructure
-var messaging = builder.AddRabbitMQ("messaging")
+// NOTE: In this project, only RabbitMQ is managed by Aspire.
+// SQL Server runs locally and uses connection strings from user secrets.
+var messagingPassword = builder.AddParameter("messaging-password");
+var messaging = builder.AddRabbitMQ("messaging", password: messagingPassword)
     .WithManagementPlugin();
 
-var sql = builder.AddSqlServer("sql")
-    .AddDatabase("scheduling-db")
-    .AddDatabase("billing-db");
-
 // Backend services
+// Each service reads its SQL Server connection string from user secrets (DefaultConnection)
 var schedulingApi = builder.AddProject<Projects.Scheduling_WebApi>("scheduling-api")
-    .WithReference(messaging)
-    .WithReference(sql);
+    .WithReference(messaging);
 
 var billingApi = builder.AddProject<Projects.Billing_WebApi>("billing-api")
-    .WithReference(messaging)
-    .WithReference(sql);
+    .WithReference(messaging);
 
 // API Gateway (OPTIONAL)
 var gateway = builder.AddProject<Projects.Gateway>("gateway")

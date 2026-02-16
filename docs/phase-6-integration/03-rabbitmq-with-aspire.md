@@ -520,26 +520,41 @@ This ensures the docker check:
 ```json
 {
   "ConnectionStrings": {
-    "DefaultConnection": "Data Source=..."
+    "DefaultConnection": "Data Source=MSI;Initial Catalog=DDD;Integrated Security=true;MultipleActiveResultSets=true;TrustServerCertificate=True"
   },
   "RabbitMQ": {
     "Host": "localhost",
     "VirtualHost": "/",
     "Username": "guest",
     "Password": "guest"
-  }
+  },
+  "Logging": {
+    "LogLevel": {
+      "Default": "Information",
+      "Microsoft.AspNetCore": "Warning"
+    }
+  },
+  "AllowedHosts": "*"
 }
 ```
 
-**After (Aspire-managed):**
+**After (Aspire-managed RabbitMQ, user secrets for SQL):**
 ```json
 {
-  "ConnectionStrings": {
-    "DefaultConnection": "Data Source=..."
-  }
-  // RabbitMQ config removed - injected by Aspire
+  "Logging": {
+    "LogLevel": {
+      "Default": "Information",
+      "Microsoft.AspNetCore": "Warning"
+    }
+  },
+  "AllowedHosts": "*"
 }
 ```
+
+**Changes:**
+- `ConnectionStrings` section removed entirely (moved to user secrets)
+- `RabbitMQ` section removed (injected by Aspire via `WithReference(messaging)`)
+- Only `Logging` and `AllowedHosts` remain in `appsettings.json`
 
 ### Program.cs (WebApi)
 

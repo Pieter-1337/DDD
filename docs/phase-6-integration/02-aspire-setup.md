@@ -557,18 +557,21 @@ var value = builder.Configuration["MyKey"]; // "MyValue"
 
 ### Connection Strings
 
-When you add resources (covered in next doc), Aspire injects connection strings:
+When you add Aspire-managed resources (covered in next doc), Aspire injects connection strings.
 
 ```csharp
-// AppHost defines resources
-var sqlServer = builder.AddSqlServer("sql");
-var db = sqlServer.AddDatabase("scheduling-db");
+// AppHost defines Aspire-managed resources (RabbitMQ only)
+var messagingPassword = builder.AddParameter("messaging-password");
+var messaging = builder.AddRabbitMQ("messaging", password: messagingPassword);
 
 var api = builder.AddProject<Projects.WebApi>("scheduling-api")
-    .WithReference(db);
+    .WithReference(messaging);  // RabbitMQ connection string injected
 
-// WebApi receives connection string automatically
-// Configuration["ConnectionStrings:scheduling-db"] is set by Aspire
+// WebApi receives RabbitMQ connection string automatically
+// Configuration["ConnectionStrings:messaging"] is set by Aspire
+
+// SQL Server connection string comes from user secrets
+// Configuration["ConnectionStrings:DefaultConnection"] set via dotnet user-secrets
 ```
 
 ### Environment-Specific Configuration
