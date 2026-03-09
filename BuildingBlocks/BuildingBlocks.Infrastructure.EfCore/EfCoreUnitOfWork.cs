@@ -155,21 +155,27 @@ public class EfCoreUnitOfWork<TContext> : IUnitOfWork where TContext : DbContext
             return;
         }
 
-        // Only commit/rollback when depth reaches 0 (outermost call)
-        if (exception is not null)
+        try
         {
-            await _transaction.RollbackAsync(cancellationToken);
-            // Discard queued integration events on rollback
-            _queuedIntegrationEvents.Clear();
+            // Only commit/rollback when depth reaches 0 (outermost call)
+            if (exception is not null)
+            {
+                await _transaction.RollbackAsync(cancellationToken);
+                // Discard queued integration events on rollback
+                _queuedIntegrationEvents.Clear();
+            }
+            else
+            {
+                await _transaction.CommitAsync(cancellationToken);
+                // Publish integration events AFTER successful commit
+                await PublishAndClearIntegrationEventsAsync(cancellationToken);
+            }
         }
-        else
+        finally
         {
-            await _transaction.CommitAsync(cancellationToken);
-            // Publish integration events AFTER successful commit
-            await PublishAndClearIntegrationEventsAsync(cancellationToken);
+            await _transaction.DisposeAsync();
+            _transaction = null;
+            _transactionDepth = 0;
         }
-
-        await _transaction.DisposeAsync();
-        _transaction = null;
     }
 }

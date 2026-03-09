@@ -599,6 +599,7 @@ using BuildingBlocks.Application;
 using BuildingBlocks.Infrastructure.MassTransit.Configuration;
 using BuildingBlocks.WebApplications.Filters;
 using BuildingBlocks.WebApplications.Json;
+using BuildingBlocks.WebApplications.OpenApi;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -634,7 +635,7 @@ var app = builder.Build();
 
 if (app.Environment.IsDevelopment())
 {
-    app.MapOpenApi();
+    app.UseOpenApiWithScalar("Billing API");
 }
 
 app.UseHttpsRedirection();

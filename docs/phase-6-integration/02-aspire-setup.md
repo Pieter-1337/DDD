@@ -313,6 +313,7 @@ using BuildingBlocks.Application;
 using BuildingBlocks.Infrastructure.MassTransit.Configuration;
 using BuildingBlocks.WebApplications.Filters;
 using BuildingBlocks.WebApplications.Json;
+using BuildingBlocks.WebApplications.OpenApi;
 using MassTransit;
 using Scheduling.Application;
 using Scheduling.Infrastructure;
@@ -357,7 +358,7 @@ app.MapDefaultEndpoints();
 // Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())
 {
-    app.MapOpenApi();
+    app.UseOpenApiWithScalar("Scheduling API");
 }
 
 app.UseHttpsRedirection();
@@ -604,17 +605,17 @@ AppHost respects `launchSettings.json`:
 
 After completing this setup:
 
-- [ ] Aspire templates installed (`dotnet new list aspire` shows templates)
-- [ ] Aspire.ServiceDefaults project created and added to solution
-- [ ] Aspire.AppHost project created and added to solution
-- [ ] AppHost references WebApi project
-- [ ] WebApi references ServiceDefaults
-- [ ] WebApi Program.cs calls `AddServiceDefaults()` and `MapDefaultEndpoints()`
-- [ ] AppHost is set as startup project
-- [ ] F5 launches Aspire Dashboard
-- [ ] Dashboard shows scheduling-api in Resources tab
-- [ ] Health check endpoint works: `GET https://localhost:xxxx/health`
-- [ ] Logs appear in Dashboard Structured Logs tab
+- [x] Aspire templates installed (`dotnet new list aspire` shows templates)
+- [x] Aspire.ServiceDefaults project created and added to solution
+- [x] Aspire.AppHost project created and added to solution
+- [x] AppHost references WebApi project
+- [x] WebApi references ServiceDefaults
+- [x] WebApi Program.cs calls `AddServiceDefaults()` and `MapDefaultEndpoints()`
+- [x] AppHost is set as startup project
+- [x] F5 launches Aspire Dashboard
+- [x] Dashboard shows scheduling-api in Resources tab
+- [x] Health check endpoint works: `GET https://localhost:xxxx/health`
+- [x] Logs appear in Dashboard Structured Logs tab
 
 ---
 

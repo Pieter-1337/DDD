@@ -18,11 +18,13 @@
     <SKIP_DOCKER_CHECK>1</SKIP_DOCKER_CHECK>
   </PropertyGroup>
 
+  <!-- Disabled: Aspire now manages Docker containers. Re-enable if running without Aspire. -->
+  <!--
   <Target Name="EnsureDockerServices" BeforeTargets="Build" Condition="'$(SKIP_DOCKER_CHECK)' != '1'">
     <Exec Command="powershell -ExecutionPolicy Bypass -File &quot;$(MSBuildThisFileDirectory)scripts\ensure-docker.ps1&quot; -TimeoutSeconds 60"
           IgnoreExitCode="false"
           Timeout="90000" />
-    <!-- Timeout is in milliseconds: 90000ms = 90 seconds (script timeout 60s + 30s buffer) -->
   </Target>
+  -->
 
 </Project>
