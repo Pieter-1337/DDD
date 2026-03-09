@@ -64,7 +64,7 @@ This document covers adding a second bounded context (Billing) to demonstrate cr
 3. **MassTransit**: Event published to RabbitMQ after transaction commits
 4. **Billing**: `PatientCreatedIntegrationEventHandler` consumes the event
 5. **Billing**: Handler sends `CreateBillingProfileCommand` via MediatR
-6. **Billing**: `BillingProfile` entity created with reference to external patient ID
+6. **Billing**: `BillingProfile` entity created with reference to patient ID
 
 ---
 
@@ -75,7 +75,7 @@ The Billing context manages financial aspects of patient care:
 | Concept | Description |
 |---------|-------------|
 | **BillingProfile** | Aggregate root - represents a patient's billing information |
-| **ExternalPatientId** | Reference to the patient in Scheduling context (not a foreign key) |
+| **PatientId** | Reference to the patient in Scheduling context |
 | **PaymentMethod** | Value object - stored payment method details |
 | **Invoice** | Entity - generated for appointments/services |
 
@@ -87,7 +87,7 @@ The Billing context manages financial aspects of patient care:
 +---------------------------+     +---------------------------+
 | Patient                   |     | BillingProfile            |
 |   - PatientId (Guid)      |     |   - BillingProfileId      |
-|   - FirstName             |     |   - ExternalPatientId     |
+|   - FirstName             |     |   - PatientId             |
 |   - LastName              |     |   - Email                 |
 |   - Email                 |     |   - FullName              |
 |   - DateOfBirth           |     |   - BillingAddress        |
@@ -103,7 +103,7 @@ The Billing context manages financial aspects of patient care:
         +----------------------------------->+
 ```
 
-**Key principle**: The Billing context does NOT reference `Patient` directly. It maintains its own `BillingProfile` entity and stores the `ExternalPatientId` for correlation. This keeps contexts decoupled.
+**Key principle**: The Billing context does NOT reference `Patient` directly. It maintains its own `BillingProfile` entity and stores the `PatientId` for correlation. This keeps contexts decoupled.
 
 ---
 
@@ -223,9 +223,8 @@ public class BillingProfile : Entity
 {
     /// <summary>
     /// Reference to the patient in the Scheduling bounded context.
-    /// This is NOT a foreign key - it's a correlation ID for cross-context lookups.
     /// </summary>
-    public Guid ExternalPatientId { get; private set; }
+    public Guid PatientId { get; private set; }
 
     /// <summary>
     /// Contact email for billing communications.
@@ -255,14 +254,14 @@ public class BillingProfile : Entity
     /// Creates a new billing profile for a patient.
     /// </summary>
     public static BillingProfile Create(
-        Guid externalPatientId,
+        Guid patientId,
         string email,
         string fullName)
     {
         var profile = new BillingProfile
         {
             Id = Guid.NewGuid(),
-            ExternalPatientId = externalPatientId,
+            PatientId = patientId,
             Email = email,
             FullName = fullName,
             CreatedAt = DateTime.UtcNow
@@ -270,7 +269,7 @@ public class BillingProfile : Entity
 
         profile.AddDomainEvent(new BillingProfileCreatedEvent(
             profile.Id,
-            externalPatientId,
+            patientId,
             email,
             fullName));
 
@@ -299,7 +298,7 @@ namespace Billing.Domain.BillingProfiles.Events;
 /// </summary>
 public record BillingProfileCreatedEvent(
     Guid BillingProfileId,
-    Guid ExternalPatientId,
+    Guid PatientId,
     string Email,
     string FullName
 ) : IDomainEvent;
@@ -323,7 +322,7 @@ public record CreateBillingProfileCommand : Command<Guid>
     /// <summary>
     /// The patient's ID from the Scheduling context.
     /// </summary>
-    public required Guid ExternalPatientId { get; init; }
+    public required Guid PatientId { get; init; }
 
     /// <summary>
     /// Contact email for billing.
@@ -363,7 +362,7 @@ public class CreateBillingProfileCommandHandler
         // Check if profile already exists (idempotency)
         var existingProfile = await _uow
             .RepositoryFor<BillingProfile>()
-            .FindAsync(bp => bp.ExternalPatientId == request.ExternalPatientId, cancellationToken);
+            .FindAsync(bp => bp.PatientId == request.PatientId, cancellationToken);
 
         if (existingProfile != null)
         {
@@ -373,7 +372,7 @@ public class CreateBillingProfileCommandHandler
 
         // Create new billing profile
         var profile = BillingProfile.Create(
-            request.ExternalPatientId,
+            request.PatientId,
             request.Email,
             request.FullName);
 
@@ -397,9 +396,9 @@ public class CreateBillingProfileCommandValidator
 {
     public CreateBillingProfileCommandValidator()
     {
-        RuleFor(x => x.ExternalPatientId)
+        RuleFor(x => x.PatientId)
             .NotEmpty()
-            .WithMessage("External patient ID is required");
+            .WithMessage("Patient ID is required");
 
         RuleFor(x => x.Email)
             .NotEmpty()
@@ -454,7 +453,7 @@ public class PatientCreatedIntegrationEventHandler
 
         var command = new CreateBillingProfileCommand
         {
-            ExternalPatientId = message.PatientId,
+            PatientId = message.PatientId,
             Email = message.Email,
             FullName = $"{message.FirstName} {message.LastName}"
         };
@@ -513,11 +512,11 @@ public class BillingProfileConfiguration : IEntityTypeConfiguration<BillingProfi
 
         builder.HasKey(x => x.Id);
 
-        builder.Property(x => x.ExternalPatientId)
+        builder.Property(x => x.PatientId)
             .IsRequired();
 
-        // Index for quick lookups by external patient ID
-        builder.HasIndex(x => x.ExternalPatientId)
+        // Index for quick lookups by patient ID
+        builder.HasIndex(x => x.PatientId)
             .IsUnique();
 
         builder.Property(x => x.Email)
@@ -984,7 +983,7 @@ public record AppointmentCancelledIntegrationEvent : IntegrationEventBase { ... 
 | Issue | Cause | Solution |
 |-------|-------|----------|
 | Handler not receiving messages | Consumer not registered | Add `configure.AddConsumers(typeof(Billing.Infrastructure.ServiceCollectionExtensions).Assembly)` |
-| Duplicate BillingProfiles | Handler not idempotent | Check for existing profile by ExternalPatientId before creating |
+| Duplicate BillingProfiles | Handler not idempotent | Check for existing profile by PatientId before creating |
 | Connection refused to RabbitMQ | RabbitMQ not running or wrong config | Verify docker-compose up, check appsettings.json |
 | EF Core "no service for type IUnitOfWork" | Wrong DI registration | Ensure AddBillingInfrastructure called with correct DbContext |
 | Event not published | TransactionBehavior not wrapping command | Ensure command inherits from Command<T> |
