@@ -205,9 +205,8 @@ RabbitMQ is managed by .NET Aspire for local development. The `docker-compose.ym
 
 ## Next Steps
 1. Implement observability features (structured logging, distributed tracing, custom metrics)
-2. Add correlation ID middleware
-3. Add custom health checks (SQL Server)
-4. Explore API Gateway with YARP (optional)
+2. Add custom health checks (SQL Server)
+3. Explore API Gateway with YARP (optional)
 
 ## Notes for Claude Code
 - When suggesting code, follow the DDD tactical patterns strictly

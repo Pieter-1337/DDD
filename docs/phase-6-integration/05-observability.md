@@ -9,7 +9,6 @@
 - Distributed tracing across services
 - Metrics collection
 - Health checks configuration
-- Correlation IDs across service boundaries
 - Troubleshooting with the dashboard
 
 ---
@@ -434,109 +433,6 @@ builder.Services.AddOpenTelemetry()
 
 ---
 
-## Correlation IDs Across Service Boundaries
-
-Correlation IDs enable tracking a single business operation across all services.
-
-### How Correlation Works
-
-```
-+-----------------------------------------------------------------------------+
-|                           CORRELATION FLOW                                    |
-+-----------------------------------------------------------------------------+
-
-     HTTP Request
-     X-Correlation-Id: abc-123
-          |
-          v
-    +-----------+
-    |   WebApi  |  Logs: CorrelationId=abc-123
-    +-----------+
-          |
-          | MassTransit adds CorrelationId to message headers
-          v
-    +-----------+
-    | RabbitMQ  |  Message Headers: { "MT-CorrelationId": "abc-123" }
-    +-----------+
-          |
-          v
-    +-----------+
-    |  Billing  |  Logs: CorrelationId=abc-123
-    +-----------+
-```
-
-### MassTransit Correlation
-
-MassTransit handles correlation automatically:
-
-```csharp
-// When publishing, MassTransit preserves the current CorrelationId
-_uow.QueueIntegrationEvent(new PatientCreatedIntegrationEvent
-{
-    PatientId = patient.Id,
-    // CorrelationId is automatically propagated
-});
-
-// When consuming, MassTransit restores the CorrelationId
-protected override async Task HandleAsync(
-    PatientCreatedIntegrationEvent message,
-    CancellationToken cancellationToken)
-{
-    // ConsumeContext has the CorrelationId
-    // Logger automatically includes it via OpenTelemetry
-    Logger.LogInformation("Processing patient {PatientId}", message.PatientId);
-}
-```
-
-### Adding Correlation ID Middleware
-
-```csharp
-// Middleware to extract/generate CorrelationId from HTTP headers
-public class CorrelationIdMiddleware
-{
-    private readonly RequestDelegate _next;
-    private const string CorrelationIdHeader = "X-Correlation-Id";
-
-    public CorrelationIdMiddleware(RequestDelegate next)
-    {
-        _next = next;
-    }
-
-    public async Task InvokeAsync(HttpContext context)
-    {
-        var correlationId = context.Request.Headers[CorrelationIdHeader].FirstOrDefault()
-            ?? Guid.NewGuid().ToString();
-
-        context.Items["CorrelationId"] = correlationId;
-        context.Response.Headers[CorrelationIdHeader] = correlationId;
-
-        // Add to current activity for OpenTelemetry
-        Activity.Current?.SetTag("correlation.id", correlationId);
-
-        using (context.RequestServices.GetRequiredService<ILogger<CorrelationIdMiddleware>>()
-            .BeginScope(new Dictionary<string, object> { ["CorrelationId"] = correlationId }))
-        {
-            await _next(context);
-        }
-    }
-}
-
-// Register in Program.cs
-app.UseMiddleware<CorrelationIdMiddleware>();
-```
-
-### Searching by Correlation ID
-
-In the Aspire Dashboard, search across all services:
-
-```
-Properties["CorrelationId"] = "abc-123"
-```
-
-This shows all log entries from all services that participated in the operation.
-
----
-
 ## Metrics Collection
 
 Aspire Dashboard displays real-time metrics from all services.
@@ -819,7 +715,7 @@ process_runtime_dotnet_gc_heap_size
 |---------|---------------|---------------|
 | Errors | Logs | `Level >= Error` |
 | Slow requests | Traces | `Duration > 500ms` |
-| Specific operation | Traces | TraceId or CorrelationId |
+| Specific operation | Traces | TraceId |
 | Service health | Resources | Check health column |
 | Message failures | Logs | `Message contains "Error handling"` |
 | Database issues | Traces | Look for long EF Core spans |
