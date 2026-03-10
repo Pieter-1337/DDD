@@ -77,8 +77,6 @@ The Billing context manages financial aspects of patient care:
 | **BillingProfile** | Aggregate root - represents a patient's billing information |
 | **PatientId** | Reference to the patient in Scheduling context |
 | **PaymentMethod** | Value object - stored payment method details (owned entity) |
-| **Invoice** | Entity - generated for services, tracks amount and payment status |
-| **InvoiceStatus** | SmartEnum - Draft, Sent, Paid, Cancelled |
 
 ### Bounded Context Boundaries
 
@@ -93,11 +91,6 @@ The Billing context manages financial aspects of patient care:
 |   - Email                 |     |   - FullName              |
 |   - DateOfBirth           |     |   - BillingAddress        |
 |                           |     |   - PaymentMethod         |
-|                           |     | Invoice                   |
-|                           |     |   - InvoiceId             |
-|                           |     |   - BillingProfileId      |
-|                           |     |   - Amount                |
-|                           |     |   - Status (SmartEnum)    |
 +---------------------------+     +---------------------------+
         |                                    ^
         | PatientCreatedIntegrationEvent     |
@@ -121,11 +114,6 @@ Core/
     |   |   +-- PaymentMethod.cs               # Value object (record)
     |   |   +-- Events/
     |   |       +-- BillingProfileCreatedEvent.cs
-    |   +-- Invoices/
-    |       +-- Invoice.cs                     # Entity
-    |       +-- InvoiceStatus.cs               # SmartEnum
-    |       +-- Events/
-    |           +-- InvoiceCreatedEvent.cs
     |
     +-- Billing.Application/
     |   +-- BillingProfiles/
@@ -133,9 +121,6 @@ Core/
     |   |   |   +-- CreateBillingProfileCommand.cs
     |   |   |   +-- CreateBillingProfileCommandHandler.cs
     |   |   +-- Queries/                       # (planned)
-    |   +-- Invoices/
-    |   |   +-- EventHandlers/
-    |   |       +-- InvoiceCreatedEventHandler.cs
     |   +-- ServiceCollectionExtensions.cs
     |
     +-- Billing.Infrastructure/
@@ -143,7 +128,6 @@ Core/
     |   |   +-- BillingDbContext.cs
     |   |   +-- Configurations/
     |   |       +-- BillingProfileConfiguration.cs
-    |   |       +-- InvoiceConfiguration.cs
     |   +-- Consumers/
     |   |   +-- PatientCreatedIntegrationEventHandler.cs
     |   +-- ServiceCollectionExtensions.cs
@@ -845,11 +829,8 @@ Shared/
 +-- IntegrationEvents/
     +-- IntegrationEvents.csproj
     +-- Scheduling/
-    |   +-- PatientCreatedIntegrationEvent.cs
-    |   +-- PatientSuspendedIntegrationEvent.cs
-    +-- Billing/
-        +-- InvoiceCreatedIntegrationEvent.cs
-        +-- PaymentReceivedIntegrationEvent.cs
+        +-- PatientCreatedIntegrationEvent.cs
+        +-- PatientSuspendedIntegrationEvent.cs
 ```
 
 ### Why a Shared Project?
@@ -870,10 +851,6 @@ namespace IntegrationEvents.Scheduling;
 
 public record PatientCreatedIntegrationEvent : IntegrationEventBase { ... }
 public record PatientSuspendedIntegrationEvent : IntegrationEventBase { ... }
-
-namespace IntegrationEvents.Billing;
-
-public record InvoiceCreatedIntegrationEvent : IntegrationEventBase { ... }
 ```
 
 ---
@@ -962,6 +939,41 @@ public record InvoiceCreatedIntegrationEvent : IntegrationEventBase { ... }
    |                                                                   |
    +------------------------------------------------------------------+
 ```
+
+---
+
+## Database Migration
+
+The Billing context shares the same SQL Server database as Scheduling. Each DbContext manages its own tables and migrations independently (see [03-database-migrations.md](../phase-2-ef-core/03-database-migrations.md) for how multi-context migrations work).
+
+### Create the Billing migration
+
+From the solution root:
+
+```bash
+dotnet ef migrations add InitialCreate \
+  --project Core/Billing/Billing.Infrastructure \
+  --startup-project WebApplications/Billing.WebApi \
+  --context BillingDbContext \
+  --output-dir Persistence/Migrations
+```
+
+This generates migration files in `Billing.Infrastructure/Persistence/Migrations/` that will create the `BillingProfiles` table.
+
+### Apply the migration
+
+```bash
+dotnet ef database update \
+  --project Core/Billing/Billing.Infrastructure \
+  --startup-project WebApplications/Billing.WebApi \
+  --context BillingDbContext
+```
+
+### Verify
+
+In SQL Server Object Explorer, the DDD database should now contain:
+- `dbo.BillingProfiles` — with columns for PaymentMethod stored as owned entity columns (`PaymentMethodType`, `PaymentMethodLast4`, `PaymentMethodCardholder`)
+- `dbo.__EFMigrationsHistory` — tracking both Scheduling and Billing migrations
 
 ---
 

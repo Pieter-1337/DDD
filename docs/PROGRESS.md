@@ -319,11 +319,10 @@ This allows using `nameof(GetPatientAsync)` in `CreatedAtAction` calls.
 - [x] Add Aspire AppHost project
 - [x] Add ServiceDefaults project
 - [x] Migrate RabbitMQ to Aspire orchestration
-- [x] Add Billing bounded context (BillingProfile, Invoice, PaymentMethod)
+- [x] Add Billing bounded context (BillingProfile, PaymentMethod)
 - [x] Integration event handlers (PatientCreatedIntegrationEventHandler)
-- [x] Domain event → integration event flow (InvoiceCreatedEventHandler)
-- [x] Shared IntegrationEvents project (Scheduling + Billing events)
-- [x] Billing tests (validator, handler, domain, event handler tests)
+- [x] Shared IntegrationEvents project (Scheduling events)
+- [x] Billing tests (validator, handler, domain tests)
 - [ ] Test cross-context event flow end-to-end
 - [ ] Verify observability in Aspire Dashboard
 
