@@ -21,6 +21,10 @@
 
     <ItemGroup>
         <ProjectReference Include="..\..\..\BuildingBlocks\BuildingBlocks.Tests\BuildingBlocks.Tests.csproj" />
+        <ProjectReference Include="..\..\..\Shared\IntegrationEvents\IntegrationEvents.csproj" />
+        <ProjectReference Include="..\Billing.Application\Billing.Application.csproj" />
+        <ProjectReference Include="..\Billing.Domain\Billing.Domain.csproj" />
+        <ProjectReference Include="..\Billing.Infrastructure\Billing.Infrastructure.csproj" />
     </ItemGroup>
 
 </Project>

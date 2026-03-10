@@ -1,6 +1,8 @@
 ﻿using BuildingBlocks.Application.Cqrs;
 using BuildingBlocks.Application.Dtos;
+using BuildingBlocks.Application.Interfaces;
 using BuildingBlocks.Enumerations;
+using Billing.Domain.BillingProfiles;
 using FluentValidation;
 using FluentValidation.Validators;
 
@@ -32,16 +34,21 @@ namespace Billing.Application.BillingProfiles.Commands
         }
     }
 
-    internal class CreateBillingProfileRequestValidator : AbstractValidator<CreateBillingProfileRequest> 
+    internal class CreateBillingProfileRequestValidator : AbstractValidator<CreateBillingProfileRequest>
     {
-        public CreateBillingProfileRequestValidator()
-        {
+        private readonly IUnitOfWork _uow;
 
-            //rework to ErrorCodes
+        public CreateBillingProfileRequestValidator(IUnitOfWork uow)
+        {
+            _uow = uow;
+
             RuleFor(x => x.PatientId)
                 .NotEmpty()
                 .WithErrorCode(ErrorCode.Required.Value)
-                .WithMessage(ErrorCode.Required.Message);
+                .WithMessage(ErrorCode.Required.Message)
+                .MustAsync(NotAlreadyHaveBillingProfileAsync)
+                .WithErrorCode(ErrorCode.Conflict.Value)
+                .WithMessage("A billing profile already exists for this patient");
 
             RuleFor(x => x.Email)
                 .NotEmpty()
@@ -55,6 +62,11 @@ namespace Billing.Application.BillingProfiles.Commands
                 .NotEmpty()
                 .WithErrorCode(ErrorCode.Required.Value)
                 .WithMessage(ErrorCode.Required.Message);
+        }
+
+        private async Task<bool> NotAlreadyHaveBillingProfileAsync(Guid patientId, CancellationToken ct)
+        {
+            return !await _uow.RepositoryFor<BillingProfile>().ExistsAsync(bp => bp.PatientId == patientId, ct);
         }
     }
     #endregion Validators

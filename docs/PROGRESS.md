@@ -188,6 +188,7 @@ This allows using `nameof(GetPatientAsync)` in `CreatedAtAction` calls.
 - [x] Write validator tests (CreatePatientCommand, GetPatientQuery, GetAllPatientsQuery, SuspendPatientCommand)
 - [x] Write handler tests (CreatePatientCommand, GetPatientQuery, GetAllPatientsQuery)
 - [x] Write domain tests (Patient entity behavior)
+- [x] Write Billing bounded context tests (validators, handlers, domain, event handlers)
 
 ### Key Decisions Made
 
@@ -322,6 +323,7 @@ This allows using `nameof(GetPatientAsync)` in `CreatedAtAction` calls.
 - [x] Integration event handlers (PatientCreatedIntegrationEventHandler)
 - [x] Domain event → integration event flow (InvoiceCreatedEventHandler)
 - [x] Shared IntegrationEvents project (Scheduling + Billing events)
+- [x] Billing tests (validator, handler, domain, event handler tests)
 - [ ] Test cross-context event flow end-to-end
 - [ ] Verify observability in Aspire Dashboard
 
