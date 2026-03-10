@@ -10,7 +10,7 @@
 | Phase 4: Testing | Complete | 2026-01-09 | 2026-01-23 |
 | Phase 5: Event-Driven Architecture | Complete | 2026-01-23 | 2026-02-13 |
 | Phase 6: Integration | In Progress | 2026-03-09 | - |
-| Phase 7: Blazor & FluentUI | Not Started | - | - |
+| Phase 7: Frontend (Blazor + Angular) | Not Started | - | - |
 | Phase 8: Authentication & Authorization | Not Started | - | - |
 
 ---
@@ -312,6 +312,7 @@ This allows using `nameof(GetPatientAsync)` in `CreatedAtAction` calls.
 - [x] Cross-context communication via integration events
 - [ ] Observability with Aspire Dashboard (logs, traces, metrics)
 - [ ] API Gateway with YARP (optional - single entry point for multiple APIs)
+- [ ] BFF pattern (optional - frontend-specific backend)
 
 ### Implementation Progress
 
@@ -335,15 +336,17 @@ This allows using `nameof(GetPatientAsync)` in `CreatedAtAction` calls.
 - `phase-6-integration/04-billing-bounded-context.md` - Adding second bounded context
 - `phase-6-integration/05-observability.md` - Logs, traces, metrics with Aspire Dashboard
 - `phase-6-integration/06-api-gateway-optional.md` - YARP API Gateway (optional)
+- `phase-6-integration/07-bff-pattern-optional.md` - BFF pattern (optional)
 
 ---
 
-## Phase 7: Blazor & FluentUI
+## Phase 7: Frontend
 
 *Not started*
 
 ### Planned Topics
 
+**Blazor (primary)**
 - Blazor Server vs Blazor WebAssembly vs Blazor United
 - FluentUI Blazor components setup
 - Project structure for Blazor frontend
@@ -353,9 +356,14 @@ This allows using `nameof(GetPatientAsync)` in `CreatedAtAction` calls.
 - Forms and validation with FluentValidation
 - Navigation and routing
 
+**Angular (optional)**
+- Angular project setup alongside Blazor
+- Own Angular BFF calling the same upstream APIs (Scheduling, Billing)
+- Enables 2 BFFs + 1 Gateway scenario (Blazor BFF, Angular BFF, Public API Gateway)
+
 ### Docs Available
 
-- `phase-7-blazor/` - (to be created)
+- `phase-7-frontend/` - (to be created)
 
 ---
 

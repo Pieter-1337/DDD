@@ -90,8 +90,9 @@ This is a comprehensive learning project to master Domain-Driven Design (DDD) an
 - Event-driven communication
 - CQRS in each service
 - Shared kernel for common domain concepts
-- API Gateway pattern
 - Health checks and observability
+- API Gateway pattern (optional)
+- BFF pattern (optional)
 
 ## Coding Standards
 
