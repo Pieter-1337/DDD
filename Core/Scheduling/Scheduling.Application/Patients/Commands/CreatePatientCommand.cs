@@ -4,7 +4,6 @@ using BuildingBlocks.Application.Validators;
 using BuildingBlocks.Enumerations;
 using FluentValidation;
 using FluentValidation.Validators;
-using Scheduling.Application.Patients.Dtos;
 using Scheduling.Domain.Patients;
 
 namespace Scheduling.Application.Patients.Commands
@@ -23,7 +22,7 @@ namespace Scheduling.Application.Patients.Commands
 
     public class CreatePatientCommandResponse : SuccessOrFailureDto
     {
-        public PatientDto PatientDto { get; set; }
+        public Guid PatientId { get; set; }
     }
 
     #region Validators

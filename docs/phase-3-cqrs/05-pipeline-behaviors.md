@@ -537,15 +537,15 @@ public static class ServiceCollectionExtensions
 
 The web application decides which behaviors to use. WebApi already gets `BuildingBlocks.Application` transitively through Scheduling references, so no additional project references are needed for behaviors.
 
-**WebApi/WebApi.csproj:**
+**WebApplications/Scheduling.WebApi/Scheduling.WebApi.csproj:**
 ```xml
 <ItemGroup>
-  <ProjectReference Include="..\Core\Scheduling\Scheduling.Infrastructure\Scheduling.Infrastructure.csproj" />
-  <ProjectReference Include="..\BuildingBlocks\BuildingBlocks.WebApplications\BuildingBlocks.WebApplications.csproj" />
+  <ProjectReference Include="..\..\Core\Scheduling\Scheduling.Infrastructure\Scheduling.Infrastructure.csproj" />
+  <ProjectReference Include="..\..\BuildingBlocks\BuildingBlocks.WebApplications\BuildingBlocks.WebApplications.csproj" />
 </ItemGroup>
 ```
 
-**WebApi/Program.cs - Using defaults:**
+**WebApplications/Scheduling.WebApi/Program.cs - Using defaults:**
 ```csharp
 using BuildingBlocks.Application;
 using BuildingBlocks.WebApplications.Filters;
@@ -573,7 +573,7 @@ builder.Services.AddDefaultPipelineBehaviors();
 
 **Important:** The `ExceptionToJsonFilter` is required to convert `ValidationException` (thrown by `ValidationBehavior`) into proper 400 responses. Without it, validation failures return 500 errors.
 
-**AdminApi/Program.cs - Using custom behaviors:**
+**WebApplications/AdminApi/Program.cs - Using custom behaviors:**
 ```csharp
 using BuildingBlocks.Application.Behaviors;
 using MediatR;
@@ -591,7 +591,7 @@ builder.Services.AddTransient(typeof(IPipelineBehavior<,>), typeof(ValidationBeh
 
 Create a custom behavior that inherits from the base and overrides specific methods:
 
-Location: `AdminApi/Behaviors/AdminLoggingBehavior.cs`
+Location: `WebApplications/AdminApi/Behaviors/AdminLoggingBehavior.cs`
 
 ```csharp
 using BuildingBlocks.Application.Behaviors;
@@ -1108,9 +1108,9 @@ Visual representation of the pipeline:
 - [ ] `AddBoundedContext()` in BuildingBlocks.Application registers handlers and validators only
 - [ ] `AddDefaultPipelineBehaviors()` in BuildingBlocks.Application registers the default behaviors
 - [ ] BuildingBlocks.Application.csproj has Microsoft.Extensions.Logging.Abstractions package
-- [ ] WebApi references BuildingBlocks.WebApplications for the exception filter
-- [ ] WebApi registers `ExceptionToJsonFilter` in controller options
-- [ ] WebApi calls both `AddSchedulingApplication()` and `AddDefaultPipelineBehaviors()`
+- [ ] Scheduling.WebApi references BuildingBlocks.WebApplications for the exception filter
+- [ ] Scheduling.WebApi registers `ExceptionToJsonFilter` in controller options
+- [ ] Scheduling.WebApi calls both `AddSchedulingApplication()` and `AddDefaultPipelineBehaviors()`
 - [ ] Validation failures return proper 400 responses with structured JSON
 - [ ] Slow requests are logged as warnings
 - [ ] (Optional) Custom behaviors can inherit and override specific methods
@@ -1154,14 +1154,15 @@ Core/Scheduling/
     │   └── EventHandlers/
     └── ServiceCollectionExtensions.cs          <- Calls AddBoundedContext()
 
-WebApi/
-├── WebApi.csproj                               <- References Scheduling.Infrastructure (gets BuildingBlocks.Application transitively)
-└── Program.cs                                  <- Calls AddDefaultPipelineBehaviors()
-
-AdminApi/                                       <- Optional: Custom behaviors
-├── Behaviors/
-│   └── AdminLoggingBehavior.cs                 <- Inherits + overrides
-└── Program.cs                                  <- Registers custom behaviors
+WebApplications/
+├── Scheduling.WebApi/
+│   ├── Scheduling.WebApi.csproj                <- References Scheduling.Infrastructure (gets BuildingBlocks.Application transitively)
+│   └── Program.cs                              <- Calls AddDefaultPipelineBehaviors()
+│
+└── AdminApi/                                   <- Optional: Custom behaviors
+    ├── Behaviors/
+    │   └── AdminLoggingBehavior.cs             <- Inherits + overrides
+    └── Program.cs                              <- Registers custom behaviors
 ```
 
 ---

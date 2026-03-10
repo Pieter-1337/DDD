@@ -31,10 +31,10 @@ The Aspire Dashboard is automatically available when running your Aspire app and
 |  +-----------------------------------------------------------------------+       |
 |  | Name            | Type      | State    | Endpoints                   |       |
 |  |-----------------|-----------|----------|------------------------------|       |
-|  | webapi          | Project   | Running  | https://localhost:5001       |       |
+|  | scheduling-webapi          | Project   | Running  | https://localhost:5001       |       |
 |  | scheduling-db   | Container | Running  | localhost:1433               |       |
 |  | rabbitmq        | Container | Running  | localhost:5672, :15672       |       |
-|  | billing-worker  | Project   | Running  | -                            |       |
+|  | billing-webapi  | Project   | Running  | -                            |       |
 |  +-----------------------------------------------------------------------+       |
 |                                                                                   |
 +-----------------------------------------------------------------------------------+
@@ -249,11 +249,11 @@ public class CreatePatientCommandHandler : IRequestHandler<CreatePatientCommand,
 |                                                                                   |
 |  Timestamp           | Level | Resource      | Message                            |
 |  --------------------|-------|---------------|-----------------------------------|
-|  14:32:05.123        | Info  | webapi        | Creating patient John Doe with... |
-|  14:32:05.156        | Info  | webapi        | Patient created successfully w... |
-|  14:32:05.189        | Info  | webapi        | Publishing integration event Pa...|
-|  14:32:05.245        | Info  | billing-worker| Handling PatientCreatedIntegrat...|
-|  14:32:05.312        | Info  | billing-worker| Created billing profile for pa... |
+|  14:32:05.123        | Info  | scheduling-webapi        | Creating patient John Doe with... |
+|  14:32:05.156        | Info  | scheduling-webapi        | Patient created successfully w... |
+|  14:32:05.189        | Info  | scheduling-webapi        | Publishing integration event Pa...|
+|  14:32:05.245        | Info  | billing-webapi| Handling PatientCreatedIntegrat...|
+|  14:32:05.312        | Info  | billing-webapi| Created billing profile for pa... |
 |                                                                                   |
 |  +-- Expand log entry --------------------------------------------------------+  |
 |  |  Timestamp: 2024-02-13T14:32:05.123Z                                        |  |
@@ -277,7 +277,7 @@ The dashboard supports powerful filtering:
 
 ```
 Level >= Warning                    # Only warnings and errors
-Resource = "webapi"                 # From specific service
+Resource = "scheduling-webapi"                 # From specific service
 Message contains "patient"          # Text search
 Properties["PatientId"] = "abc-123" # By structured property
 ```
@@ -295,7 +295,7 @@ Traces show the complete request flow across all services, including message bro
 |  Trace: Create Patient (TraceId: abc123...)                      Duration: 245ms  |
 +-----------------------------------------------------------------------------------+
 |                                                                                   |
-|  webapi                                                                          |
+|  scheduling-webapi                                                                          |
 |  |                                                                               |
 |  +-- POST /api/patients (125ms)                                                  |
 |      |                                                                           |
@@ -309,7 +309,7 @@ Traces show the complete request flow across all services, including message bro
 |  |                                                                               |
 |  +-- PatientCreatedIntegrationEvent (exchange) (2ms)                             |
 |                                                                                   |
-|  billing-worker                                                                  |
+|  billing-webapi                                                                  |
 |  |                                                                               |
 |  +-- Consume PatientCreatedIntegrationEvent (118ms)                              |
 |      |                                                                           |
@@ -351,9 +351,9 @@ builder.Services.AddOpenTelemetry()
 |                                                                                   |
 |  TraceId           | Name                    | Duration | Spans | Resources      |
 |  ------------------|-------------------------|----------|-------|----------------|
-|  abc123...         | POST /api/patients      | 245ms    | 8     | webapi, billing|
-|  def456...         | POST /api/appointments  | 312ms    | 12    | webapi, billing|
-|  ghi789...         | GET /api/patients/{id}  | 45ms     | 3     | webapi         |
+|  abc123...         | POST /api/patients      | 245ms    | 8     | scheduling-webapi, billing|
+|  def456...         | POST /api/appointments  | 312ms    | 12    | scheduling-webapi, billing|
+|  ghi789...         | GET /api/patients/{id}  | 45ms     | 3     | scheduling-webapi         |
 |                                                                                   |
 +-----------------------------------------------------------------------------------+
 ```
@@ -528,7 +528,7 @@ ServiceDefaults configures these automatically:
 +-----------------------------------------------------------------------------------+
 |  Metrics                                                                          |
 +-----------------------------------------------------------------------------------+
-|  Resource: webapi  |  Time Range: Last 1 hour                                     |
+|  Resource: scheduling-webapi  |  Time Range: Last 1 hour                                     |
 +-----------------------------------------------------------------------------------+
 |                                                                                   |
 |  HTTP Request Duration (http_server_request_duration)                            |
@@ -677,12 +677,12 @@ app.MapHealthChecks("/ready", new HealthCheckOptions
 |                                                                                   |
 |  Name            | Type      | State    | Health  | Endpoints                    |
 |  ----------------|-----------|----------|---------|------------------------------|
-|  webapi          | Project   | Running  | Healthy | https://localhost:5001       |
+|  scheduling-webapi          | Project   | Running  | Healthy | https://localhost:5001       |
 |  scheduling-db   | Container | Running  | Healthy | localhost:1433               |
 |  rabbitmq        | Container | Running  | Healthy | localhost:5672               |
-|  billing-worker  | Project   | Running  | Healthy | -                            |
+|  billing-webapi  | Project   | Running  | Healthy | -                            |
 |                                                                                   |
-|  +-- Expand webapi health details ----------------------------------------+      |
+|  +-- Expand scheduling-webapi health details ----------------------------------------+      |
 |  |  /health: Healthy                                                       |      |
 |  |    - self: Healthy                                                      |      |
 |  |    - sqlserver: Healthy (response time: 12ms)                           |      |
@@ -724,7 +724,7 @@ Trace: POST /api/appointments (1.2s)
 **Investigation Steps:**
 
 1. Go to **Structured Logs** tab
-2. Filter: `Level >= Error AND Resource = "billing-worker"`
+2. Filter: `Level >= Error AND Resource = "billing-webapi"`
 3. Find the error and note the TraceId
 4. Go to **Traces** and search by TraceId
 5. See the full flow and where it failed
@@ -743,15 +743,15 @@ Log Entry:
 
 **Investigation Steps:**
 
-1. Check **Resources** - Is billing-worker running?
-2. Check **Structured Logs** for webapi - Are events being published?
+1. Check **Resources** - Is billing-webapi running?
+2. Check **Structured Logs** for scheduling-webapi - Are events being published?
 3. Check RabbitMQ Management UI - Are messages in queues?
 4. Check **Traces** - Is the publish span succeeding?
 
 ```
 +-- MassTransit: Publish PatientCreatedIntegrationEvent (12ms) [SUCCESS]
 
-But no corresponding consume span in billing-worker...
+But no corresponding consume span in billing-webapi...
 
 Check: Is the consumer registered?
 Check: Is the queue bound to the exchange?
@@ -882,7 +882,7 @@ https://localhost:18888
 
 ```
 Level >= Warning                           # Warnings and errors
-Resource = "webapi"                        # Specific service
+Resource = "scheduling-webapi"                        # Specific service
 Properties["PatientId"] = "abc-123"       # By property
 Message contains "failed"                  # Text search
 ```
@@ -891,7 +891,7 @@ Message contains "failed"                  # Text search
 
 ```
 Duration > 500ms                           # Slow operations
-Resource = "billing-worker"                # Specific service
+Resource = "billing-webapi"                # Specific service
 Name = "POST /api/patients"                # Specific endpoint
 ```
 

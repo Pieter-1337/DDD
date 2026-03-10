@@ -6,7 +6,11 @@ var messaging = builder.AddRabbitMQ("messaging", password: messagingPassword)
     .WithManagementPlugin()
     .WithDataVolume();
 
-var webApi = builder.AddProject<Projects.WebApi>("webapi")
+builder.AddProject<Projects.Scheduling_WebApi>("scheduling-webapi")
+    .WithReference(messaging)
+    .WaitFor(messaging);
+
+builder.AddProject<Projects.Billing_WebApi>("billing-webapi")
     .WithReference(messaging)
     .WaitFor(messaging);
 

@@ -9,7 +9,8 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\WebApi\WebApi.csproj" />
+    <ProjectReference Include="..\WebApplications\Scheduling.WebApi\Scheduling.WebApi.csproj" />
+    <ProjectReference Include="..\WebApplications\Billing.WebApi\Billing.WebApi.csproj" />
   </ItemGroup>
 
   <ItemGroup>

@@ -24,7 +24,7 @@ public class GetPatientQueryHandlerTests : SchedulingDbTestBase
             .Build();
 
         var createResponse = await GetMediator().Send(new CreatePatientCommand(createRequest));
-        var patientId = createResponse.PatientDto.Id;
+        var patientId = createResponse.PatientId;
 
         var query = new GetPatientQuery { Id = patientId };
 
@@ -80,14 +80,14 @@ public class GetPatientQueryHandlerTests : SchedulingDbTestBase
         var response1 = await GetMediator().Send(new CreatePatientCommand(patient1Request));
         var response2 = await GetMediator().Send(new CreatePatientCommand(patient2Request));
 
-        var query = new GetPatientQuery { Id = response2.PatientDto.Id };
+        var query = new GetPatientQuery { Id = response2.PatientId };
 
         // Act
         var result = await GetMediator().Send(query);
 
         // Assert
         result.ShouldNotBeNull();
-        result!.Id.ShouldBe(response2.PatientDto.Id);
+        result!.Id.ShouldBe(response2.PatientId);
         result.LastName.ShouldBe("Two");
         result.Email.ShouldBe("patient.two@example.com");
     }

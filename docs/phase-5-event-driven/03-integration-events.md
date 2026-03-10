@@ -159,7 +159,7 @@ SaveChangesAsync()
 Command handlers focus only on entity operations and saving:
 
 ```csharp
-// Scheduling.Application/Patients/Commands/CreatePatientCommandHandler.cs
+// Core/Scheduling/Scheduling.Application/Patients/Commands/CreatePatientCommandHandler.cs
 using BuildingBlocks.Application.Interfaces;
 using MediatR;
 using Scheduling.Domain.Patients;
@@ -200,7 +200,7 @@ public class CreatePatientCommandHandler : IRequestHandler<CreatePatientCommand,
 Domain event handlers listen for domain events and queue integration events:
 
 ```csharp
-// Scheduling.Application/Patients/EventHandlers/PatientCreatedEventHandler.cs
+// Core/Scheduling/Scheduling.Application/Patients/EventHandlers/PatientCreatedEventHandler.cs
 using BuildingBlocks.Application.Interfaces;
 using MediatR;
 using Microsoft.Extensions.Logging;
@@ -680,7 +680,7 @@ public record PaymentReceivedIntegrationEvent : IntegrationEventBase
 ## Additional Example: Appointment Domain Event Handler
 
 ```csharp
-// Scheduling.Application/Appointments/EventHandlers/AppointmentScheduledEventHandler.cs
+// Core/Scheduling/Scheduling.Application/Appointments/EventHandlers/AppointmentScheduledEventHandler.cs
 using BuildingBlocks.Application.Interfaces;
 using MediatR;
 using Microsoft.Extensions.Logging;

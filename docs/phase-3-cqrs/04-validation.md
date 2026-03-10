@@ -896,7 +896,7 @@ public class ValidationErrorWrapper
 
 ### Step 12: Register Filter and Behaviors
 
-Update `WebApi/Program.cs`:
+Update `WebApplications/Scheduling.WebApi/Program.cs`:
 
 ```csharp
 using BuildingBlocks.Application;
@@ -926,7 +926,7 @@ builder.Services.AddDefaultPipelineBehaviors();
 **Important:**
 - `ExceptionToJsonFilter` converts `ValidationException` into proper 400 responses. Without it, validation failures return 500 errors.
 - `AddDefaultPipelineBehaviors()` registers `ValidationBehavior` which throws `ValidationException` when validation fails.
-- WebApi needs to reference `BuildingBlocks.WebApplications` for the filter.
+- Scheduling.WebApi needs to reference `BuildingBlocks.WebApplications` for the filter.
 
 ### Step 13: Using Custom Error Codes and Severity
 
@@ -995,7 +995,7 @@ RuleFor(c => c)
 - [x] Validators registered in DI with `AddValidatorsFromAssembly`
 - [x] Email validation uses `EmailValidationMode.AspNetCoreCompatible`
 - [ ] `ValidationBehavior` in BuildingBlocks.Application/Behaviors (see 05-pipeline-behaviors.md)
-- [ ] `ExceptionToJsonFilter` registered in WebApi (required for proper validation error responses)
+- [ ] `ExceptionToJsonFilter` registered in Scheduling.WebApi (required for proper validation error responses)
 - [ ] `ValidationErrorWrapper` in BuildingBlocks.WebApplications (used by ExceptionToJsonFilter)
 
 ---

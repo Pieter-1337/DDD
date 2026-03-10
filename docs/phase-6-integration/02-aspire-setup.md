@@ -76,19 +76,19 @@ Aspire adds two new projects to your solution:
 
 ```
 DDD.sln
-+-- Aspire.AppHost/                 <- NEW: Orchestration project
-|   +-- AppHost.cs                  <- Defines app topology
++-- Aspire.AppHost/                         <- NEW: Orchestration project
+|   +-- AppHost.cs                          <- Defines app topology
 |   +-- Aspire.AppHost.csproj
 |
-+-- ServiceDefaults/                <- NEW: Shared service configuration
-|   +-- Extensions.cs               <- OpenTelemetry, health checks, etc.
++-- ServiceDefaults/                        <- NEW: Shared service configuration
+|   +-- Extensions.cs                       <- OpenTelemetry, health checks, etc.
 |   +-- Aspire.ServiceDefaults.csproj
 |
-+-- WebApi/                         <- Existing: Your Scheduling API
-|   +-- Program.cs                  <- Modified to use ServiceDefaults
-|   +-- WebApi.csproj
++-- WebApplications/Scheduling.WebApi/      <- Existing: Your Scheduling API
+|   +-- Program.cs                          <- Modified to use ServiceDefaults
+|   +-- Scheduling.WebApi.csproj
 |
-+-- Core/Scheduling/...             <- Existing: Domain, Application, Infrastructure
++-- Core/Scheduling/...                     <- Existing: Domain, Application, Infrastructure
 ```
 
 ### Project Responsibilities
@@ -97,7 +97,7 @@ DDD.sln
 |---------|---------|
 | **Aspire.AppHost** | The "control tower" - orchestrates all services and resources |
 | **Aspire.ServiceDefaults** | Shared configuration for observability, resilience, health checks |
-| **WebApi** | Your existing API, now enhanced with Aspire defaults |
+| **Scheduling.WebApi** | Your existing API, now enhanced with Aspire defaults |
 
 ---
 
@@ -255,8 +255,8 @@ The AppHost needs references to all projects it orchestrates:
 ```bash
 cd Aspire.AppHost
 
-# Reference the WebApi project
-dotnet add reference ../WebApi/WebApi.csproj
+# Reference the Scheduling.WebApi project
+dotnet add reference ../WebApplications/Scheduling.WebApi/Scheduling.WebApi.csproj
 ```
 
 ### Step 3: Configure the App Model
@@ -268,7 +268,7 @@ Edit the generated `AppHost.cs` to define your distributed application:
 var builder = DistributedApplication.CreateBuilder(args);
 
 // Add the Scheduling WebApi
-var schedulingApi = builder.AddProject<Projects.WebApi>("scheduling-api");
+var schedulingApi = builder.AddProject<Projects.Scheduling_WebApi>("scheduling-webapi");
 
 builder.Build().Run();
 ```
@@ -282,10 +282,10 @@ This minimal setup:
 
 ```csharp
 // AddProject<T> - adds a .NET project to be orchestrated
-var api = builder.AddProject<Projects.WebApi>("scheduling-api");
+var api = builder.AddProject<Projects.Scheduling_WebApi>("scheduling-webapi");
 
-// The name "scheduling-api" is used for:
-// - Service discovery (other services can call http://scheduling-api)
+// The name "scheduling-webapi" is used for:
+// - Service discovery (other services can call http://scheduling-webapi)
 // - Dashboard identification
 // - Logging correlation
 ```
@@ -299,15 +299,15 @@ Update your existing WebApi to use the shared ServiceDefaults configuration.
 ### Step 1: Add Reference to ServiceDefaults
 
 ```bash
-cd WebApi
-dotnet add reference ../ServiceDefaults/Aspire.ServiceDefaults.csproj
+cd WebApplications/Scheduling.WebApi
+dotnet add reference ../../ServiceDefaults/Aspire.ServiceDefaults.csproj
 ```
 
 ### Step 2: Update Program.cs
 
 Modify your existing `Program.cs` to use ServiceDefaults:
 
-**WebApi/Program.cs**:
+**WebApplications/Scheduling.WebApi/Program.cs**:
 ```csharp
 using BuildingBlocks.Application;
 using BuildingBlocks.Infrastructure.MassTransit.Configuration;
@@ -385,12 +385,12 @@ After setup, your project references should look like:
 
 ```
 Aspire.AppHost
-+-- References: WebApi (for orchestration)
++-- References: Scheduling.WebApi (for orchestration)
 
 Aspire.ServiceDefaults
 +-- References: (none - standalone)
 
-WebApi
+Scheduling.WebApi
 +-- References: Aspire.ServiceDefaults
 +-- References: Scheduling.Infrastructure (transitively includes Scheduling.Application, Scheduling.Domain)
 +-- References: BuildingBlocks.Infrastructure.MassTransit
@@ -416,7 +416,7 @@ WebApi
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\WebApi\WebApi.csproj" />
+    <ProjectReference Include="..\WebApplications\Scheduling.WebApi\Scheduling.WebApi.csproj" />
   </ItemGroup>
 
 </Project>
@@ -608,12 +608,12 @@ After completing this setup:
 - [x] Aspire templates installed (`dotnet new list aspire` shows templates)
 - [x] Aspire.ServiceDefaults project created and added to solution
 - [x] Aspire.AppHost project created and added to solution
-- [x] AppHost references WebApi project
-- [x] WebApi references ServiceDefaults
-- [x] WebApi Program.cs calls `AddServiceDefaults()` and `MapDefaultEndpoints()`
+- [x] AppHost references Scheduling.WebApi project
+- [x] Scheduling.WebApi references ServiceDefaults
+- [x] Scheduling.WebApi Program.cs calls `AddServiceDefaults()` and `MapDefaultEndpoints()`
 - [x] AppHost is set as startup project
 - [x] F5 launches Aspire Dashboard
-- [x] Dashboard shows scheduling-api in Resources tab
+- [x] Dashboard shows scheduling-webapi in Resources tab
 - [x] Health check endpoint works: `GET https://localhost:xxxx/health`
 - [x] Logs appear in Dashboard Structured Logs tab
 
@@ -632,8 +632,8 @@ dotnet new install Aspire.ProjectTemplates
 dotnet new update
 ```
 
-**"Projects.WebApi not found in AppHost"**
-- Ensure AppHost has a `<ProjectReference>` to WebApi
+**"Projects.Scheduling_WebApi not found in AppHost"**
+- Ensure AppHost has a `<ProjectReference>` to Scheduling.WebApi
 - Rebuild the solution
 
 **"Dashboard not opening"**
@@ -663,7 +663,7 @@ You've set up .NET Aspire for your DDD learning project:
 ```
 Aspire.AppHost (Orchestrator)
     |
-    +-- starts --> WebApi (scheduling-api)
+    +-- starts --> Scheduling.WebApi (scheduling-webapi)
                       |
                       +-- uses --> ServiceDefaults
                       +-- uses --> Scheduling.Infrastructure

@@ -93,6 +93,11 @@ public class EfCoreRepository<TContext, TEntity> : IRepository<TEntity>
         return await _dbSet.AnyAsync(e => e.Id == id, ct);
     }
 
+    public async Task<bool> ExistsAsync(Expression<Func<TEntity, bool>> filter, CancellationToken ct = default)
+    {
+        return await _dbSet.AnyAsync(filter, ct);
+    }
+
     public void Add(TEntity entity)
     {
         _dbSet.Add(entity);

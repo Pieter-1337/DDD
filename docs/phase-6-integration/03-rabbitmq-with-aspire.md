@@ -94,7 +94,7 @@ Update `DDD.AppHost/Program.cs`:
 ```csharp
 var builder = DistributedApplication.CreateBuilder(args);
 
-var webApi = builder.AddProject<Projects.WebApi>("webapi");
+var webApi = builder.AddProject<Projects.Scheduling_WebApi>("scheduling-webapi");
 
 builder.Build().Run();
 ```
@@ -111,7 +111,7 @@ var messaging = builder.AddRabbitMQ("messaging", password: messagingPassword)
     .WithManagementPlugin()
     .WithDataVolume();
 
-var webApi = builder.AddProject<Projects.WebApi>("webapi")
+var webApi = builder.AddProject<Projects.Scheduling_WebApi>("scheduling-webapi")
     .WithReference(messaging)
     .WaitFor(messaging);
 
@@ -386,7 +386,7 @@ var messaging = builder.AddRabbitMQ("messaging", password: messagingPassword)
     .WithManagementPlugin()
     .WithDataVolume();
 
-var webApi = builder.AddProject<Projects.WebApi>("webapi")
+var webApi = builder.AddProject<Projects.Scheduling_WebApi>("scheduling-webapi")
     .WithReference(messaging)
     .WaitFor(messaging);
 
@@ -597,7 +597,7 @@ app.Run();
 ```csharp
 var builder = DistributedApplication.CreateBuilder(args);
 
-builder.AddProject<Projects.WebApi>("webapi");
+builder.AddProject<Projects.Scheduling_WebApi>("scheduling-webapi");
 
 builder.Build().Run();
 ```
@@ -612,7 +612,7 @@ var messaging = builder.AddRabbitMQ("messaging", password: messagingPassword)
     .WithManagementPlugin()
     .WithDataVolume();
 
-builder.AddProject<Projects.WebApi>("webapi")
+builder.AddProject<Projects.Scheduling_WebApi>("scheduling-webapi")
     .WithReference(messaging)
     .WaitFor(messaging);
 

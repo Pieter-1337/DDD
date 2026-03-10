@@ -63,7 +63,7 @@ public class GetAllPatientsQueryHandlerTests : SchedulingDbTestBase
         var createResponse = await GetMediator().Send(new CreatePatientCommand(patientRequest));
 
         // Suspend the patient
-        await GetMediator().Send(new SuspendPatientCommand { Id = createResponse.PatientDto.Id });
+        await GetMediator().Send(new SuspendPatientCommand { Id = createResponse.PatientId });
 
         var query = new GetAllPatientsQuery { Status = PatientStatus.Suspended.Name };
 
@@ -126,7 +126,7 @@ public class GetAllPatientsQueryHandlerTests : SchedulingDbTestBase
         var suspendResponse = await GetMediator().Send(new CreatePatientCommand(toSuspendRequest));
 
         // Suspend one patient
-        await GetMediator().Send(new SuspendPatientCommand { Id = suspendResponse.PatientDto.Id });
+        await GetMediator().Send(new SuspendPatientCommand { Id = suspendResponse.PatientId });
 
         // Query for active only
         var query = new GetAllPatientsQuery { Status = PatientStatus.Active.Name };

@@ -26,6 +26,7 @@ public interface IRepository<TEntity> where TEntity : class, IEntityBase
         CancellationToken ct = default);
     Task<TEntity?> GetByIdAsync(Guid id, CancellationToken ct = default);
     Task<bool> ExistsAsync(Guid id, CancellationToken ct = default);
+    Task<bool> ExistsAsync(Expression<Func<TEntity, bool>> filter, CancellationToken ct = default);
     void Add(TEntity entity);
     void Remove(TEntity entity);
 }

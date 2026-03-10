@@ -74,7 +74,6 @@ Location: `Core/Scheduling/Scheduling.Application/Patients/Commands/CreatePatien
 ```csharp
 using BuildingBlocks.Application;
 using MediatR;
-using Scheduling.Application.Patients.Dtos;
 
 namespace Scheduling.Application.Patients.Commands;
 
@@ -94,7 +93,7 @@ public class CreatePatientRequest
 // Response DTO - inherits from SuccessOrFailureDto
 public class CreatePatientCommandResponse : SuccessOrFailureDto
 {
-    public PatientDto PatientDto { get; set; }
+    public Guid PatientId { get; set; }
 }
 ```
 
@@ -102,7 +101,7 @@ public class CreatePatientCommandResponse : SuccessOrFailureDto
 - `CreatePatientRequest` - input DTO from API
 - `CreatePatientCommand` - immutable record wrapping the request
 - `CreatePatientCommandResponse` - inherits `SuccessOrFailureDto`, adds entity-specific data
-- Response includes `Success`, `Message`, and the created `PatientDto`
+- Response includes `Success`, `Message`, and the created entity's `PatientId` (Guid)
 
 ### Step 4: Create CreatePatientCommandHandler
 
@@ -111,7 +110,6 @@ Location: `Core/Scheduling/Scheduling.Application/Patients/Commands/CreatePatien
 ```csharp
 using BuildingBlocks.Application;
 using MediatR;
-using Scheduling.Application.Patients.Dtos;
 using Scheduling.Domain.Patients;
 
 namespace Scheduling.Application.Patients.Commands;
@@ -143,12 +141,12 @@ internal class CreatePatientCommandHandler : IRequestHandler<CreatePatientComman
         // Save changes - events auto-dispatched after save
         await _uow.SaveChangesAsync(cancellationToken);
 
-        // Return response with success info and created entity
+        // Return response with success info and created entity ID
         return new CreatePatientCommandResponse
         {
             Success = true,
             Message = "Patient successfully saved",
-            PatientDto = PatientDto.FromEntity(patient)
+            PatientId = patient.Id
         };
     }
 }
@@ -158,7 +156,7 @@ internal class CreatePatientCommandHandler : IRequestHandler<CreatePatientComman
 - Implements `IRequestHandler<TRequest, TResponse>`
 - Injects `IUnitOfWork` only (no IMediator needed)
 - Returns `CreatePatientCommandResponse` inheriting from `SuccessOrFailureDto`
-- Response includes success status, message, and the created entity DTO
+- Response includes success status, message, and the created entity's ID (Guid)
 - Entity adds events internally, auto-dispatched after save
 
 ### Step 5: Create SuspendPatientCommand
@@ -310,7 +308,7 @@ public static class ServiceCollectionExtensions
 
 By default, ASP.NET Core strips the "Async" suffix from action method names. To use `nameof(GetPatientAsync)` in `CreatedAtAction`, disable this:
 
-Location: `WebApi/Program.cs`
+Location: `WebApplications/Scheduling.WebApi/Program.cs`
 
 ```csharp
 builder.Services.AddControllers(options =>
@@ -325,7 +323,7 @@ builder.Services.AddControllers(options =>
 
 ### Step 12: Update the Controller
 
-Location: `WebApi/Controllers/PatientsController.cs`
+Location: `WebApplications/Scheduling.WebApi/Controllers/PatientsController.cs`
 
 ```csharp
 using Microsoft.AspNetCore.Mvc;
@@ -336,7 +334,7 @@ using Scheduling.Application.Patients.Commands;
 using Scheduling.Application.Patients.Dtos;
 using Scheduling.Application.Patients.Queries;
 
-namespace WebApi.Controllers;
+namespace Scheduling.WebApi.Controllers;
 
 [Route("api/[controller]")]
 [ApiController]
@@ -363,7 +361,7 @@ public class PatientsController : ControllerBase
     public async Task<IActionResult> CreatePatientAsync(CreatePatientRequest request)
     {
         var response = await _mediator.Send(new CreatePatientCommand(request));
-        return CreatedAtAction(nameof(GetPatientAsync), new { patientId = response.PatientDto.Id }, response);
+        return CreatedAtAction(nameof(GetPatientAsync), new { patientId = response.PatientId }, response);
     }
 }
 ```
@@ -371,7 +369,7 @@ public class PatientsController : ControllerBase
 **Key points:**
 - Controller injects `IMediator` (IUnitOfWork injected but not used directly)
 - Controller receives request DTO, wraps in command, dispatches to MediatR
-- Returns `CreatePatientCommandResponse` with `Success`, `Message`, and `PatientDto`
+- Returns `CreatePatientCommandResponse` with `Success`, `Message`, and `PatientId` (Guid)
 - Uses `CreatedAtAction` with `nameof()` for type-safe action references
 - Query endpoints use `GetPatientQuery` dispatched through MediatR
 - `SuppressAsyncSuffixInActionNames = false` allows `nameof(GetPatientAsync)` to work
@@ -387,7 +385,7 @@ All command responses inherit from `SuccessOrFailureDto`:
 ```csharp
 public class CreatePatientCommandResponse : SuccessOrFailureDto
 {
-    public PatientDto PatientDto { get; set; }
+    public Guid PatientId { get; set; }
 }
 
 public class SuspendPatientCommandResponse : SuccessOrFailureDto
@@ -425,13 +423,7 @@ public async Task<BatchOperationResponse> Handle(BatchOperationCommand cmd, Canc
 {
     "success": true,
     "message": "Patient successfully saved",
-    "patientDto": {
-        "id": "5affa374-ca0c-43c2-8266-078c20ae50ce",
-        "firstName": "Celine",
-        "lastName": "Van Walleghem",
-        "email": "vanwallehemceline@gmail.com",
-        "status": "Active"
-    }
+    "patientId": "5affa374-ca0c-43c2-8266-078c20ae50ce"
 }
 ```
 
@@ -561,11 +553,10 @@ public class CreatePatientCommandHandlerTests : SchedulingTestBase
         response.ShouldNotBeNull();
         response.Success.ShouldBeTrue();
         response.Message.ShouldNotBeNullOrEmpty();
-        response.PatientDto.ShouldNotBeNull();
-        response.PatientDto.Id.ShouldNotBe(default);
+        response.PatientId.ShouldNotBe(default);
 
         // Verify persisted to database
-        var reloadedPatient = await Uow.RepositoryFor<Patient>().GetByIdAsync(response.PatientDto.Id);
+        var reloadedPatient = await Uow.RepositoryFor<Patient>().GetByIdAsync(response.PatientId);
         reloadedPatient.ShouldNotBeNull();
         reloadedPatient!.FirstName.ShouldBe("John");
 
@@ -592,7 +583,11 @@ public class CreatePatientCommandHandlerTests : SchedulingTestBase
         // Assert
         response.ShouldNotBeNull();
         response.Success.ShouldBeTrue();
-        response.PatientDto.PhoneNumber.ShouldBeNull();
+
+        // Verify phone number is null
+        var reloaded = await Uow.RepositoryFor<Patient>().GetByIdAsync(response.PatientId);
+        reloaded.ShouldNotBeNull();
+        reloaded!.PhoneNumber.ShouldBeNull();
     }
 }
 ```

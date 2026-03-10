@@ -80,7 +80,7 @@ All events are:
 | **BuildingBlocks.Infrastructure.MassTransit** | MassTransit provider | `MassTransitEventBus`, `AddMassTransitEventBus()` extension |
 | **Shared/IntegrationEvents** | Integration event definitions | `PatientCreatedIntegrationEvent`, etc. |
 | **[BC].Infrastructure/Consumers** | MassTransit consumers | Handles incoming integration events |
-| **WebApi** | Composition root | MassTransit registration with consumer discovery |
+| **Scheduling.WebApi** | Composition root | MassTransit registration with consumer discovery |
 
 ### Key Interfaces
 
@@ -129,10 +129,10 @@ This ensures events are only published if the database save succeeds.
 
 ### Where MassTransit Gets Registered
 
-MassTransit is registered in `WebApi/Program.cs` (the composition root), **not** in bounded context infrastructure layers:
+MassTransit is registered in `WebApplications/Scheduling.WebApi/Program.cs` (the composition root), **not** in bounded context infrastructure layers:
 
 ```csharp
-// WebApi/Program.cs
+// WebApplications/Scheduling.WebApi/Program.cs
 builder.Services.AddMassTransitEventBus(builder.Configuration, configure =>
 {
     // Register consumers from bounded context assemblies
@@ -143,7 +143,7 @@ builder.Services.AddMassTransitEventBus(builder.Configuration, configure =>
 ### Why Register in the Host, Not Per-Bounded Context?
 
 **In a modular monolith** (like this project):
-- One WebApi hosts all bounded contexts
+- One Scheduling.WebApi hosts all bounded contexts
 - One MassTransit registration handles all messaging
 - Consumer assemblies are passed to `AddConsumers()` for discovery
 
@@ -175,7 +175,7 @@ builder.Services.AddMassTransitEventBus(builder.Configuration, configure =>
 - MassTransit handlers (e.g., `PatientCreatedIntegrationEventHandler`)
 - These get discovered via `AddConsumers(assembly)`
 
-**WebApi/Host** does:
+**Scheduling.WebApi/Host** does:
 - Calls `AddMassTransitEventBus()` once
 - Passes in assemblies containing consumers
 
@@ -214,7 +214,7 @@ src/
 |       +-- Consumers/                        # MassTransit handlers
 |           +-- PatientCreatedIntegrationEventHandler.cs
 |
-+-- WebApi/
++-- WebApplications/Scheduling.WebApi/
     +-- Program.cs                            # MassTransit registered here
 ```
 
@@ -225,7 +225,7 @@ src/
 | **{BC}.Domain** | No | No | No |
 | **{BC}.Application** | Yes (IUnitOfWork, IEventBus) | No | Yes (event DTOs) |
 | **{BC}.Infrastructure** | Yes | Yes (IntegrationEventHandler base) | Yes (handlers) |
-| **WebApi** | Yes | Yes (registration) | No |
+| **Scheduling.WebApi** | Yes | Yes (registration) | No |
 
 > **Note:** `{BC}.Infrastructure` references `BuildingBlocks.Infrastructure.MassTransit` for the `IntegrationEventHandler<T>` base class. MassTransit packages flow transitively - no direct package reference needed in BC infrastructure.
 
@@ -235,7 +235,7 @@ This architecture allows swapping messaging providers without changing business 
 
 **Current setup** (MassTransit + RabbitMQ):
 ```csharp
-// In WebApi/Program.cs
+// In WebApplications/Scheduling.WebApi/Program.cs
 builder.Services.AddMassTransitEventBus(builder.Configuration, configure =>
 {
     configure.AddConsumers(typeof(Scheduling.Infrastructure.ServiceCollectionExtensions).Assembly);
@@ -247,7 +247,7 @@ builder.Services.AddMassTransitEventBus(builder.Configuration, configure =>
 2. Implement `IEventBus` using Wolverine
 3. Change host registration:
 ```csharp
-// In WebApi/Program.cs
+// In WebApplications/Scheduling.WebApi/Program.cs
 builder.Services.AddWolverineEventBus(builder.Configuration);
 ```
 
@@ -312,8 +312,8 @@ cd ../Scheduling.Infrastructure
 dotnet add reference ../../../BuildingBlocks/BuildingBlocks.Infrastructure.MassTransit
 dotnet add reference ../../../Shared/IntegrationEvents
 
-# WebApi references BuildingBlocks.Infrastructure.MassTransit (composition root)
-cd ../../../Presentation/WebApi
+# Scheduling.WebApi references BuildingBlocks.Infrastructure.MassTransit (composition root)
+cd ../../../WebApplications/Scheduling.WebApi
 dotnet add reference ../../BuildingBlocks/BuildingBlocks.Infrastructure.MassTransit
 ```
 
@@ -573,7 +573,7 @@ Add RabbitMQ settings to `appsettings.json`:
 }
 ```
 
-Register in `WebApi/Program.cs` (the composition root):
+Register in `WebApplications/Scheduling.WebApi/Program.cs` (the composition root):
 
 ```csharp
 using BuildingBlocks.Infrastructure.MassTransit.Configuration;
@@ -586,7 +586,7 @@ builder.Services.AddMassTransitEventBus(builder.Configuration, configure =>
 });
 ```
 
-**Why register here?** The WebApi is the composition root - the single place where all infrastructure gets wired up. In a monolith, one registration handles all bounded contexts. In microservices, each service's API would have its own registration.
+**Why register here?** The Scheduling.WebApi is the composition root - the single place where all infrastructure gets wired up. In a monolith, one registration handles all bounded contexts. In microservices, each service's API would have its own registration.
 
 ### Step 9: Create Test Endpoint
 
@@ -872,7 +872,7 @@ You've set up the messaging infrastructure following Clean Architecture and Depe
 3. **BuildingBlocks.Infrastructure.MassTransit/** - MassTransit implementation (`MassTransitEventBus`, `AddMassTransitEventBus()`)
 4. **Shared/IntegrationEvents** - Integration event definitions (public contracts between bounded contexts)
 5. **[BC].Infrastructure/Consumers** - MassTransit consumers for incoming integration events
-6. **WebApi/Program.cs** - Single MassTransit registration (composition root)
+6. **Scheduling.WebApi/Program.cs** - Single MassTransit registration (composition root)
 
 ### Key Architectural Decisions
 
@@ -888,7 +888,7 @@ You've set up the messaging infrastructure following Clean Architecture and Depe
 4. After successful database commit, queued events are published to RabbitMQ
 
 **MassTransit registration:**
-- Registered once in the host (`WebApi/Program.cs`), not per-bounded context
+- Registered once in the host (`Scheduling.WebApi/Program.cs`), not per-bounded context
 - In a **monolith**: One API, one MassTransit registration, multiple consumer assemblies
 - In **microservices**: Each service has its own API with its own MassTransit registration
 

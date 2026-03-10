@@ -450,7 +450,7 @@ Location: `Core/Scheduling/Scheduling.Application/Scheduling.Application.csproj`
 
 ### Step 10: Update the Controller
 
-Location: `WebApi/Controllers/PatientsController.cs`
+Location: `WebApplications/Scheduling.WebApi/Controllers/PatientsController.cs`
 
 ```csharp
 using Microsoft.AspNetCore.Mvc;
@@ -461,7 +461,7 @@ using Scheduling.Application.Patients.Commands;
 using Scheduling.Application.Patients.Dtos;
 using Scheduling.Application.Patients.Queries;
 
-namespace WebApi.Controllers;
+namespace Scheduling.WebApi.Controllers;
 
 [Route("api/[controller]")]
 [ApiController]
@@ -490,7 +490,7 @@ public class PatientsController : ControllerBase
     public async Task<IActionResult> CreatePatientAsync(CreatePatientRequest request)
     {
         var response = await _mediator.Send(new CreatePatientCommand(request));
-        return CreatedAtAction(nameof(GetPatientAsync), new { patientId = response.PatientDto.Id }, response);
+        return CreatedAtAction(nameof(GetPatientAsync), new { patientId = response.PatientId }, response);
     }
 }
 ```
@@ -499,7 +499,7 @@ public class PatientsController : ControllerBase
 - Controller injects both `IUnitOfWork` and `IMediator`
 - `GetPatientQuery` uses object initializer syntax: `new GetPatientQuery { Id = patientId }`
 - `CreatePatientAsync` returns `CreatedAtAction` with location header for REST semantics
-- Response includes the full `CreatePatientCommandResponse` with success info and DTO
+- Response includes the full `CreatePatientCommandResponse` with success info and entity ID
 
 ---
 

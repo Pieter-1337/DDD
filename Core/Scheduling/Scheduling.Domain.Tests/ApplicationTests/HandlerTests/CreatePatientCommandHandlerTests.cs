@@ -35,11 +35,10 @@ public class CreatePatientCommandHandlerTests : SchedulingDbTestBase
         response.ShouldNotBeNull();
         response.Success.ShouldBeTrue();
         response.Message.ShouldNotBeNullOrEmpty();
-        response.PatientDto.ShouldNotBeNull();
-        response.PatientDto.Id.ShouldNotBe(default);
+        response.PatientId.ShouldNotBe(Guid.Empty);
 
         // Verify persisted to database
-        var reloadedPatient = await Uow.RepositoryFor<Patient>().GetByIdAsync(response.PatientDto.Id);
+        var reloadedPatient = await Uow.RepositoryFor<Patient>().GetByIdAsync(response.PatientId);
         reloadedPatient.ShouldNotBeNull();
         reloadedPatient!.FirstName.ShouldBe("John");
         reloadedPatient.LastName.ShouldBe("Doe");
@@ -70,9 +69,9 @@ public class CreatePatientCommandHandlerTests : SchedulingDbTestBase
         // Assert
         response.ShouldNotBeNull();
         response.Success.ShouldBeTrue();
-        response.PatientDto.PhoneNumber.ShouldBeNull();
+        response.PatientId.ShouldNotBe(Guid.Empty);
 
-        var reloadedPatient = await Uow.RepositoryFor<Patient>().GetByIdAsync(response.PatientDto.Id);
+        var reloadedPatient = await Uow.RepositoryFor<Patient>().GetByIdAsync(response.PatientId);
         reloadedPatient.ShouldNotBeNull();
         reloadedPatient!.PhoneNumber.ShouldBeNull();
     }
@@ -95,9 +94,9 @@ public class CreatePatientCommandHandlerTests : SchedulingDbTestBase
         var response = await GetMediator().Send(command);
 
         // Assert
-        response.PatientDto.Email.ShouldBe("test.user@example.com");
+        response.PatientId.ShouldNotBe(Guid.Empty);
 
-        var reloadedPatient = await Uow.RepositoryFor<Patient>().GetByIdAsync(response.PatientDto.Id);
+        var reloadedPatient = await Uow.RepositoryFor<Patient>().GetByIdAsync(response.PatientId);
         reloadedPatient!.Email.ShouldBe("test.user@example.com");
     }
 }

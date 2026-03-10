@@ -101,6 +101,7 @@ public interface IRepository<TEntity> where TEntity : class, IEntityBase
 
     Task<TEntity?> GetByIdAsync(Guid id, CancellationToken ct = default);
     Task<bool> ExistsAsync(Guid id, CancellationToken ct = default);
+    Task<bool> ExistsAsync(Expression<Func<TEntity, bool>> filter, CancellationToken ct = default);
     void Add(TEntity entity);
     void Remove(TEntity entity);
 }
@@ -170,6 +171,11 @@ public class EfCoreRepository<TContext, TEntity> : IRepository<TEntity>
     public async Task<bool> ExistsAsync(Guid id, CancellationToken ct = default)
     {
         return await _dbSet.AnyAsync(e => e.Id == id, ct);
+    }
+
+    public async Task<bool> ExistsAsync(Expression<Func<TEntity, bool>> filter, CancellationToken ct = default)
+    {
+        return await _dbSet.AnyAsync(filter, ct);
     }
 
     public void Add(TEntity entity)

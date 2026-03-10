@@ -8,12 +8,12 @@ Now we'll create the actual database using EF Core migrations.
 
 ## What You Need To Do
 
-### Step 1: Add Design package to WebApi project
+### Step 1: Add Design package to Scheduling.WebApi project
 
 The migrations tool needs a startup project. Add the design package:
 
 ```bash
-cd DDD/WebApi
+cd WebApplications/Scheduling.WebApi
 dotnet add package Microsoft.EntityFrameworkCore.Design
 ```
 
@@ -42,7 +42,7 @@ Location: `DDD/appsettings.json`
 
 ### Step 3: Register Infrastructure in Program.cs
 
-Update `DDD/Program.cs`:
+Update `WebApplications/Scheduling.WebApi/Program.cs`:
 
 ```csharp
 using Scheduling.Infrastructure;
@@ -62,11 +62,11 @@ var app = builder.Build();
 // ... rest of file
 ```
 
-### Step 4: Add WebApi reference to Infrastructure
+### Step 4: Add Scheduling.WebApi reference to Infrastructure
 
 ```bash
-cd DDD/WebApi
-dotnet add reference ../src/Scheduling.Infrastructure/Scheduling.Infrastructure.csproj
+cd WebApplications/Scheduling.WebApi
+dotnet add reference ../../Core/Scheduling/Scheduling.Infrastructure/Scheduling.Infrastructure.csproj
 ```
 
 ### Step 5: Create the initial migration
@@ -75,7 +75,7 @@ From the solution root:
 
 ```bash
 cd C:/projects/ddd/DDD
-dotnet ef migrations add InitialCreate --project DDD/src/Scheduling.Infrastructure --startup-project DDD/WebApi --output-dir Persistence/Migrations
+dotnet ef migrations add InitialCreate --project Core/Scheduling/Scheduling.Infrastructure --startup-project WebApplications/Scheduling.WebApi --output-dir Persistence/Migrations
 ```
 
 **What this does:**
@@ -120,7 +120,7 @@ protected override void Up(MigrationBuilder migrationBuilder)
 ### Step 7: Apply the migration
 
 ```bash
-dotnet ef database update --project DDD/src/Scheduling.Infrastructure --startup-project DDD/WebApi
+dotnet ef database update --project Core/Scheduling/Scheduling.Infrastructure --startup-project WebApplications/Scheduling.WebApi
 ```
 
 This creates the database and tables.
@@ -139,16 +139,16 @@ In Visual Studio:
 
 ```bash
 # Create a new migration
-dotnet ef migrations add MigrationName --project DDD/src/Scheduling.Infrastructure --startup-project DDD/WebApi --output-dir Persistence/Migrations
+dotnet ef migrations add MigrationName --project Core/Scheduling/Scheduling.Infrastructure --startup-project WebApplications/Scheduling.WebApi --output-dir Persistence/Migrations
 
 # Apply migrations
-dotnet ef database update --project DDD/src/Scheduling.Infrastructure --startup-project DDD/WebApi
+dotnet ef database update --project Core/Scheduling/Scheduling.Infrastructure --startup-project WebApplications/Scheduling.WebApi
 
 # Remove last migration (if not applied)
-dotnet ef migrations remove --project DDD/src/Scheduling.Infrastructure --startup-project DDD/WebApi
+dotnet ef migrations remove --project Core/Scheduling/Scheduling.Infrastructure --startup-project WebApplications/Scheduling.WebApi
 
 # Generate SQL script (for production deployments)
-dotnet ef migrations script --project DDD/src/Scheduling.Infrastructure --startup-project DDD/WebApi
+dotnet ef migrations script --project Core/Scheduling/Scheduling.Infrastructure --startup-project WebApplications/Scheduling.WebApi
 ```
 
 ---
@@ -173,22 +173,22 @@ When you have multiple DbContexts in the same project, use `--context` to specif
 ```bash
 # Create migration for Scheduling context
 dotnet ef migrations add InitialCreate \
-  --project DDD/src/Scheduling.Infrastructure \
-  --startup-project DDD/WebApi \
+  --project Core/Scheduling/Scheduling.Infrastructure \
+  --startup-project WebApplications/Scheduling.WebApi \
   --context SchedulingDbContext \
   --output-dir Persistence/Migrations
 
 # Create migration for Billing context
 dotnet ef migrations add InitialCreate \
-  --project DDD/src/Billing.Infrastructure \
-  --startup-project DDD/WebApi \
+  --project Core/Billing/Billing.Infrastructure \
+  --startup-project WebApplications/Billing.WebApi \
   --context BillingDbContext \
   --output-dir Persistence/Migrations
 
 # Apply migrations for specific context
 dotnet ef database update \
-  --project DDD/src/Scheduling.Infrastructure \
-  --startup-project DDD/WebApi \
+  --project Core/Scheduling/Scheduling.Infrastructure \
+  --startup-project WebApplications/Scheduling.WebApi \
   --context SchedulingDbContext
 ```
 
@@ -250,14 +250,14 @@ Each DbContext:
 
 Create a controller to test the infrastructure setup (before implementing CQRS).
 
-Location: `WebApi/Controllers/PatientsController.cs`
+Location: `WebApplications/Scheduling.WebApi/Controllers/PatientsController.cs`
 
 ```csharp
 using Microsoft.AspNetCore.Mvc;
 using Repositories.Interfaces;
 using Scheduling.Domain.Patients;
 
-namespace WebApi.Controllers;
+namespace Scheduling.WebApi.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
@@ -299,7 +299,7 @@ public record CreatePatientRequest(
 
 ### Test via Postman
 
-1. Run the WebApi project: `dotnet run --project WebApi`
+1. Run the Scheduling.WebApi project: `dotnet run --project WebApplications/Scheduling.WebApi`
 2. Note the port from the console output (e.g., `https://localhost:7xxx`)
 3. In Postman, create a new request:
    - **Method:** POST

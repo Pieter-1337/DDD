@@ -1,6 +1,5 @@
 using BuildingBlocks.Application.Interfaces;
 using MediatR;
-using Scheduling.Application.Patients.Dtos;
 using Scheduling.Domain.Patients;
 
 namespace Scheduling.Application.Patients.Commands;
@@ -27,8 +26,8 @@ internal class CreatePatientCommandHandler : IRequestHandler<CreatePatientComman
         return new CreatePatientCommandResponse
         {
             Success = true,
-            Message = "Patient succesfully saved",
-            PatientDto = PatientDto.ToDto(patient)
+            Message = "Patient successfully created",
+            PatientId = patient.Id
         };
     }
 }

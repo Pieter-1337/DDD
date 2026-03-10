@@ -192,12 +192,12 @@ var messagingPassword = builder.AddParameter("messaging-password");
 var messaging = builder.AddRabbitMQ("messaging", password: messagingPassword)
     .WithManagementPlugin();
 
-var webApi = builder.AddProject<Projects.WebApi>("webapi")
+var webApi = builder.AddProject<Projects.Scheduling_WebApi>("scheduling-webapi")
     .WithReference(messaging);  // Injects connection string
 ```
 
 ```csharp
-// In WebApi/Program.cs
+// In WebApplications/Scheduling.WebApi/Program.cs
 // MassTransit reads the Aspire-injected connection string automatically
 builder.Services.AddMassTransitEventBus(builder.Configuration, configure => { ... });
 ```
@@ -227,8 +227,8 @@ DDD/
 |   +-- BuildingBlocks.Infrastructure.MassTransit/
 |   +-- BuildingBlocks.Infrastructure.EfCore/
 |
-+-- WebApi/                         # ASP.NET Core API
-+-- docker-compose.yml              # RabbitMQ, SQL Server
++-- WebApplications/Scheduling.WebApi/  # ASP.NET Core API
++-- docker-compose.yml                  # RabbitMQ, SQL Server
 ```
 
 ### With Aspire Added
@@ -245,15 +245,15 @@ DDD/
 |   +-- BuildingBlocks.Infrastructure.MassTransit/
 |   +-- BuildingBlocks.Infrastructure.EfCore/
 |
-+-- WebApi/                         # References ServiceDefaults
++-- WebApplications/Scheduling.WebApi/  # References ServiceDefaults
 |
-+-- Aspire.AppHost/                 # NEW: Aspire orchestrator
-|   +-- AppHost.cs                  # Defines entire system topology
++-- Aspire.AppHost/                     # NEW: Aspire orchestrator
+|   +-- AppHost.cs                      # Defines entire system topology
 |
-+-- ServiceDefaults/                # NEW: Shared Aspire configuration
-|   +-- Extensions.cs               # OpenTelemetry, health checks, etc.
++-- ServiceDefaults/                    # NEW: Shared Aspire configuration
+|   +-- Extensions.cs                   # OpenTelemetry, health checks, etc.
 |
-+-- docker-compose.yml              # Can keep for CI/CD, or let Aspire manage
++-- docker-compose.yml                  # Can keep for CI/CD, or let Aspire manage
 ```
 
 ### Integration Points

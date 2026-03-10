@@ -68,5 +68,9 @@ public sealed class ErrorCode : ErrorCodeBase<ErrorCode>
     public static readonly ErrorCode DateOfBirthRequired = new("DOB_REQUIRED", "Date of birth is required");
     public static readonly ErrorCode InvalidStatus = new("INVALID_STATUS", "Invalid status");
 
+    // Generic field validation errors (use FluentValidation's {PropertyName} placeholder)
+    public static readonly ErrorCode Required = new("REQUIRED", "{PropertyName} is required");
+    public static readonly ErrorCode Invalid = new("INVALID", "{PropertyName} is invalid");
+
     private ErrorCode(string code, string message) : base(code, message) { }
 }

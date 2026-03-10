@@ -99,11 +99,10 @@ public class CreatePatientCommandHandlerTests : SchedulingDbTestBase
         response.ShouldNotBeNull();
         response.Success.ShouldBeTrue();
         response.Message.ShouldNotBeNullOrEmpty();
-        response.PatientDto.ShouldNotBeNull();
-        response.PatientDto.Id.ShouldNotBe(default);
+        response.PatientId.ShouldNotBe(default);
 
         // Verify persistence
-        var reloaded = await Uow.RepositoryFor<Patient>().GetByIdAsync(response.PatientDto.Id);
+        var reloaded = await Uow.RepositoryFor<Patient>().GetByIdAsync(response.PatientId);
         reloaded.ShouldNotBeNull();
         reloaded!.FirstName.ShouldBe("John");
         reloaded.LastName.ShouldBe("Doe");
@@ -133,9 +132,8 @@ public class CreatePatientCommandHandlerTests : SchedulingDbTestBase
         // Assert
         response.ShouldNotBeNull();
         response.Success.ShouldBeTrue();
-        response.PatientDto.PhoneNumber.ShouldBeNull();
 
-        var reloaded = await Uow.RepositoryFor<Patient>().GetByIdAsync(response.PatientDto.Id);
+        var reloaded = await Uow.RepositoryFor<Patient>().GetByIdAsync(response.PatientId);
         reloaded.ShouldNotBeNull();
         reloaded!.PhoneNumber.ShouldBeNull();
     }
@@ -157,9 +155,8 @@ public class CreatePatientCommandHandlerTests : SchedulingDbTestBase
         var response = await GetMediator().Send(command);
 
         // Assert
-        response.PatientDto.Email.ShouldBe("test.user@example.com");
-
-        var reloaded = await Uow.RepositoryFor<Patient>().GetByIdAsync(response.PatientDto.Id);
+        var reloaded = await Uow.RepositoryFor<Patient>().GetByIdAsync(response.PatientId);
+        reloaded.ShouldNotBeNull();
         reloaded!.Email.ShouldBe("test.user@example.com");
     }
 }
@@ -191,7 +188,7 @@ public class GetPatientQueryHandlerTests : SchedulingDbTestBase
             DateOfBirth = new DateTime(1990, 1, 1)
         });
         var createResponse = await GetMediator().Send(createCommand);
-        var patientId = createResponse.PatientDto.Id;
+        var patientId = createResponse.PatientId;
 
         // Act
         var query = new GetPatientQuery { Id = patientId };

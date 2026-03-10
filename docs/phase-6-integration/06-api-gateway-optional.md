@@ -232,10 +232,10 @@ var messaging = builder.AddRabbitMQ("messaging", password: messagingPassword)
 
 // Backend services
 // Each service reads its SQL Server connection string from user secrets (DefaultConnection)
-var schedulingApi = builder.AddProject<Projects.Scheduling_WebApi>("scheduling-api")
+var schedulingApi = builder.AddProject<Projects.Scheduling_WebApi>("scheduling-webapi")
     .WithReference(messaging);
 
-var billingApi = builder.AddProject<Projects.Billing_WebApi>("billing-api")
+var billingApi = builder.AddProject<Projects.Billing_WebApi>("billing-webapi")
     .WithReference(messaging);
 
 // API Gateway (OPTIONAL)
@@ -281,15 +281,15 @@ builder.Build().Run();
     "Clusters": {
       "scheduling-cluster": {
         "Destinations": {
-          "scheduling-api": {
-            "Address": "https+http://scheduling-api"
+          "scheduling-webapi": {
+            "Address": "https+http://scheduling-webapi"
           }
         }
       },
       "billing-cluster": {
         "Destinations": {
-          "billing-api": {
-            "Address": "https+http://billing-api"
+          "billing-webapi": {
+            "Address": "https+http://billing-webapi"
           }
         }
       }
@@ -298,7 +298,7 @@ builder.Build().Run();
 }
 ```
 
-**Note:** The `https+http://` scheme uses Aspire service discovery. YARP automatically resolves `scheduling-api` and `billing-api` to their actual URLs.
+**Note:** The `https+http://` scheme uses Aspire service discovery. YARP automatically resolves `scheduling-webapi` and `billing-webapi` to their actual URLs.
 
 ---
 
@@ -327,7 +327,7 @@ GET https://gateway:5000/api/scheduling/patients/abc-123
 |------------------|
 | 1. Match route   |  -> /api/scheduling/* matches scheduling-route
 | 2. Transform     |  -> Remove /api/scheduling prefix
-| 3. Forward       |  -> GET https://scheduling-api/patients/abc-123
+| 3. Forward       |  -> GET https://scheduling-webapi/patients/abc-123
 +------------------+
 
          |

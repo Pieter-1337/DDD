@@ -64,7 +64,8 @@ Core/
     ├── Scheduling.Application/
     ├── Scheduling.Infrastructure/
     └── Scheduling.Domain.Tests/
-WebApi/                               ← API project
+WebApplications/
+└── Scheduling.WebApi/                ← API project
 ```
 
 ### Step 2: Create BuildingBlocks.Domain project (pure domain abstractions)
@@ -302,7 +303,7 @@ dotnet sln DDD.sln add Core/Scheduling/Scheduling.Domain/Scheduling.Domain.cspro
 dotnet sln DDD.sln add Core/Scheduling/Scheduling.Application/Scheduling.Application.csproj
 dotnet sln DDD.sln add Core/Scheduling/Scheduling.Infrastructure/Scheduling.Infrastructure.csproj
 dotnet sln DDD.sln add Core/Scheduling/Scheduling.Domain.Tests/Scheduling.Domain.Tests.csproj
-dotnet sln DDD.sln add WebApi/WebApi.csproj
+dotnet sln DDD.sln add WebApplications/Scheduling.WebApi/Scheduling.WebApi.csproj
 ```
 
 ### Step 9: Setup Central Package Management
@@ -353,9 +354,9 @@ Patients/
 
 **Why organize by aggregate?** All Patient-related code lives together. If Patient ever becomes its own microservice, it's easy to extract.
 
-### Step 11: Configure WebApi Project
+### Step 11: Configure Scheduling.WebApi Project
 
-Location: `WebApi/Program.cs`
+Location: `WebApplications/Scheduling.WebApi/Program.cs`
 
 ```csharp
 using BuildingBlocks.WebApplications.OpenApi;
