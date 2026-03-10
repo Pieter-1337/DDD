@@ -82,6 +82,18 @@ ServiceDefaults/
 
 ### ServiceDefaults Configuration
 
+This is the standard Aspire template with three additions for our event-driven architecture (marked with `// ADDED` comments): MassTransit metrics, MassTransit tracing, and EF Core tracing.
+
+**Required NuGet package** (EF Core instrumentation is not included in the Aspire template):
+
+```xml
+<!-- Directory.Packages.props -->
+<PackageVersion Include="OpenTelemetry.Instrumentation.EntityFrameworkCore" Version="1.15.0-beta.1" />
+
+<!-- ServiceDefaults/Aspire.ServiceDefaults.csproj -->
+<PackageReference Include="OpenTelemetry.Instrumentation.EntityFrameworkCore" />
+```
+
 ```csharp
 // ServiceDefaults/Extensions.cs
 using Microsoft.AspNetCore.Builder;
@@ -89,91 +101,109 @@ using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.ServiceDiscovery;
 using OpenTelemetry;
 using OpenTelemetry.Metrics;
 using OpenTelemetry.Trace;
 
-namespace Microsoft.Extensions.Hosting;
-
-public static class Extensions
+namespace Microsoft.Extensions.Hosting
 {
-    public static IHostApplicationBuilder AddServiceDefaults(this IHostApplicationBuilder builder)
+    public static class Extensions
     {
-        builder.ConfigureOpenTelemetry();
-        builder.AddDefaultHealthChecks();
+        private const string HealthEndpointPath = "/health";
+        private const string AlivenessEndpointPath = "/alive";
 
-        builder.Services.AddServiceDiscovery();
-        builder.Services.ConfigureHttpClientDefaults(http =>
+        public static TBuilder AddServiceDefaults<TBuilder>(this TBuilder builder) where TBuilder : IHostApplicationBuilder
         {
-            http.AddStandardResilienceHandler();
-            http.AddServiceDiscovery();
-        });
+            builder.ConfigureOpenTelemetry();
+            builder.AddDefaultHealthChecks();
+            builder.Services.AddServiceDiscovery();
 
-        return builder;
-    }
-
-    public static IHostApplicationBuilder ConfigureOpenTelemetry(this IHostApplicationBuilder builder)
-    {
-        builder.Logging.AddOpenTelemetry(logging =>
-        {
-            logging.IncludeFormattedMessage = true;
-            logging.IncludeScopes = true;
-        });
-
-        builder.Services.AddOpenTelemetry()
-            .WithMetrics(metrics =>
+            builder.Services.ConfigureHttpClientDefaults(http =>
             {
-                metrics.AddAspNetCoreInstrumentation()
-                       .AddHttpClientInstrumentation()
-                       .AddRuntimeInstrumentation()
-                       .AddMeter("MassTransit");
-            })
-            .WithTracing(tracing =>
-            {
-                tracing.AddAspNetCoreInstrumentation()
-                       .AddHttpClientInstrumentation()
-                       .AddEntityFrameworkCoreInstrumentation()
-                       .AddSource("MassTransit");
+                http.AddStandardResilienceHandler();
+                http.AddServiceDiscovery();
             });
 
-        builder.AddOpenTelemetryExporters();
-
-        return builder;
-    }
-
-    private static IHostApplicationBuilder AddOpenTelemetryExporters(this IHostApplicationBuilder builder)
-    {
-        var useOtlpExporter = !string.IsNullOrWhiteSpace(
-            builder.Configuration["OTEL_EXPORTER_OTLP_ENDPOINT"]);
-
-        if (useOtlpExporter)
-        {
-            builder.Services.AddOpenTelemetry().UseOtlpExporter();
+            return builder;
         }
 
-        return builder;
-    }
-
-    public static IHostApplicationBuilder AddDefaultHealthChecks(this IHostApplicationBuilder builder)
-    {
-        builder.Services.AddHealthChecks()
-            .AddCheck("self", () => HealthCheckResult.Healthy(), ["live"]);
-
-        return builder;
-    }
-
-    public static WebApplication MapDefaultEndpoints(this WebApplication app)
-    {
-        app.MapHealthChecks("/health");
-        app.MapHealthChecks("/alive", new HealthCheckOptions
+        public static TBuilder ConfigureOpenTelemetry<TBuilder>(this TBuilder builder) where TBuilder : IHostApplicationBuilder
         {
-            Predicate = r => r.Tags.Contains("live")
-        });
+            builder.Logging.AddOpenTelemetry(logging =>
+            {
+                logging.IncludeFormattedMessage = true;
+                logging.IncludeScopes = true;
+            });
 
-        return app;
+            builder.Services.AddOpenTelemetry()
+                .WithMetrics(metrics =>
+                {
+                    metrics.AddAspNetCoreInstrumentation()
+                        .AddHttpClientInstrumentation()
+                        .AddRuntimeInstrumentation()
+                        .AddMeter("MassTransit");                    // ADDED: MassTransit message metrics
+                })
+                .WithTracing(tracing =>
+                {
+                    tracing.AddSource(builder.Environment.ApplicationName)
+                        .AddAspNetCoreInstrumentation(tracing =>
+                            tracing.Filter = context =>
+                                !context.Request.Path.StartsWithSegments(HealthEndpointPath)
+                                && !context.Request.Path.StartsWithSegments(AlivenessEndpointPath)
+                        )
+                        .AddHttpClientInstrumentation()
+                        .AddEntityFrameworkCoreInstrumentation()      // ADDED: EF Core query spans in traces
+                        .AddSource("MassTransit");                   // ADDED: MassTransit publish/consume spans
+                });
+
+            builder.AddOpenTelemetryExporters();
+
+            return builder;
+        }
+
+        private static TBuilder AddOpenTelemetryExporters<TBuilder>(this TBuilder builder) where TBuilder : IHostApplicationBuilder
+        {
+            var useOtlpExporter = !string.IsNullOrWhiteSpace(builder.Configuration["OTEL_EXPORTER_OTLP_ENDPOINT"]);
+
+            if (useOtlpExporter)
+            {
+                builder.Services.AddOpenTelemetry().UseOtlpExporter();
+            }
+
+            return builder;
+        }
+
+        public static TBuilder AddDefaultHealthChecks<TBuilder>(this TBuilder builder) where TBuilder : IHostApplicationBuilder
+        {
+            builder.Services.AddHealthChecks()
+                .AddCheck("self", () => HealthCheckResult.Healthy(), ["live"]);
+
+            return builder;
+        }
+
+        public static WebApplication MapDefaultEndpoints(this WebApplication app)
+        {
+            if (app.Environment.IsDevelopment())
+            {
+                app.MapHealthChecks(HealthEndpointPath);
+
+                app.MapHealthChecks(AlivenessEndpointPath, new HealthCheckOptions
+                {
+                    Predicate = r => r.Tags.Contains("live")
+                });
+            }
+
+            return app;
+        }
     }
 }
 ```
+
+**The three additions explained:**
+- **`.AddMeter("MassTransit")`** — Exposes message consumption rates, fault counts, and duration in the Aspire Metrics tab
+- **`.AddSource("MassTransit")`** — Shows publish and consume spans in traces, so you can follow events from Scheduling through RabbitMQ to Billing
+- **`.AddEntityFrameworkCoreInstrumentation()`** — Shows database query spans nested inside request/message handling traces
 
 ### Using ServiceDefaults in Your Projects
 
