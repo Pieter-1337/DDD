@@ -489,26 +489,22 @@ volumes:
 
 ### Disable MSBuild Docker Target
 
-If you added the `EnsureDockerServices` target from Phase 5, update it to automatically set `SKIP_DOCKER_CHECK=1` when Aspire is the launcher. This keeps a single condition on the target:
+If you added the `EnsureDockerServices` target from Phase 5, comment it out now that Aspire manages containers. This avoids the docker check running on every build:
 
 ```xml
 <!-- Directory.Build.targets -->
-<PropertyGroup Condition="'$(ASPIRE_LAUNCHER)' != ''">
-  <SKIP_DOCKER_CHECK>1</SKIP_DOCKER_CHECK>
-</PropertyGroup>
 
+<!-- Disabled: Aspire now manages Docker containers. Re-enable if running without Aspire. -->
+<!--
 <Target Name="EnsureDockerServices" BeforeTargets="Build" Condition="'$(SKIP_DOCKER_CHECK)' != '1'">
   <Exec Command="powershell -ExecutionPolicy Bypass -File &quot;$(MSBuildThisFileDirectory)scripts\ensure-docker.ps1&quot; -TimeoutSeconds 60"
         IgnoreExitCode="false"
         Timeout="90000" />
-  <!-- Timeout is in milliseconds: 90000ms = 90 seconds (script timeout 60s + 30s buffer) -->
 </Target>
+-->
 ```
 
-This ensures the docker check:
-- **Skips** when launched via Aspire (`ASPIRE_LAUNCHER` automatically sets `SKIP_DOCKER_CHECK=1`)
-- **Skips** when `SKIP_DOCKER_CHECK=1` is set manually
-- **Runs** with all existing timeouts and parameters in every other case
+This keeps the target in the file for reference but prevents it from running. If you ever need to run without Aspire, simply uncomment it.
 
 ---
 

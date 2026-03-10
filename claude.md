@@ -80,7 +80,7 @@ This is a comprehensive learning project to master Domain-Driven Design (DDD) an
 
 **Message Broker**: RabbitMQ (running in Docker)
 
-> **Note**: The current Docker setup (docker-compose scripts, startup checks) is temporary. This will be replaced by .NET Aspire for container orchestration in a later phase.
+> **Note**: Docker container orchestration has been migrated to .NET Aspire in Phase 6. The `docker-compose.yml` is kept as a CI/CD fallback.
 
 ### Phase 6: Integration
 **Goal**: Build a cohesive system integrating all concepts
@@ -104,19 +104,32 @@ This is a comprehensive learning project to master Domain-Driven Design (DDD) an
 
 ### Project Organization
 ```
-src/
-├── Core/
-│   ├── Domain/              # Domain entities, aggregates, value objects
-│   ├── Application/         # Application services, DTOs, interfaces
-│   └── Infrastructure/      # EF Core, repositories, external services
-├── Scheduling/              # Bounded context: Scheduling
-├── Billing/                 # Bounded context: Billing
-├── MedicalRecords/          # Bounded context: Medical Records
-└── Shared/                  # Shared kernel
-tests/
-├── UnitTests/
-├── IntegrationTests/
-└── ArchitectureTests/       # Verify DDD rules
+BuildingBlocks/
+├── BuildingBlocks.Domain/              # Base entities, value objects, domain event interfaces
+├── BuildingBlocks.Application/         # CQRS behaviors, pipeline, interfaces
+├── BuildingBlocks.Infrastructure.EfCore/  # Unit of Work, repository base
+├── BuildingBlocks.Infrastructure.MassTransit/  # Event bus, integration event consumers
+├── BuildingBlocks.WebApplications/     # API filters, JSON config, OpenAPI
+├── BuildingBlocks.Enumerations/        # Smart enum base
+└── BuildingBlocks.Tests/               # Shared test base classes
+Core/
+├── Scheduling/
+│   ├── Scheduling.Domain/             # Patient aggregate, domain events
+│   ├── Scheduling.Application/        # Commands, queries, handlers, validators
+│   ├── Scheduling.Infrastructure/     # EF Core DbContext, migrations, configs
+│   └── Scheduling.Domain.Tests/       # Domain & handler tests
+├── Billing/
+│   ├── Billing.Domain/               # BillingProfile aggregate
+│   ├── Billing.Application/          # Commands, handlers
+│   ├── Billing.Infrastructure/       # DbContext, migrations, consumers
+│   └── Billing.Tests/                # Billing tests
+Shared/
+└── IntegrationEvents/                 # Cross-bounded-context integration events
+WebApplications/
+├── Scheduling.WebApi/                 # Scheduling API host
+└── Billing.WebApi/                    # Billing API host
+Aspire.AppHost/                        # .NET Aspire orchestrator
+Aspire.ServiceDefaults/                # Shared OpenTelemetry, health checks, resilience
 ```
 
 ### DDD Rules to Enforce
@@ -145,46 +158,43 @@ tests/
 - **MediatR** - CQRS implementation
 - **FluentValidation** - Command/query validation
 - **Polly** - Resilience and transient fault handling
+- **Ardalis.SmartEnum** - Smart enumerations
+- **.NET Aspire** - Orchestration and service defaults
 
 ### Testing
-- **xUnit** - Test framework
-- **FluentAssertions** - Assertion library
+- **MSTest** - Test framework
+- **Shouldly** - Primary assertion library
+- **FluentAssertions** - Additional assertions
 - **Moq** - Mocking framework
-- **Testcontainers** - Integration testing with Docker
-- **ArchUnitNET** - Architecture rule testing
+- **NBuilder** - Test data generation
 
 ### Development Tools
-- **Docker** - RabbitMQ, SQL Server
-- **Swagger/OpenAPI/Scalar** - API documentation
-- **Serilog** - Structured logging
+- **.NET Aspire** - Container orchestration, service discovery, observability dashboard
+- **Docker** - RabbitMQ container (managed by Aspire for local dev, docker-compose kept as fallback)
+- **Scalar** - API documentation (OpenAPI)
 
 ## Docker Services
+
+RabbitMQ is managed by .NET Aspire for local development. The `docker-compose.yml` is kept as a fallback for CI/CD or running without Aspire. The MSBuild docker check target in `Directory.Build.targets` is currently commented out since Aspire handles container orchestration.
+
 ```yaml
-# docker-compose.yml for local development
-services:
-  rabbitmq:
-    image: rabbitmq:3-management
-    ports:
-      - "5672:5672"
-      - "15672:15672"
-  
-  sqlserver:
-    image: mcr.microsoft.com/mssql/server:2022-latest
-    environment:
-      - ACCEPT_EULA=Y
-      - SA_PASSWORD=YourStrong@Password
-    ports:
-      - "1433:1433"
+# Aspire.AppHost/AppHost.cs manages:
+# - RabbitMQ with management plugin
+# - Scheduling.WebApi
+# - Billing.WebApi
+# SQL Server connection is via user secrets (not managed by Aspire)
 ```
 
 ## Current Phase
-**Current**: Phase 5 - Event-Driven Architecture
+**Current**: Phase 6 - Integration (Observability next)
 
 ### Completed Phases
 - ✅ Phase 1: DDD Fundamentals
 - ✅ Phase 2: Persistence with EF Core
 - ✅ Phase 3: CQRS Pattern
-- ✅ Phase 4: Testing (30 tests passing)
+- ✅ Phase 4: Testing
+- ✅ Phase 5: Event-Driven Architecture (MassTransit, RabbitMQ, Integration Events)
+- 🔄 Phase 6: Integration (Aspire orchestration, Billing BC done — Observability up next)
 
 ## Learning Resources Referenced
 - Pluralsight: "Domain-Driven Design Fundamentals" (Julie Lerman & Steve Smith)
@@ -194,12 +204,10 @@ services:
 - Microsoft eBook: ".NET Microservices: Architecture for Containerized .NET Applications"
 
 ## Next Steps
-1. Set up solution structure with Clean Architecture layers
-2. Implement first aggregate (Patient) with proper encapsulation
-3. Create value objects (PatientId, Email, PhoneNumber)
-4. Implement repository pattern with in-memory implementation first
-5. Add EF Core persistence
-6. Progress through each phase incrementally
+1. Implement observability features (structured logging, distributed tracing, custom metrics)
+2. Add correlation ID middleware
+3. Add custom health checks (SQL Server)
+4. Explore API Gateway with YARP (optional)
 
 ## Notes for Claude Code
 - When suggesting code, follow the DDD tactical patterns strictly
