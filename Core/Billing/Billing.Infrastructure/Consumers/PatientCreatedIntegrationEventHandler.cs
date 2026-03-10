@@ -10,7 +10,7 @@ namespace Billing.Infrastructure.Consumers
     {
         private readonly IMediator _mediator;
 
-        public PatientCreatedIntegrationEventHandler(IMediator mediator, ILogger logger) : base (logger)
+        public PatientCreatedIntegrationEventHandler(IMediator mediator, ILogger<PatientCreatedIntegrationEventHandler> logger) : base (logger)
         {
             _mediator = mediator;
         }

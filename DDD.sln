@@ -60,6 +60,9 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "scripts", "scripts", "{A1B2
 	EndProjectSection
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "01. BuildingBlocks", "01. BuildingBlocks", "{7266C4A9-E384-DC00-0EB6-47F6002CFBA7}"
+	ProjectSection(SolutionItems) = preProject
+		docs\PROGRESS.md = docs\PROGRESS.md
+	EndProjectSection
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "BuildingBlocks.Domain", "BuildingBlocks\BuildingBlocks.Domain\BuildingBlocks.Domain.csproj", "{2EE74792-66D1-4280-B06A-19C04F36A210}"
 EndProject
