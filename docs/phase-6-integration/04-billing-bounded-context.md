@@ -76,8 +76,9 @@ The Billing context manages financial aspects of patient care:
 |---------|-------------|
 | **BillingProfile** | Aggregate root - represents a patient's billing information |
 | **PatientId** | Reference to the patient in Scheduling context |
-| **PaymentMethod** | Value object - stored payment method details |
-| **Invoice** | Entity - generated for appointments/services |
+| **PaymentMethod** | Value object - stored payment method details (owned entity) |
+| **Invoice** | Entity - generated for services, tracks amount and payment status |
+| **InvoiceStatus** | SmartEnum - Draft, Sent, Paid, Cancelled |
 
 ### Bounded Context Boundaries
 
@@ -92,11 +93,11 @@ The Billing context manages financial aspects of patient care:
 |   - Email                 |     |   - FullName              |
 |   - DateOfBirth           |     |   - BillingAddress        |
 |                           |     |   - PaymentMethod         |
-| Appointment               |     | Invoice                   |
-|   - AppointmentId         |     |   - InvoiceId             |
-|   - PatientId             |     |   - BillingProfileId      |
-|   - DoctorId              |     |   - Amount                |
-|   - ScheduledAt           |     |   - Status                |
+|                           |     | Invoice                   |
+|                           |     |   - InvoiceId             |
+|                           |     |   - BillingProfileId      |
+|                           |     |   - Amount                |
+|                           |     |   - Status (SmartEnum)    |
 +---------------------------+     +---------------------------+
         |                                    ^
         | PatientCreatedIntegrationEvent     |
@@ -117,23 +118,24 @@ Core/
     +-- Billing.Domain/
     |   +-- BillingProfiles/
     |   |   +-- BillingProfile.cs              # Aggregate root
-    |   |   +-- BillingProfileId.cs            # Strongly-typed ID
-    |   |   +-- PaymentMethod.cs               # Value object
+    |   |   +-- PaymentMethod.cs               # Value object (record)
     |   |   +-- Events/
     |   |       +-- BillingProfileCreatedEvent.cs
     |   +-- Invoices/
-    |       +-- Invoice.cs
-    |       +-- InvoiceStatus.cs
+    |       +-- Invoice.cs                     # Entity
+    |       +-- InvoiceStatus.cs               # SmartEnum
+    |       +-- Events/
+    |           +-- InvoiceCreatedEvent.cs
     |
     +-- Billing.Application/
     |   +-- BillingProfiles/
     |   |   +-- Commands/
     |   |   |   +-- CreateBillingProfileCommand.cs
     |   |   |   +-- CreateBillingProfileCommandHandler.cs
-    |   |   |   +-- CreateBillingProfileCommandValidator.cs
-    |   |   +-- Queries/
-    |   |       +-- GetBillingProfileByPatientIdQuery.cs
-    |   |       +-- GetBillingProfileByPatientIdQueryHandler.cs
+    |   |   +-- Queries/                       # (planned)
+    |   +-- Invoices/
+    |   |   +-- EventHandlers/
+    |   |       +-- InvoiceCreatedEventHandler.cs
     |   +-- ServiceCollectionExtensions.cs
     |
     +-- Billing.Infrastructure/
@@ -141,13 +143,13 @@ Core/
     |   |   +-- BillingDbContext.cs
     |   |   +-- Configurations/
     |   |       +-- BillingProfileConfiguration.cs
+    |   |       +-- InvoiceConfiguration.cs
     |   +-- Consumers/
     |   |   +-- PatientCreatedIntegrationEventHandler.cs
     |   +-- ServiceCollectionExtensions.cs
     |
     +-- Billing.WebApi/                        # Separate API host (for Aspire)
         +-- Controllers/
-        |   +-- BillingProfilesController.cs
         +-- Program.cs
         +-- appsettings.json
 ```
@@ -310,6 +312,7 @@ public record BillingProfileCreatedEvent(
 
 ```csharp
 using BuildingBlocks.Application.Cqrs;
+using BuildingBlocks.Application.Dtos;
 
 namespace Billing.Application.BillingProfiles.Commands;
 
@@ -317,7 +320,7 @@ namespace Billing.Application.BillingProfiles.Commands;
 /// Command to create a billing profile for a patient.
 /// Typically triggered by PatientCreatedIntegrationEvent.
 /// </summary>
-public record CreateBillingProfileCommand : Command<Guid>
+public record CreateBillingProfileCommand : Command<CreateBillingProfileCommandResponse>
 {
     /// <summary>
     /// The patient's ID from the Scheduling context.
@@ -334,6 +337,17 @@ public record CreateBillingProfileCommand : Command<Guid>
     /// </summary>
     public required string FullName { get; init; }
 }
+
+/// <summary>
+/// Response for CreateBillingProfileCommand.
+/// </summary>
+public class CreateBillingProfileCommandResponse : SuccessOrFailureDto
+{
+    /// <summary>
+    /// The ID of the created billing profile.
+    /// </summary>
+    public Guid BillingProfileId { get; set; }
+}
 ```
 
 **Billing.Application/BillingProfiles/Commands/CreateBillingProfileCommandHandler.cs**:
@@ -346,7 +360,7 @@ using MediatR;
 namespace Billing.Application.BillingProfiles.Commands;
 
 public class CreateBillingProfileCommandHandler
-    : IRequestHandler<CreateBillingProfileCommand, Guid>
+    : IRequestHandler<CreateBillingProfileCommand, CreateBillingProfileCommandResponse>
 {
     private readonly IUnitOfWork _uow;
 
@@ -355,19 +369,23 @@ public class CreateBillingProfileCommandHandler
         _uow = uow;
     }
 
-    public async Task<Guid> Handle(
+    public async Task<CreateBillingProfileCommandResponse> Handle(
         CreateBillingProfileCommand request,
         CancellationToken cancellationToken)
     {
         // Check if profile already exists (idempotency)
         var existingProfile = await _uow
             .RepositoryFor<BillingProfile>()
-            .FindAsync(bp => bp.PatientId == request.PatientId, cancellationToken);
+            .FirstOrDefaultAsync(bp => bp.PatientId == request.PatientId, cancellationToken);
 
         if (existingProfile != null)
         {
             // Already processed - return existing ID (idempotent)
-            return existingProfile.Id;
+            return new CreateBillingProfileCommandResponse
+            {
+                Success = true,
+                BillingProfileId = existingProfile.Id
+            };
         }
 
         // Create new billing profile
@@ -379,7 +397,11 @@ public class CreateBillingProfileCommandHandler
         _uow.RepositoryFor<BillingProfile>().Add(profile);
         await _uow.SaveChangesAsync(cancellationToken);
 
-        return profile.Id;
+        return new CreateBillingProfileCommandResponse
+        {
+            Success = true,
+            BillingProfileId = profile.Id
+        };
     }
 }
 ```
@@ -458,11 +480,11 @@ public class PatientCreatedIntegrationEventHandler
             FullName = $"{message.FirstName} {message.LastName}"
         };
 
-        var billingProfileId = await _mediator.Send(command, cancellationToken);
+        var response = await _mediator.Send(command, cancellationToken);
 
         Logger.LogInformation(
             "Created billing profile {BillingProfileId} for patient {PatientId}",
-            billingProfileId,
+            response.BillingProfileId,
             message.PatientId);
     }
 }
@@ -473,7 +495,6 @@ public class PatientCreatedIntegrationEventHandler
 **Billing.Infrastructure/Persistence/BillingDbContext.cs**:
 
 ```csharp
-using Billing.Domain.BillingProfiles;
 using Microsoft.EntityFrameworkCore;
 
 namespace Billing.Infrastructure.Persistence;
@@ -485,12 +506,9 @@ public class BillingDbContext : DbContext
     {
     }
 
-    public DbSet<BillingProfile> BillingProfiles => Set<BillingProfile>();
-
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(BillingDbContext).Assembly);
-        base.OnModelCreating(modelBuilder);
     }
 }
 ```
@@ -544,6 +562,7 @@ public class BillingProfileConfiguration : IEntityTypeConfiguration<BillingProfi
 **Billing.Application/ServiceCollectionExtensions.cs**:
 
 ```csharp
+using BuildingBlocks.Application;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Billing.Application;
@@ -552,8 +571,9 @@ public static class ServiceCollectionExtensions
 {
     public static IServiceCollection AddBillingApplication(this IServiceCollection services)
     {
-        // MediatR handlers are registered via AddMediatR in WebApi
-        // FluentValidation validators are registered via AddValidatorsFromAssembly
+        services.AddBoundedContext(typeof(ServiceCollectionExtensions).Assembly);
+
+        // Add any Billing-specific services here
 
         return services;
     }
@@ -674,20 +694,19 @@ app.Run();
 ```csharp
 var builder = DistributedApplication.CreateBuilder(args);
 
-// Infrastructure
-// NOTE: In this project, only RabbitMQ is managed by Aspire.
-// SQL Server runs locally and uses connection strings from user secrets.
+// Add RabbitMQ with management plugin enabled
 var messagingPassword = builder.AddParameter("messaging-password");
 var messaging = builder.AddRabbitMQ("messaging", password: messagingPassword)
-    .WithManagementPlugin();
+    .WithManagementPlugin()
+    .WithDataVolume();
 
-// Services
-// Each service reads its SQL Server connection string from user secrets (DefaultConnection)
-var scheduling = builder.AddProject<Projects.Scheduling_WebApi>("scheduling-api")
-    .WithReference(messaging);
+builder.AddProject<Projects.Scheduling_WebApi>("scheduling-webapi")
+    .WithReference(messaging)
+    .WaitFor(messaging);
 
-var billing = builder.AddProject<Projects.Billing_WebApi>("billing-api")
-    .WithReference(messaging);
+builder.AddProject<Projects.Billing_WebApi>("billing-webapi")
+    .WithReference(messaging)
+    .WaitFor(messaging);
 
 builder.Build().Run();
 ```
@@ -798,7 +817,7 @@ Billing                                                  Scheduling
 builder.Services.AddHttpClient<ISchedulingClient, SchedulingClient>(client =>
 {
     // Aspire injects the service URL
-    client.BaseAddress = new Uri("http://scheduling-api");
+    client.BaseAddress = new Uri("http://scheduling-webapi");
 });
 
 // Client implementation
@@ -828,7 +847,6 @@ Shared/
     +-- Scheduling/
     |   +-- PatientCreatedIntegrationEvent.cs
     |   +-- PatientSuspendedIntegrationEvent.cs
-    |   +-- AppointmentScheduledIntegrationEvent.cs
     +-- Billing/
         +-- InvoiceCreatedIntegrationEvent.cs
         +-- PaymentReceivedIntegrationEvent.cs
@@ -847,13 +865,15 @@ For a modular monolith, a shared project is pragmatic. For true microservices, c
 ### Event Naming Conventions
 
 ```csharp
-// Pattern: {BoundedContext}{Entity}{Action}IntegrationEvent
+// Pattern: {Entity}{Action}IntegrationEvent
 namespace IntegrationEvents.Scheduling;
 
 public record PatientCreatedIntegrationEvent : IntegrationEventBase { ... }
 public record PatientSuspendedIntegrationEvent : IntegrationEventBase { ... }
-public record AppointmentScheduledIntegrationEvent : IntegrationEventBase { ... }
-public record AppointmentCancelledIntegrationEvent : IntegrationEventBase { ... }
+
+namespace IntegrationEvents.Billing;
+
+public record InvoiceCreatedIntegrationEvent : IntegrationEventBase { ... }
 ```
 
 ---

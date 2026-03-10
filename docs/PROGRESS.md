@@ -307,19 +307,22 @@ This allows using `nameof(GetPatientAsync)` in `CreatedAtAction` calls.
 - [x] .NET Aspire for distributed app orchestration
 - [x] AppHost and ServiceDefaults projects
 - [x] RabbitMQ with Aspire (replacing manual docker-compose)
-- [ ] Multiple bounded contexts (Billing) with separate APIs
-- [ ] Cross-context communication via integration events
+- [x] Multiple bounded contexts (Billing) with separate APIs
+- [x] Cross-context communication via integration events
 - [ ] Observability with Aspire Dashboard (logs, traces, metrics)
 - [ ] API Gateway with YARP (optional - single entry point for multiple APIs)
 
 ### Implementation Progress
 
-- [x] Documentation created (all 5 documents)
+- [x] Documentation created (all 6 documents)
 - [x] Add Aspire AppHost project
 - [x] Add ServiceDefaults project
 - [x] Migrate RabbitMQ to Aspire orchestration
-- [ ] Add Billing bounded context
-- [ ] Test cross-context event flow
+- [x] Add Billing bounded context (BillingProfile, Invoice, PaymentMethod)
+- [x] Integration event handlers (PatientCreatedIntegrationEventHandler)
+- [x] Domain event → integration event flow (InvoiceCreatedEventHandler)
+- [x] Shared IntegrationEvents project (Scheduling + Billing events)
+- [ ] Test cross-context event flow end-to-end
 - [ ] Verify observability in Aspire Dashboard
 
 ### Docs Available
