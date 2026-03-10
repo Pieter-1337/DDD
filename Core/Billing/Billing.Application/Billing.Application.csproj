@@ -1,0 +1,30 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+	  <RootNamespace>Billing.Application</RootNamespace>
+  </PropertyGroup>
+
+	<ItemGroup>
+		<InternalsVisibleTo Include="Billing.Tests" />
+	</ItemGroup>
+	
+	<ItemGroup>
+		<PackageReference Include="MediatR" />
+		<PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
+		<PackageReference Include="FluentValidation" />
+		<PackageReference Include="FluentValidation.DependencyInjectionExtensions" />
+	</ItemGroup>
+	
+	<ItemGroup>
+	  <ProjectReference Include="..\..\..\BuildingBlocks\BuildingBlocks.Application\BuildingBlocks.Application.csproj" />
+	  <ProjectReference Include="..\..\..\Shared\IntegrationEvents\IntegrationEvents.csproj" />
+	  <ProjectReference Include="..\Billing.Domain\Billing.Domain.csproj" />
+	</ItemGroup>
+	
+	<ItemGroup>
+	  <Folder Include="BillingProfiles\Queries\" />
+	</ItemGroup>
+</Project>

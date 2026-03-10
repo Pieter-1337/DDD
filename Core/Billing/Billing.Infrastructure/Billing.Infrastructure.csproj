@@ -1,0 +1,16 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\BuildingBlocks\BuildingBlocks.Infrastructure.EfCore\BuildingBlocks.Infrastructure.EfCore.csproj" />
+    <ProjectReference Include="..\..\..\BuildingBlocks\BuildingBlocks.Infrastructure.MassTransit\BuildingBlocks.Infrastructure.MassTransit.csproj" />
+    <ProjectReference Include="..\..\..\Shared\IntegrationEvents\IntegrationEvents.csproj" />
+    <ProjectReference Include="..\Billing.Application\Billing.Application.csproj" />
+  </ItemGroup>
+
+</Project>
