@@ -91,8 +91,6 @@ This is a comprehensive learning project to master Domain-Driven Design (DDD) an
 - CQRS in each service
 - Shared kernel for common domain concepts
 - Health checks and observability
-- API Gateway pattern (optional)
-- BFF pattern (optional)
 
 ## Coding Standards
 
@@ -207,7 +205,8 @@ RabbitMQ is managed by .NET Aspire for local development. The `docker-compose.ym
 ## Next Steps
 1. Implement observability features (structured logging, distributed tracing, custom metrics)
 2. Add custom health checks (SQL Server)
-3. Explore API Gateway with YARP (optional)
+3. Explore API Gateway with YARP (Phase 8, optional)
+4. Explore BFF pattern (Phase 8, optional)
 
 ## Notes for Claude Code
 - When suggesting code, follow the DDD tactical patterns strictly

@@ -10,8 +10,9 @@
 | Phase 4: Testing | Complete | 2026-01-09 | 2026-01-23 |
 | Phase 5: Event-Driven Architecture | Complete | 2026-01-23 | 2026-02-13 |
 | Phase 6: Integration | In Progress | 2026-03-09 | - |
-| Phase 7: Frontend (Blazor + Angular) | Not Started | - | - |
-| Phase 8: Authentication & Authorization | Not Started | - | - |
+| Phase 7: Frontend (Blazor + Angular) | In Progress | 2026-03-12 | - |
+| Phase 8: API Gateway & BFF | Not Started | - | - |
+| Phase 9: Authentication & Authorization | Not Started | - | - |
 
 ---
 
@@ -311,12 +312,10 @@ This allows using `nameof(GetPatientAsync)` in `CreatedAtAction` calls.
 - [x] Multiple bounded contexts (Billing) with separate APIs
 - [x] Cross-context communication via integration events
 - [ ] Observability with Aspire Dashboard (logs, traces, metrics)
-- [ ] API Gateway with YARP (optional - single entry point for multiple APIs)
-- [ ] BFF pattern (optional - frontend-specific backend)
 
 ### Implementation Progress
 
-- [x] Documentation created (all 6 documents)
+- [x] Documentation created (all 5 documents)
 - [x] Add Aspire AppHost project
 - [x] Add ServiceDefaults project
 - [x] Migrate RabbitMQ to Aspire orchestration
@@ -335,39 +334,73 @@ This allows using `nameof(GetPatientAsync)` in `CreatedAtAction` calls.
 - `phase-6-integration/03-rabbitmq-with-aspire.md` - Moving RabbitMQ to Aspire
 - `phase-6-integration/04-billing-bounded-context.md` - Adding second bounded context
 - `phase-6-integration/05-observability.md` - Logs, traces, metrics with Aspire Dashboard
-- `phase-6-integration/06-api-gateway-optional.md` - YARP API Gateway (optional)
-- `phase-6-integration/07-bff-pattern-optional.md` - BFF pattern (optional)
 
 ---
 
 ## Phase 7: Frontend
 
+*In progress - documentation created*
+
+### Concepts Learned
+
+- [x] Frontend overview and architecture (framework-agnostic)
+- [x] Blazor Server with FluentUI components
+- [x] Angular with Angular Material (optional track)
+- [x] Component architecture and routing
+- [x] Consuming backend APIs with typed HttpClient / Angular HttpClient
+- [x] State management patterns (Blazor scoped services, Angular signals)
+- [x] Forms and validation (EditForm + FluentValidation / Reactive Forms)
+
+### Implementation Progress
+
+- [x] Documentation created (11 documents: 1 overview + 5 Blazor + 5 Angular)
+- [ ] Blazor Server project setup with FluentUI and Aspire
+- [ ] Angular project setup with Angular Material (optional)
+- [ ] Patient management UI (list, create, detail, suspend)
+- [ ] API integration end-to-end
+
+### Key Decisions Made
+
+1. **Two-track approach** - Blazor Server (primary) and Angular (optional), same topics mirrored
+2. **FluentUI for Blazor** - Microsoft's component library for Blazor Server
+3. **Angular Material for Angular** - Google's component library for Angular
+4. **Typed HttpClient** - Blazor uses typed HttpClient with Aspire service discovery
+5. **Proxy config for Angular** - Angular uses proxy.conf.json for API calls during development
+6. **Signals for Angular state** - Angular uses signals instead of BehaviorSubject for state management
+
+### Docs Available
+
+- `phase-7-frontend/00-frontend-overview.md` - What we build, API contract, track comparison
+- `phase-7-frontend/blazor/01-blazor-project-setup.md` - Blazor Server + FluentUI + Aspire
+- `phase-7-frontend/blazor/02-blazor-components-and-routing.md` - Components, routing, FluentDataGrid
+- `phase-7-frontend/blazor/03-blazor-consuming-apis.md` - Typed HttpClient, service discovery
+- `phase-7-frontend/blazor/04-blazor-state-management.md` - Component state, scoped services
+- `phase-7-frontend/blazor/05-blazor-forms-and-validation.md` - EditForm, FluentValidation
+- `phase-7-frontend/angular/01-angular-project-setup-optional.md` - Angular CLI + Material
+- `phase-7-frontend/angular/02-angular-components-and-routing-optional.md` - Standalone components, Router
+- `phase-7-frontend/angular/03-angular-consuming-apis-optional.md` - HttpClient, RxJS, proxy config
+- `phase-7-frontend/angular/04-angular-state-management-optional.md` - Signals, MatSnackBar
+- `phase-7-frontend/angular/05-angular-forms-and-validation-optional.md` - Reactive Forms, validation
+
+---
+
+## Phase 8: API Gateway & BFF
+
 *Not started*
 
 ### Planned Topics
 
-**Blazor (primary)**
-- Blazor Server vs Blazor WebAssembly vs Blazor United
-- FluentUI Blazor components setup
-- Project structure for Blazor frontend
-- Consuming API endpoints from Blazor
-- Component architecture and patterns
-- State management in Blazor
-- Forms and validation with FluentValidation
-- Navigation and routing
-
-**Angular (optional)**
-- Angular project setup alongside Blazor
-- Own Angular BFF calling the same upstream APIs (Scheduling, Billing)
-- Enables 2 BFFs + 1 Gateway scenario (Blazor BFF, Angular BFF, Public API Gateway)
+- API Gateway with YARP (optional - single entry point for multiple APIs)
+- BFF pattern (optional - frontend-specific backend)
 
 ### Docs Available
 
-- `phase-7-frontend/` - (to be created)
+- `phase-8-api-gateway-bff/01-api-gateway-optional.md` - YARP API Gateway (optional)
+- `phase-8-api-gateway-bff/02-bff-pattern-optional.md` - BFF pattern (optional)
 
 ---
 
-## Phase 8: Authentication & Authorization
+## Phase 9: Authentication & Authorization
 
 *Not started*
 
@@ -381,12 +414,12 @@ This allows using `nameof(GetPatientAsync)` in `CreatedAtAction` calls.
 - Securing pages and components
 - AuthenticationStateProvider
 - User context in domain layer
-- API Gateway authentication setup (referenced from Phase 6 gateway doc)
-- BFF authentication setup (referenced from Phase 6 BFF doc)
+- API Gateway authentication setup (referenced from Phase 8 gateway doc)
+- BFF authentication setup (referenced from Phase 8 BFF doc)
 - Backend API internal auth (managed identity, private VNet trust)
 - DefaultAzureCredential for local development
 - Multi-tenant considerations (optional)
 
 ### Docs Available
 
-- `phase-8-auth/` - (to be created)
+- `phase-9-auth/` - (to be created)

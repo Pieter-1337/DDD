@@ -13,7 +13,10 @@ docs/
 +-- phase-3-cqrs/                # CQRS pattern
 +-- phase-4-testing/             # Integration testing setup
 +-- phase-5-event-driven/        # Event-driven architecture
-+-- phase-6-integration/         # Complete system integration (planned)
++-- phase-6-integration/         # Complete system integration
++-- phase-7-frontend/            # Frontend (Blazor + Angular)
++-- phase-8-api-gateway-bff/     # API Gateway (YARP) & BFF pattern (optional)
++-- phase-9-auth/                # Authentication & Authorization (planned)
 ```
 
 ## How to Use
@@ -26,25 +29,23 @@ Each phase directory contains:
 
 ## Current Phase
 
-**Phase 5: Event-Driven Architecture** - In Progress
+**Phase 6: Integration** - In Progress
 
-### Two Types of Events
+Building a cohesive system integrating all DDD concepts:
+- Multiple bounded contexts (Scheduling, Billing)
+- .NET Aspire orchestration for service discovery and observability
+- Event-driven cross-context communication via MassTransit/RabbitMQ
+- CQRS pattern in each service
+- Integration events for bounded context coordination
+- Health checks and observability dashboard
+
+### Event Architecture (Established in Phase 5)
 
 | Type | Purpose | Transport |
 |------|---------|-----------|
 | **Domain Events** | Internal decoupling within bounded context | MediatR (in-memory) |
 | **Integration Events** | Cross-bounded-context communication | MassTransit/RabbitMQ |
 
-### Event Flow
-
-```
-Entity raises domain event
-    ↓
-SaveChangesAsync()
-    ↓
-DispatchDomainEventsAsync() → MediatR → Domain event handlers (internal)
-    ↓
-PublishQueuedIntegrationEventsAsync() → MassTransit → RabbitMQ (external)
-```
+**Event Flow**: Entity raises domain event → SaveChangesAsync() → DispatchDomainEventsAsync() (MediatR) → PublishQueuedIntegrationEventsAsync() (MassTransit/RabbitMQ)
 
 See [PROGRESS.md](./PROGRESS.md) for detailed status.

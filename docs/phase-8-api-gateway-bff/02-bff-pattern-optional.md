@@ -641,7 +641,7 @@ Each BFF handles authentication for its frontend application. Key concepts:
 - BFFs handle external authentication (cookies — tokens stay server-side)
 - BFFs translate external identity → internal token when calling backend APIs
 
-> **Implementation:** See [Phase 8: Authentication & Authorization](../phase-8-auth/) for the full auth setup including cookie configuration, OpenID Connect, managed identity handlers, and backend API internal auth.
+> **Implementation:** See [Phase 9: Authentication & Authorization](../phase-9-auth/) for the full auth setup including cookie configuration, OpenID Connect, managed identity handlers, and backend API internal auth.
 
 ---
 
