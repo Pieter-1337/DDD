@@ -8,6 +8,8 @@ This directory contains learning notes, explanations, and progress tracking for 
 docs/
 +-- README.md                    # This file
 +-- PROGRESS.md                  # Overall progress tracker
++-- IMPROVEMENTS.md              # Identified gaps and future improvements
++-- ARCHITECTURE-COMPARISON.md   # DDD vs Layered Monolith (ref-arch) comparison
 +-- phase-1-ddd-fundamentals/    # DDD tactical patterns
 +-- phase-2-ef-core/             # Persistence with EF Core
 +-- phase-3-cqrs/                # CQRS pattern
