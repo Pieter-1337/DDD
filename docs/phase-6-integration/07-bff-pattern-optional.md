@@ -554,20 +554,14 @@ builder.Services.AddRefitClient<IBillingApiClient>()
 builder.Services.AddReverseProxy()
     .LoadFromConfig(builder.Configuration.GetSection("ReverseProxy"));
 
-// Add authentication (cookie-based for Blazor)
-builder.Services.AddAuthentication("Cookies")
-    .AddCookie("Cookies", options =>
-    {
-        options.LoginPath = "/login";
-        options.LogoutPath = "/logout";
-    });
-
-builder.Services.AddAuthorization();
+// Authentication setup — see Phase 8 docs for implementation
+// builder.Services.AddAuthentication(...);
+// builder.Services.AddAuthorization();
 
 var app = builder.Build();
 
-app.UseAuthentication();
-app.UseAuthorization();
+// app.UseAuthentication();
+// app.UseAuthorization();
 
 // Map custom aggregation endpoints
 app.MapDashboardEndpoints();
@@ -634,111 +628,20 @@ app.Run();
 
 ## Authentication per BFF
 
-### Blazor BFF (Cookie-Based)
+Each BFF handles authentication for its frontend application. Key concepts:
 
-```csharp
-// BlazorBff/Program.cs
-builder.Services.AddAuthentication("Cookies")
-    .AddCookie("Cookies", options =>
-    {
-        options.LoginPath = "/login";
-        options.LogoutPath = "/logout";
-        options.ExpireTimeSpan = TimeSpan.FromHours(8);
-        options.SlidingExpiration = true;
-    });
-```
-
-**When calling backend APIs:**
-
-```csharp
-// BlazorBff uses managed identity or internal token when calling backend APIs
-builder.Services.AddRefitClient<ISchedulingApiClient>()
-    .ConfigureHttpClient(client =>
-    {
-        client.BaseAddress = new Uri("https+http://scheduling-webapi");
-    })
-    .AddHttpMessageHandler<ManagedIdentityHandler>();  // Add managed identity token
-```
-
-**Flow:**
-1. User logs in to Blazor app → Cookie issued by BFF
-2. Blazor sends cookie with each request to BFF
-3. BFF validates cookie
-4. BFF calls backend APIs with managed identity (internal network)
-
-### Angular BFF (Cookie-Based, Token Mediating)
-
-The BFF acts as a **token mediating backend** — the Angular SPA never touches tokens. The BFF handles the OAuth flow server-side, stores tokens in an encrypted cookie, and the browser only sees an HttpOnly cookie.
-
-```csharp
-// AngularBff/Program.cs
-builder.Services.AddAuthentication(options =>
-    {
-        options.DefaultScheme = CookieAuthenticationDefaults.AuthenticationScheme;
-        options.DefaultChallengeScheme = OpenIdConnectDefaults.AuthenticationScheme;
-    })
-    .AddCookie(options =>
-    {
-        options.Cookie.HttpOnly = true;
-        options.Cookie.SecurePolicy = CookieSecurePolicy.Always;
-        options.Cookie.SameSite = SameSiteMode.Strict;
-    })
-    .AddOpenIdConnect(options =>
-    {
-        options.Authority = builder.Configuration["Auth:Authority"];
-        options.ClientId = builder.Configuration["Auth:ClientId"];
-        options.ClientSecret = builder.Configuration["Auth:ClientSecret"];
-        options.ResponseType = "code";
-        options.SaveTokens = true;  // Tokens stored server-side in cookie, never sent to browser
-    });
-```
-
-**When calling backend APIs:**
-
-```csharp
-// AngularBff uses managed identity when calling backend APIs
-builder.Services.AddRefitClient<ISchedulingApiClient>()
-    .ConfigureHttpClient(client =>
-    {
-        client.BaseAddress = new Uri("https+http://scheduling-webapi");
-    })
-    .AddHttpMessageHandler<ManagedIdentityHandler>();  // Add managed identity token
-```
-
-**Flow:**
-1. User navigates to Angular app → BFF redirects to identity provider (Entra ID)
-2. Identity provider redirects back to BFF with auth code
-3. BFF exchanges code for tokens, stores them in encrypted HttpOnly cookie
-4. Angular sends cookie with each request to BFF (never sees the token)
-5. BFF calls backend APIs with managed identity (internal network)
-
-### Backend APIs (Internal Only)
-
-```csharp
-// Scheduling.WebApi/Program.cs
-builder.Services.AddAuthentication("Bearer")
-    .AddJwtBearer("Bearer", options =>
-    {
-        // Accept tokens from managed identity only (internal network)
-        options.Authority = builder.Configuration["Auth:InternalAuthority"];
-        options.Audience = "scheduling-api-internal";
-
-        // Ensure token is from trusted source (BFFs or Gateway)
-        options.TokenValidationParameters = new TokenValidationParameters
-        {
-            ValidateIssuer = true,
-            ValidIssuer = "internal-bff",
-            ValidateAudience = true,
-            ValidAudience = "scheduling-api-internal"
-        };
-    });
-```
+- **Cookie-based auth** — All BFFs use cookies. Tokens stay server-side, the browser only sees HttpOnly cookies
+- **Token mediating backend** — For SPAs like Angular, the BFF handles the OAuth flow server-side so the frontend never touches tokens
+- **Managed identity for backend calls** — BFFs use managed identity (or `DefaultAzureCredential` locally) when calling backend APIs, not the user's token
+- **Backend APIs are internal only** — They sit behind a private VNet and only accept calls from trusted sources (BFFs, Gateway)
 
 **Security model:**
 - Backend APIs are NOT publicly accessible (private VNet in Azure)
-- Backend APIs only trust internal tokens (issued by BFFs or managed identity)
+- Backend APIs only trust internal tokens (issued by BFFs via managed identity)
 - BFFs handle external authentication (cookies — tokens stay server-side)
 - BFFs translate external identity → internal token when calling backend APIs
+
+> **Implementation:** See [Phase 8: Authentication & Authorization](../phase-8-auth/) for the full auth setup including cookie configuration, OpenID Connect, managed identity handlers, and backend API internal auth.
 
 ---
 

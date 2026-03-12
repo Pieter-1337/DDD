@@ -373,13 +373,18 @@ This allows using `nameof(GetPatientAsync)` in `CreatedAtAction` calls.
 
 ### Planned Topics
 
-- Cookie-based authentication (Blazor Server)
+- Cookie-based authentication (all frontends — no tokens in the browser)
+- Token mediating backend pattern (BFF handles OAuth flow server-side)
 - ASP.NET Core Identity integration
 - Authorization policies and requirements
 - Role-based vs claims-based authorization
 - Securing pages and components
 - AuthenticationStateProvider
 - User context in domain layer
+- API Gateway authentication setup (referenced from Phase 6 gateway doc)
+- BFF authentication setup (referenced from Phase 6 BFF doc)
+- Backend API internal auth (managed identity, private VNet trust)
+- DefaultAzureCredential for local development
 - Multi-tenant considerations (optional)
 
 ### Docs Available

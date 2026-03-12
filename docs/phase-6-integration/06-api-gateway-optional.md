@@ -437,58 +437,9 @@ app.Run();
 
 ### Authentication at Gateway Level
 
-```csharp
-// Gateway/Program.cs
-var builder = WebApplication.CreateBuilder(args);
+The gateway centralizes authentication — all requests are validated here before routing to backend APIs. Authorization policies can be applied per route in the YARP configuration (e.g., read-only vs full access).
 
-builder.AddServiceDefaults();
-
-// Add authentication
-builder.Services.AddAuthentication("Bearer")
-    .AddJwtBearer("Bearer", options =>
-    {
-        options.Authority = builder.Configuration["Auth:Authority"];
-        options.Audience = builder.Configuration["Auth:Audience"];
-    });
-
-builder.Services.AddAuthorization(options =>
-{
-    options.AddPolicy("ReadOnly", policy =>
-        policy.RequireClaim("scope", "read"));
-
-    options.AddPolicy("FullAccess", policy =>
-        policy.RequireClaim("scope", "read", "write"));
-});
-
-builder.Services.AddReverseProxy()
-    .LoadFromConfig(builder.Configuration.GetSection("ReverseProxy"));
-
-var app = builder.Build();
-
-app.UseAuthentication();
-app.UseAuthorization();
-
-app.MapDefaultEndpoints();
-app.MapReverseProxy();
-
-app.Run();
-```
-
-Apply policies in route configuration:
-
-```json
-{
-  "Routes": {
-    "protected-route": {
-      "ClusterId": "scheduling-cluster",
-      "AuthorizationPolicy": "FullAccess",
-      "Match": {
-        "Path": "/api/scheduling/{**catch-all}"
-      }
-    }
-  }
-}
-```
+> **Implementation:** See [Phase 8: Authentication & Authorization](../phase-8-auth/) for the full auth setup including gateway authentication, authorization policies, and YARP route-level policy configuration.
 
 ### Request/Response Logging
 
