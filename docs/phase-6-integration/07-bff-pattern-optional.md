@@ -20,21 +20,22 @@ Backend for Frontend (BFF) is a pattern where you create dedicated backend servi
 
 ### API Gateway
 ```
-+----------------+
-|  Client A      |
-|  (Blazor)      |
-+----------------+
-        |
-        v
-+----------------+
-| API Gateway    |  <-- Single entry point for ALL clients
-|                |      Generic routing, same data for everyone
-+----------------+
-   |       |
-   v       v
-+-----+ +-----+
-|Sched| |Bill |
-+-----+ +-----+
++----------+    +----------+    +----------+
+| Web App  |    |Mobile App|    | 3rd Party|
++----------+    +----------+    +----------+
+     |               |               |
+     +---------------+---------------+
+                     |
+                     v
+              +------------+
+              | API Gateway|  <-- Single entry point for ALL clients
+              |            |      Generic routing, same data for everyone
+              +------------+
+                 |       |
+                 v       v
+              +-----+ +-----+
+              |Sched| |Bill |
+              +-----+ +-----+
 ```
 
 **API Gateway characteristics:**
@@ -48,14 +49,17 @@ Backend for Frontend (BFF) is a pattern where you create dedicated backend servi
 ### Backend for Frontend (BFF)
 ```
 +----------+              +----------+
-|  Blazor  |              | Angular  |
-|  Client  |              |  Client  |
+| Web App  |              |Mobile App|
+|(dashboard|              |(quick    |
+| heavy)   |              | actions) |
 +----------+              +----------+
      |                         |
      v                         v
 +------------+          +------------+
-| Blazor BFF |          | Angular BFF|  <-- Dedicated backend per frontend
-|            |          |            |      Tailored to each client's needs
+|  Web BFF   |          | Mobile BFF |  <-- Dedicated backend per frontend
+| (aggregates|          | (minimal   |      Tailored to each app's needs
+|  dashboard |          |  payloads, |
+|  data)     |          |  offline)  |
 +------------+          +------------+
      |                         |
      +------------+------------+
@@ -70,50 +74,47 @@ Backend for Frontend (BFF) is a pattern where you create dedicated backend servi
 ```
 
 **BFF characteristics:**
-- Dedicated backend per frontend type
-- Tailored responses for specific UI needs
-- Aggregates data from multiple backend APIs
-- Frontend-specific authentication (cookies vs JWT)
-- UI-specific caching strategies
-- Optimized for frontend consumption
+- Dedicated backend per frontend application's needs (not per framework)
+- Owned by the frontend team — they can evolve it independently without coordinating backend changes
+- Changes to one BFF don't affect other consumers
+- Frontend-specific authentication strategy
+- Can aggregate data from multiple backend APIs (though this alone doesn't justify a BFF — you could add endpoints to a shared backend too)
+- A web dashboard and a web admin panel could each have their own BFF — it's about team ownership and independent evolution, not the technology used
 
 ### Key Differences
 
 | Aspect | API Gateway | BFF |
 |--------|-------------|-----|
-| **Scope** | All clients | Single frontend type |
+| **Scope** | All clients | Single frontend application |
 | **Data shaping** | Generic | Frontend-specific |
 | **Aggregation** | Minimal | Common |
-| **Authentication** | Unified | Per-frontend (cookies, JWT) |
+| **Authentication** | Unified | Per-frontend application |
 | **Owned by** | Platform team | Frontend team |
 | **Changes with** | Backend API changes | Frontend UI changes |
-| **Number of instances** | 1 | 1 per frontend type |
+| **Number of instances** | 1 | 1 per frontend application (based on needs, not framework) |
 
 ---
 
 ## When to Use Each Pattern
 
-### Use Only API Gateway When:
+### API Gateway:
 
 - **Single frontend** - One web app consuming your APIs
 - **Thin clients** - Frontends can handle response shaping
 - **Generic responses** - All clients need the same data
 - **Third-party consumers** - External parties need stable API contracts
-- **Learning phase** - Focus on backend patterns first
 
-### Use Only BFF When:
+### BFF:
 
-- **Multiple frontends** - Different UIs (web, mobile, desktop)
-- **Complex aggregation** - UIs need data from multiple services
-- **Different auth** - Cookie-based for web, JWT for mobile
-- **Frontend-specific caching** - Different cache strategies per client
+- **Team independence** - Frontend teams can change their BFF without coordinating with the backend team or risking other consumers
+- **Independent evolution** - Each frontend app's backend can evolve at its own pace without affecting others
+- **Different auth strategies** - Different apps may have different authentication needs
 - **No external consumers** - All APIs are internal
 
-### Use Both BFF + Gateway When:
+### BFF + Gateway:
 
 - **Multiple frontends + public API** - Internal BFFs for your apps, Gateway for third parties
-- **Different SLAs** - BFFs optimized for your UIs, Gateway rate-limited for external use
-- **Advanced scenario** - This is the most complex option
+- **Different usage policies** - BFFs optimized for your UIs, Gateway for external consumers exposes standardized API endpoints
 
 ```
 External Clients          Internal Clients
@@ -141,30 +142,23 @@ External Clients          Internal Clients
 
 ### Skip BFF When:
 
-- **Single frontend** - One Blazor app or one Angular app
-- **Simple data needs** - Frontend can work with raw API responses
-- **Development/learning phase** - Adds complexity; focus on core patterns first
+- **Single frontend** - One Frontend app
 - **Direct API consumption works** - Backend APIs already return frontend-friendly data
-- **Small team** - Maintaining multiple BFFs adds overhead
 
 ### Use BFF When:
 
-- **Multiple frontend types** - Blazor web app + Angular SPA + mobile app
-- **Different auth strategies** - Cookies for server-rendered, JWT for SPAs
-- **Heavy aggregation needs** - UI needs data from 5+ backend services in single view
-- **Frontend-specific optimizations** - Different caching, different data shapes
-- **Reduce frontend complexity** - Move aggregation logic to backend
-- **Team ownership** - Frontend team owns their BFF, backend team owns domain APIs
+- **Separate teams per frontend** - Each frontend team owns their BFF and can ship independently without coordinating backend changes or risking other consumers
+- **Independent release cycles** - Frontend apps evolve at different speeds; changes to one BFF don't affect the other
+- **Different auth strategies** - Different apps have different authentication needs
+- **Aggregation that differs per app** - Could be solved with extra endpoints on a shared backend, but a BFF lets the frontend team own that logic without touching shared code
 
 ### For This Learning Project
 
 **Recommendation:** Skip BFF initially unless you are building both Blazor and Angular frontends (Phase 7). If building only Blazor, consume the backend APIs directly or add a simple API Gateway.
 
 Add BFF when:
-- You add a second frontend type (Angular)
+- You add a second frontend with th explicit different needs described above
 - You need different authentication strategies
-- Your Blazor components are making 10+ API calls to render a single page
-
 ---
 
 ## Architecture with Multiple BFFs
@@ -173,7 +167,7 @@ Add BFF when:
 
 This learning project (Phase 7) will add:
 1. **Blazor Server** (primary) - Server-side rendering, cookie auth
-2. **Angular SPA** (optional) - Client-side rendering, JWT auth
+2. **Angular SPA** (optional) - Client-side rendering, cookie auth
 
 Each frontend gets its own BFF.
 
@@ -269,9 +263,9 @@ Each frontend gets its own BFF.
 
 | Responsibility | Example |
 |----------------|---------|
-| **Aggregate data** | Combine patient + appointments + invoices into single response for dashboard |
+| **Aggregate data** | Combine patient + appointments + billing profile into single response for dashboard |
 | **Shape responses** | Transform backend DTOs into UI-specific view models |
-| **Frontend-specific auth** | Cookie-based for Blazor, JWT for Angular |
+| **Frontend-specific auth** | Cookie-based auth for both Blazor and Angular (BFF holds tokens server-side, browser only sees cookies) |
 | **UI-specific caching** | Cache dashboard data for 5 minutes, patient list for 1 hour |
 | **Rate limit per client** | Blazor BFF allows 1000 req/min, Angular BFF allows 500 req/min |
 | **Protocol translation** | GraphQL frontend → REST backend |
@@ -328,13 +322,13 @@ app.MapGet("/dashboard", async (string patientId, ISchedulingApi schedulingApi, 
 {
     var patient = await schedulingApi.GetPatient(patientId);
     var appointments = await schedulingApi.GetAppointments(patientId);
-    var invoices = await billingApi.GetInvoices(patientId);
+    var billingProfile = await billingApi.GetBillingProfile(patientId);
 
     return new DashboardViewModel
     {
         Patient = patient,
         Appointments = appointments,
-        Invoices = invoices
+        BillingProfile = billingProfile
     };
 });
 ```
@@ -430,12 +424,9 @@ public interface IBillingApiClient
     [Get("/billing-profiles/{patientId}")]
     Task<BillingProfileDto> GetBillingProfile(Guid patientId);
 
-    [Get("/billing-profiles/{patientId}/invoices")]
-    Task<List<InvoiceDto>> GetInvoices(Guid patientId);
 }
 
 public record BillingProfileDto(Guid Id, Guid PatientId, string PaymentMethod);
-public record InvoiceDto(Guid Id, decimal Amount, DateTime DueDate, string Status);
 ```
 
 ### Step 4: Aggregation Endpoint
@@ -472,9 +463,8 @@ public static class DashboardEndpoints
             var patientTask = schedulingApi.GetPatient(patientId);
             var appointmentsTask = schedulingApi.GetAppointments(patientId);
             var billingProfileTask = billingApi.GetBillingProfile(patientId);
-            var invoicesTask = billingApi.GetInvoices(patientId);
 
-            await Task.WhenAll(patientTask, appointmentsTask, billingProfileTask, invoicesTask);
+            await Task.WhenAll(patientTask, appointmentsTask, billingProfileTask);
 
             // Aggregate into UI-specific view model
             var dashboard = new DashboardViewModel
@@ -497,18 +487,7 @@ public static class DashboardEndpoints
                         DoctorName = a.DoctorName
                     })
                     .ToList(),
-                OutstandingInvoices = invoicesTask.Result
-                    .Where(i => i.Status == "Unpaid")
-                    .Select(i => new InvoiceSummary
-                    {
-                        Id = i.Id,
-                        Amount = i.Amount,
-                        DueDate = i.DueDate
-                    })
-                    .ToList(),
-                TotalOutstanding = invoicesTask.Result
-                    .Where(i => i.Status == "Unpaid")
-                    .Sum(i => i.Amount)
+                PaymentMethod = billingProfileTask.Result.PaymentMethod
             };
 
             return Results.Ok(dashboard);
@@ -526,8 +505,7 @@ public class DashboardViewModel
 {
     public required PatientSummary Patient { get; init; }
     public required List<AppointmentSummary> UpcomingAppointments { get; init; }
-    public required List<InvoiceSummary> OutstandingInvoices { get; init; }
-    public decimal TotalOutstanding { get; init; }
+    public required string PaymentMethod { get; init; }
 }
 
 public class PatientSummary
@@ -543,13 +521,6 @@ public class AppointmentSummary
     public required Guid Id { get; init; }
     public required DateTime ScheduledTime { get; init; }
     public required string DoctorName { get; init; }
-}
-
-public class InvoiceSummary
-{
-    public required Guid Id { get; init; }
-    public required decimal Amount { get; init; }
-    public required DateTime DueDate { get; init; }
 }
 ```
 
@@ -695,21 +666,30 @@ builder.Services.AddRefitClient<ISchedulingApiClient>()
 3. BFF validates cookie
 4. BFF calls backend APIs with managed identity (internal network)
 
-### Angular BFF (JWT-Based)
+### Angular BFF (Cookie-Based, Token Mediating)
+
+The BFF acts as a **token mediating backend** — the Angular SPA never touches tokens. The BFF handles the OAuth flow server-side, stores tokens in an encrypted cookie, and the browser only sees an HttpOnly cookie.
 
 ```csharp
 // AngularBff/Program.cs
-builder.Services.AddAuthentication("Bearer")
-    .AddJwtBearer("Bearer", options =>
+builder.Services.AddAuthentication(options =>
     {
-        options.Authority = builder.Configuration["Auth:Authority"];  // e.g., Azure AD
-        options.Audience = builder.Configuration["Auth:Audience"];
-        options.TokenValidationParameters = new TokenValidationParameters
-        {
-            ValidateIssuer = true,
-            ValidateAudience = true,
-            ValidateLifetime = true
-        };
+        options.DefaultScheme = CookieAuthenticationDefaults.AuthenticationScheme;
+        options.DefaultChallengeScheme = OpenIdConnectDefaults.AuthenticationScheme;
+    })
+    .AddCookie(options =>
+    {
+        options.Cookie.HttpOnly = true;
+        options.Cookie.SecurePolicy = CookieSecurePolicy.Always;
+        options.Cookie.SameSite = SameSiteMode.Strict;
+    })
+    .AddOpenIdConnect(options =>
+    {
+        options.Authority = builder.Configuration["Auth:Authority"];
+        options.ClientId = builder.Configuration["Auth:ClientId"];
+        options.ClientSecret = builder.Configuration["Auth:ClientSecret"];
+        options.ResponseType = "code";
+        options.SaveTokens = true;  // Tokens stored server-side in cookie, never sent to browser
     });
 ```
 
@@ -726,10 +706,11 @@ builder.Services.AddRefitClient<ISchedulingApiClient>()
 ```
 
 **Flow:**
-1. User logs in via Angular app → JWT issued by identity provider (Azure AD)
-2. Angular sends `Authorization: Bearer <token>` with each request to BFF
-3. BFF validates JWT
-4. BFF calls backend APIs with managed identity (internal network)
+1. User navigates to Angular app → BFF redirects to identity provider (Entra ID)
+2. Identity provider redirects back to BFF with auth code
+3. BFF exchanges code for tokens, stores them in encrypted HttpOnly cookie
+4. Angular sends cookie with each request to BFF (never sees the token)
+5. BFF calls backend APIs with managed identity (internal network)
 
 ### Backend APIs (Internal Only)
 
@@ -756,7 +737,7 @@ builder.Services.AddAuthentication("Bearer")
 **Security model:**
 - Backend APIs are NOT publicly accessible (private VNet in Azure)
 - Backend APIs only trust internal tokens (issued by BFFs or managed identity)
-- BFFs handle external authentication (cookies, JWT)
+- BFFs handle external authentication (cookies — tokens stay server-side)
 - BFFs translate external identity → internal token when calling backend APIs
 
 ---
@@ -882,7 +863,7 @@ v             v
 | Component | Accessibility | Authentication |
 |-----------|---------------|----------------|
 | **Azure Front Door** | Public internet | None |
-| **BFFs** | Via Front Door | Cookie/JWT from client |
+| **BFFs** | Via Front Door | Cookie from client (tokens server-side) |
 | **Public Gateway** | Via Front Door | API key or OAuth |
 | **Backend APIs** | Private VNet only | Managed identity from BFFs |
 | **RabbitMQ** | Private VNet only | Internal credentials |
@@ -895,7 +876,7 @@ v             v
 | **Entry point** | Direct to BFF (http://localhost:5100) | Azure Front Door |
 | **Service discovery** | Aspire | Azure DNS / App Service names |
 | **Backend API access** | Localhost ports | Private VNet |
-| **Authentication** | Development mode | Cookie/JWT + Managed Identity |
+| **Authentication** | Cookie + DefaultAzureCredential (uses your az cli/VS login) | Cookie + Managed Identity |
 | **RabbitMQ** | Aspire container | Azure Service Bus or self-hosted |
 | **SQL Server** | LocalDB / user secrets | Azure SQL (managed identity) |
 
@@ -945,9 +926,9 @@ Billing.WebApi consumes event
 
 ### Use BFF When:
 
-- **Multiple frontend types** - Blazor + Angular + Mobile
+- **Multiple frontend apps** - customer portal + Mobile App + ...
 - **Complex aggregation** - Dashboard needs data from 5+ services
-- **Different auth strategies** - Cookie for web, JWT for mobile
+- **Different auth strategies** - Different apps have different authentication needs
 - **Frontend team ownership** - Team owns both UI and BFF
 - **Performance critical** - Server-side aggregation faster than client-side
 
@@ -962,7 +943,7 @@ Billing.WebApi consumes event
 - [ ] Custom aggregation endpoints implemented (e.g., `/api/dashboard/{patientId}`)
 - [ ] View models designed for UI-specific needs
 - [ ] Pass-through routes configured with YARP (simple proxy)
-- [ ] Authentication configured per BFF (cookies for Blazor, JWT for Angular)
+- [ ] Authentication configured per BFF (cookie-based for both, no tokens in the browser)
 - [ ] BFF registered in AppHost with `WithExternalHttpEndpoints()`
 - [ ] Backend API references added to BFF in AppHost
 - [ ] Parallel API calls used in aggregation endpoints (`Task.WhenAll`)
@@ -978,24 +959,20 @@ Billing.WebApi consumes event
 | Aspect | Recommendation |
 |--------|----------------|
 | **For single frontend** | Skip BFF; consume backend APIs directly |
-| **For Blazor only** | Skip BFF initially; add later if aggregation needs grow |
-| **For Blazor + Angular** | Use BFF pattern (one BFF per frontend) |
+| **For multiple frontends** | Use BFF pattern (one BFF per frontend) if different needs are present per frontend |
 | **For third-party APIs** | Use API Gateway, not BFF |
-| **For complex dashboards** | Use BFF to aggregate data server-side |
 | **Technology choice** | YARP for pass-through + Refit for aggregation |
-| **Authentication** | Cookies for Blazor BFF, JWT for Angular BFF, Managed Identity for backend APIs |
+| **Authentication** | Cookies for all BFFs (tokens stay server-side), Managed Identity for backend API calls |
 
 ### Key Takeaways
 
-1. **BFF is frontend-specific** - One BFF per frontend type, owned by frontend team
+1. **BFF is frontend-specific** - One BFF per frontend, owned by frontend team
 2. **BFF aggregates, does not decide** - Business logic stays in domain layer
 3. **BFF uses YARP + custom endpoints** - Proxy simple requests, aggregate complex ones
-4. **Authentication differs per BFF** - Cookies for server-rendered, JWT for SPAs
+4. **BFF mediates tokens** - Tokens stay server-side in the BFF, browser only sees HttpOnly cookies
 5. **BFFs bypass integration events** - Events flow directly between backend APIs
 6. **Optional pattern** - Only use if you have multiple frontends with different needs
 
 Remember: **BFF is an OPTIONAL architectural pattern.** It adds value when you have multiple frontend types with different data needs. For single-frontend applications, direct API consumption or a simple API Gateway is simpler and sufficient.
 
 ---
-
-Return to [06-api-gateway-optional.md](./06-api-gateway-optional.md) for API Gateway documentation, or [01-aspire-introduction.md](./01-aspire-introduction.md) for an overview of .NET Aspire integration.

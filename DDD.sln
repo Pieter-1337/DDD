@@ -118,6 +118,7 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "phase-6-integration", "phas
 		docs\phase-6-integration\04-billing-bounded-context.md = docs\phase-6-integration\04-billing-bounded-context.md
 		docs\phase-6-integration\05-observability.md = docs\phase-6-integration\05-observability.md
 		docs\phase-6-integration\06-api-gateway-optional.md = docs\phase-6-integration\06-api-gateway-optional.md
+		docs\phase-6-integration\07-bff-pattern-optional.md = docs\phase-6-integration\07-bff-pattern-optional.md
 	EndProjectSection
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Aspire.ServiceDefaults", "ServiceDefaults\Aspire.ServiceDefaults.csproj", "{18392BD8-C37F-4942-861D-F7F19CB7AF2D}"
