@@ -431,9 +431,9 @@ var billingApi = builder.AddProject<Projects.Billing_WebApi>("billing-webapi")
     .WithReference(messaging)
     .WaitFor(messaging);
 
-// Add Angular app
+// Add Angular app — uses "start-aspire" script which reads PORT env var from Aspire
 builder.AddJavaScriptApp("scheduling-angularapp",
-        "../Frontend/Angular/Scheduling.AngularApp", "start")
+        "../Frontend/Angular/Scheduling.AngularApp", "start-aspire")
     .WithReference(schedulingApi)
     .WithReference(billingApi)
     .WithHttpEndpoint(port: 4200, env: "PORT")
@@ -442,15 +442,25 @@ builder.AddJavaScriptApp("scheduling-angularapp",
 builder.Build().Run();
 ```
 
-> **Note:** `AddNpmApp` was deprecated in Aspire 13. Use `AddJavaScriptApp` instead. The third parameter (`"start"`) specifies which npm script to run — this maps to `ng serve` in `package.json`.
+> **Note:** `AddNpmApp` was deprecated in Aspire 13. Use `AddJavaScriptApp` instead. The third parameter (`"start-aspire"`) specifies which npm script to run. We use a dedicated `start-aspire` script that passes the Aspire-assigned `PORT` environment variable to `ng serve`. The regular `start` script runs Angular on its default port (4200) for standalone use.
+
+Add the `start-aspire` script to `package.json`:
+
+```json
+"scripts": {
+  "start": "ng serve",
+  "start-aspire": "ng serve --port %PORT%",
+  ...
+}
+```
 
 ### JavaScript App Options
 
 | Method | Purpose |
 |--------|---------|
-| `AddJavaScriptApp(name, path, script)` | Registers a JavaScript app (runs `npm run <script>`) |
+| `AddJavaScriptApp(name, path, script)` | Registers a JavaScript app (runs `npm run start-aspire` for instance) |
 | `.WithReference(schedulingApi)` | Injects service discovery for the API |
-| `.WithHttpEndpoint(port: 4200, env: "PORT")` | Pins the Angular dev server to port 4200 |
+| `.WithHttpEndpoint(env: "PORT")` | Assigns a port and injects it as the `PORT` environment variable |
 | `.WithExternalHttpEndpoints()` | Allows external access (browser) |
 
 ---
@@ -465,22 +475,13 @@ Run the Aspire AppHost from Visual Studio (`F5`) or the CLI:
 dotnet run --project Aspire.AppHost
 ```
 
-The Aspire dashboard will show all resources:
+The Aspire dashboard will show all resources including the Angular app. Click the Angular app's URL in the dashboard to open it in the browser — the port is assigned dynamically by Aspire.
 
-| Resource | Type | URL |
-|----------|------|-----|
-| scheduling-webapi | Project | `https://localhost:7001` |
-| billing-webapi | Project | `https://localhost:7002` |
-| scheduling-angularapp | JavaScript | `http://localhost:4200` |
-| messaging (RabbitMQ) | Container | Management UI via dashboard |
-
-Open `http://localhost:4200` in the browser to verify the Angular app loads.
-
-> **Alternative:** You can also run Angular standalone with `ng serve` from the project folder, but you'll need to start the backend APIs separately. Aspire handles all of this in one go.
+> **Alternative:** You can also run Angular standalone with `npm start` (port 4200) from the project folder, but you'll need to start the backend APIs separately. Aspire handles all of this in one go.
 
 ### Test API Connection
 
-1. Open `http://localhost:4200` in browser
+1. Open the Angular app URL from the Aspire dashboard
 2. Open browser DevTools (F12) → Network tab
 3. Navigate to a patient list page (once implemented)
 4. Verify requests to the backend API succeed with status 200
@@ -549,7 +550,7 @@ Expected result: A Material Design toolbar and button render correctly.
 | Framework | Development | Production |
 |-----------|-------------|------------|
 | **Blazor** | Aspire service discovery (`https+http://scheduling-webapi`) | Configured via `appsettings.json` or env variables |
-| **Angular** | CORS allows cross-origin requests to backend API | `environment.prod.ts` with full API URL |
+| **Angular** | Full API URLs in `environment.ts` + CORS on backend | Full API URLs in `environment.prod.ts` |
 
 ### Language & Paradigm
 

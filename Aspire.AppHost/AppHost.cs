@@ -14,11 +14,11 @@ var billingApi = builder.AddProject<Projects.Billing_WebApi>("billing-webapi")
     .WithReference(messaging)
     .WaitFor(messaging);
 
-// Add Angular app and define script to run on startup serve/start/other...
-builder.AddJavaScriptApp("scheduling-angularapp", "../Frontend/Angular/Scheduling.AngularApp", "start")
+// Add Angular app — uses "start-aspire" script which reads PORT env var from Aspire
+builder.AddJavaScriptApp("scheduling-angularapp", "../Frontend/Angular/Scheduling.AngularApp", "start-aspire")
     .WithReference(schedulingApi)
     .WithReference(billingApi)
-    .WithHttpEndpoint(port: 4200, env: "PORT")
+    .WithHttpEndpoint(env: "PORT")
     .WithExternalHttpEndpoints();
 
 builder.Build().Run();
