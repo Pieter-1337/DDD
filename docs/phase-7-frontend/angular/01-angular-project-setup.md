@@ -356,7 +356,23 @@ export class PatientService {
 
 .NET Aspire can orchestrate the Angular dev server alongside .NET services. This is optional but provides a unified development experience.
 
-### Add NPM App to AppHost
+### Install the Aspire JavaScript Hosting Package
+
+Add the version to `Directory.Packages.props` (Central Package Management):
+
+```xml
+<!-- Aspire Hosting -->
+<PackageVersion Include="Aspire.Hosting.RabbitMQ" Version="13.1.1" />
+<PackageVersion Include="Aspire.Hosting.JavaScript" Version="13.1.1" />
+```
+
+Then add the reference to `Aspire.AppHost/Aspire.AppHost.csproj`:
+
+```xml
+<PackageReference Include="Aspire.Hosting.JavaScript" />
+```
+
+### Add JavaScript App to AppHost
 
 **File: `Aspire.AppHost/AppHost.cs`**
 
@@ -370,21 +386,24 @@ var schedulingApi = builder.AddProject<Projects.Scheduling_WebApi>("scheduling-w
 var billingApi = builder.AddProject<Projects.Billing_WebApi>("billing-webapi")
     .WithReference(rabbitmq);
 
-// Add Angular app (optional)
-var angularApp = builder.AddNpmApp("scheduling-angularapp",
-        "../Frontend/Angular/Scheduling.AngularApp", "start")
+// Add Angular app
+var angularApp = builder.AddJavaScriptApp("scheduling-angularapp",
+        "../Frontend/Angular/Scheduling.AngularApp")
     .WithReference(schedulingApi)
+    .WithReference(billingApi)
     .WithHttpEndpoint(env: "PORT")
     .WithExternalHttpEndpoints();
 
 builder.Build().Run();
 ```
 
-### NPM App Options
+> **Note:** `AddNpmApp` was deprecated. Use `AddJavaScriptApp` instead — it auto-detects npm from `package.json` and runs the `dev` script during local development.
+
+### JavaScript App Options
 
 | Method | Purpose |
 |--------|---------|
-| `AddNpmApp(name, path, scriptName)` | Registers an npm-based app (runs `npm run start`) |
+| `AddJavaScriptApp(name, path)` | Registers a JavaScript app (auto-detects npm, runs `dev` script) |
 | `.WithReference(schedulingApi)` | Injects service discovery for the API |
 | `.WithHttpEndpoint(env: "PORT")` | Exposes the Angular dev server HTTP endpoint |
 | `.WithExternalHttpEndpoints()` | Allows external access (browser) |

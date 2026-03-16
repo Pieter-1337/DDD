@@ -6,12 +6,19 @@ var messaging = builder.AddRabbitMQ("messaging", password: messagingPassword)
     .WithManagementPlugin()
     .WithDataVolume();
 
-builder.AddProject<Projects.Scheduling_WebApi>("scheduling-webapi")
+var schedulingApi = builder.AddProject<Projects.Scheduling_WebApi>("scheduling-webapi")
     .WithReference(messaging)
     .WaitFor(messaging);
 
-builder.AddProject<Projects.Billing_WebApi>("billing-webapi")
+var billingApi = builder.AddProject<Projects.Billing_WebApi>("billing-webapi")
     .WithReference(messaging)
     .WaitFor(messaging);
+
+// Add Angular app
+builder.AddJavaScriptApp("scheduling-angularapp", "../Frontend/Angular/Scheduling.AngularApp")
+    .WithReference(schedulingApi)
+    .WithReference(billingApi)
+    .WithHttpEndpoint(env: "PORT")
+    .WithExternalHttpEndpoints();
 
 builder.Build().Run();
