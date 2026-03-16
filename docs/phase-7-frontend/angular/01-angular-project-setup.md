@@ -65,10 +65,10 @@ Package Manager: npm 10.x.x
 
 ## Step 2: Create Angular Project
 
-Navigate to the `05. Frontend/Angular` directory and create the Angular project with standalone components.
+Navigate to the `Frontend/Angular` directory and create the Angular project with standalone components.
 
 ```bash
-cd C:\projects\DDD\DDD\05. Frontend\Angular
+cd C:\projects\DDD\DDD\Frontend\Angular
 
 # Create project with options:
 # - Standalone components (modern Angular)
@@ -89,7 +89,46 @@ ng new Scheduling.AngularApp --style=scss --routing=true --ssr=false --standalon
 
 ---
 
-## Step 3: Add Angular Material
+## Step 3: Add to .NET Solution
+
+Angular projects aren't .NET projects, but Visual Studio supports JavaScript/TypeScript projects via `.esproj` files. This lets the Angular project appear in Solution Explorer under the `05. Frontend > Angular` solution folder.
+
+### Create `.esproj` File
+
+**File**: `Frontend/Angular/Scheduling.AngularApp/Scheduling.AngularApp.esproj`
+
+```xml
+<Project Sdk="Microsoft.VisualStudio.JavaScript.Sdk/1.0">
+  <PropertyGroup>
+    <StartupCommand>npm start</StartupCommand>
+    <JavaScriptTestRoot>src/</JavaScriptTestRoot>
+    <JavaScriptTestFramework>Vitest</JavaScriptTestFramework>
+    <ShouldRunBuildScript>false</ShouldRunBuildScript>
+    <PublishAssetsDirectory>$(DefaultItemExcludes);dist\</PublishAssetsDirectory>
+  </PropertyGroup>
+</Project>
+```
+
+| Property | Purpose |
+|----------|---------|
+| `StartupCommand` | Command VS runs when debugging (`npm start` runs `ng serve`) |
+| `JavaScriptTestRoot` | Root directory for test discovery |
+| `JavaScriptTestFramework` | Angular 21+ uses Vitest by default (replaces Karma/Jasmine) |
+| `ShouldRunBuildScript` | `false` — skip `npm run build` on VS build (Angular CLI handles builds) |
+| `PublishAssetsDirectory` | Where production build output goes (`dist/`) |
+
+### Add to Solution
+
+```bash
+cd C:\projects\DDD\DDD
+dotnet sln add Frontend/Angular/Scheduling.AngularApp/Scheduling.AngularApp.esproj --solution-folder "05. Frontend\Angular"
+```
+
+The Angular project now appears in Solution Explorer alongside .NET projects.
+
+---
+
+## Step 4: Add Angular Material
 
 Angular Material provides pre-built UI components following Material Design principles.
 
@@ -110,14 +149,14 @@ ng add @angular/material
 
 ---
 
-## Step 4: Project Structure
+## Step 5: Project Structure
 
 Organize the Angular project to mirror the domain structure and follow Angular best practices.
 
 ### Recommended Folder Structure
 
 ```
-05. Frontend/Angular/Scheduling.AngularApp/
+Frontend/Angular/Scheduling.AngularApp/
 ├── src/
 │   ├── app/
 │   │   ├── core/                           # Singleton services, core logic
@@ -173,7 +212,7 @@ Organize the Angular project to mirror the domain structure and follow Angular b
 
 ---
 
-## Step 5: Configure API Proxy
+## Step 6: Configure API Proxy
 
 Angular's dev server runs on a different port than the backend APIs (e.g., `http://localhost:4200` for Angular, `https://localhost:7001` for Scheduling API). To avoid CORS issues during development, configure a proxy to forward API requests.
 
@@ -243,7 +282,7 @@ Response returned to browser
 
 ---
 
-## Step 6: Configure HttpClient
+## Step 7: Configure HttpClient
 
 Angular's `HttpClient` is the standard way to make HTTP requests. Configure it as a global provider.
 
@@ -280,7 +319,7 @@ export const appConfig: ApplicationConfig = {
 
 ---
 
-## Step 7: Environment Configuration
+## Step 8: Environment Configuration
 
 Configure environment-specific settings for API base URLs.
 
@@ -321,7 +360,7 @@ export class PatientService {
 
 ---
 
-## Step 8: Register with Aspire (Optional)
+## Step 9: Register with Aspire (Optional)
 
 .NET Aspire can orchestrate the Angular dev server alongside .NET services. This is optional but provides a unified development experience.
 
@@ -341,7 +380,7 @@ var billingApi = builder.AddProject<Projects.Billing_WebApi>("billing-webapi")
 
 // Add Angular app (optional)
 var angularApp = builder.AddNpmApp("scheduling-angularapp",
-        "../05. Frontend/Angular/Scheduling.AngularApp", "start")
+        "../Frontend/Angular/Scheduling.AngularApp", "start")
     .WithReference(schedulingApi)
     .WithHttpEndpoint(env: "PORT")
     .WithExternalHttpEndpoints();
@@ -369,12 +408,12 @@ builder.Build().Run();
 
 ---
 
-## Step 9: Verify Installation
+## Step 10: Verify Installation
 
 ### Start Development Server
 
 ```bash
-cd C:\projects\DDD\DDD\05. Frontend\Angular\Scheduling.AngularApp
+cd C:\projects\DDD\DDD\Frontend\Angular\Scheduling.AngularApp
 ng serve
 ```
 
@@ -488,7 +527,7 @@ Before proceeding to the next document, verify:
 ### Angular CLI and Project
 
 - [ ] Angular CLI installed (`ng version` works)
-- [ ] Angular project created at `C:\projects\DDD\DDD\05. Frontend\Angular\Scheduling.AngularApp`
+- [ ] Angular project created at `C:\projects\DDD\DDD\Frontend\Angular\Scheduling.AngularApp`
 - [ ] Angular Material installed and configured
 - [ ] Dev server starts successfully (`ng serve`)
 - [ ] App loads at `http://localhost:4200`
