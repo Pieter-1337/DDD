@@ -175,7 +175,7 @@ Create a page to display all patients with filtering and navigation.
 
 ### PatientList.razor
 
-**Location:** `WebApplications/Scheduling.BlazorUI/Components/Pages/Patients/PatientList.razor`
+**Location:** `Frontend/Blazor/Scheduling.BlazorApp/Components/Pages/Patients/PatientList.razor`
 
 ```razor
 @page "/patients"
@@ -281,7 +281,7 @@ Create a page to display patient details and allow actions.
 
 ### PatientDetail.razor
 
-**Location:** `WebApplications/Scheduling.BlazorUI/Components/Pages/Patients/PatientDetail.razor`
+**Location:** `Frontend/Blazor/Scheduling.BlazorApp/Components/Pages/Patients/PatientDetail.razor`
 
 ```razor
 @page "/patients/{PatientId:guid}"
@@ -481,7 +481,7 @@ Add patient links to the main navigation menu.
 
 ### NavMenu.razor
 
-**Location:** `WebApplications/Scheduling.BlazorUI/Components/Layout/NavMenu.razor`
+**Location:** `Frontend/Blazor/Scheduling.BlazorApp/Components/Layout/NavMenu.razor`
 
 ```razor
 @inject NavigationManager Navigation
@@ -645,7 +645,7 @@ public void Dispose()
 ## 8. Folder Structure After This Step
 
 ```
-WebApplications/Scheduling.BlazorUI/
+Frontend/Blazor/Scheduling.BlazorApp/
 ├── Components/
 │   ├── Layout/
 │   │   ├── MainLayout.razor

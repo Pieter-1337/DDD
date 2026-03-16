@@ -127,6 +127,11 @@ Shared/
 WebApplications/
 ├── Scheduling.WebApi/                 # Scheduling API host
 └── Billing.WebApi/                    # Billing API host
+Frontend/
+├── Blazor/
+│   └── Scheduling.BlazorApp/         # Blazor Server frontend
+└── Angular/
+    └── Scheduling.AngularApp/        # Angular SPA frontend
 Aspire.AppHost/                        # .NET Aspire orchestrator
 Aspire.ServiceDefaults/                # Shared OpenTelemetry, health checks, resilience
 ```

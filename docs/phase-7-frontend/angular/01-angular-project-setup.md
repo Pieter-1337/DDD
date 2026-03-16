@@ -40,18 +40,7 @@ Before starting, ensure you have:
 
 - [ ] Node.js 20+ installed (`node --version`)
 - [ ] npm or pnpm package manager
-- [ ] Backend APIs running via Aspire (Scheduling.WebApi, Billing.WebApi)
 - [ ] Basic TypeScript knowledge (or willingness to learn)
-
-### Verify Backend APIs
-
-```bash
-# Check Aspire dashboard (typically http://localhost:15000)
-# Verify Scheduling.WebApi is running (e.g., https://localhost:7001)
-# Verify Billing.WebApi is running (e.g., https://localhost:7002)
-```
-
----
 
 ## Step 1: Install Angular CLI
 
@@ -76,10 +65,10 @@ Package Manager: npm 10.x.x
 
 ## Step 2: Create Angular Project
 
-Navigate to the `WebApplications` directory and create the Angular project with standalone components.
+Navigate to the `Frontend/Angular` directory and create the Angular project with standalone components.
 
 ```bash
-cd C:\projects\DDD\DDD\WebApplications
+cd C:\projects\DDD\DDD\Frontend\Angular
 
 # Create project with options:
 # - Standalone components (modern Angular)
@@ -128,7 +117,7 @@ Organize the Angular project to mirror the domain structure and follow Angular b
 ### Recommended Folder Structure
 
 ```
-WebApplications/Scheduling.AngularApp/
+Frontend/Angular/Scheduling.AngularApp/
 ├── src/
 │   ├── app/
 │   │   ├── core/                           # Singleton services, core logic
@@ -352,7 +341,7 @@ var billingApi = builder.AddProject<Projects.Billing_WebApi>("billing-webapi")
 
 // Add Angular app (optional)
 var angularApp = builder.AddNpmApp("scheduling-angularapp",
-        "../WebApplications/Scheduling.AngularApp", "start")
+        "../Frontend/Angular/Scheduling.AngularApp", "start")
     .WithReference(schedulingApi)
     .WithHttpEndpoint(env: "PORT")
     .WithExternalHttpEndpoints();
@@ -385,7 +374,7 @@ builder.Build().Run();
 ### Start Development Server
 
 ```bash
-cd C:\projects\DDD\DDD\WebApplications\Scheduling.AngularApp
+cd C:\projects\DDD\DDD\Frontend\Angular\Scheduling.AngularApp
 ng serve
 ```
 
@@ -499,7 +488,7 @@ Before proceeding to the next document, verify:
 ### Angular CLI and Project
 
 - [ ] Angular CLI installed (`ng version` works)
-- [ ] Angular project created at `C:\projects\DDD\DDD\WebApplications\Scheduling.AngularApp`
+- [ ] Angular project created at `C:\projects\DDD\DDD\Frontend\Angular\Scheduling.AngularApp`
 - [ ] Angular Material installed and configured
 - [ ] Dev server starts successfully (`ng serve`)
 - [ ] App loads at `http://localhost:4200`

@@ -56,7 +56,7 @@ The simplest form of state management—store data in component fields.
 
 ### Example: Patient List Component
 
-**File**: `C:\projects\DDD\DDD\WebApplications\Scheduling.BlazorApp\Components\Pages\Patients\PatientList.razor`
+**File**: `C:\projects\DDD\DDD\Frontend\Blazor\Scheduling.BlazorApp\Components\Pages\Patients\PatientList.razor`
 
 ```razor
 @page "/patients"
@@ -123,7 +123,7 @@ After creating a patient, you navigate to the patient list and want to show "Pat
 
 ### Implementation: NotificationService
 
-**File**: `C:\projects\DDD\DDD\WebApplications\Scheduling.BlazorApp\Services\NotificationService.cs`
+**File**: `C:\projects\DDD\DDD\Frontend\Blazor\Scheduling.BlazorApp\Services\NotificationService.cs`
 
 ```csharp
 namespace Scheduling.BlazorApp.Services;
@@ -213,7 +213,7 @@ public enum NotificationType
 
 ### Register as Scoped
 
-**File**: `C:\projects\DDD\DDD\WebApplications\Scheduling.BlazorApp\Program.cs`
+**File**: `C:\projects\DDD\DDD\Frontend\Blazor\Scheduling.BlazorApp\Program.cs`
 
 ```csharp
 // Scoped services—one instance per SignalR circuit (user session)
@@ -228,7 +228,7 @@ Create a component that subscribes to notification changes and displays them.
 
 ### NotificationDisplay Component
 
-**File**: `C:\projects\DDD\DDD\WebApplications\Scheduling.BlazorApp\Components\Layout\NotificationDisplay.razor`
+**File**: `C:\projects\DDD\DDD\Frontend\Blazor\Scheduling.BlazorApp\Components\Layout\NotificationDisplay.razor`
 
 ```razor
 @inject NotificationService NotificationService
@@ -272,7 +272,7 @@ Create a component that subscribes to notification changes and displays them.
 
 ### Add to MainLayout
 
-**File**: `C:\projects\DDD\DDD\WebApplications\Scheduling.BlazorApp\Components\Layout\MainLayout.razor`
+**File**: `C:\projects\DDD\DDD\Frontend\Blazor\Scheduling.BlazorApp\Components\Layout\MainLayout.razor`
 
 ```razor
 @inherits LayoutComponentBase
@@ -299,7 +299,7 @@ Create a component that subscribes to notification changes and displays them.
 
 ### Example: Create Patient Flow
 
-**File**: `C:\projects\DDD\DDD\WebApplications\Scheduling.BlazorApp\Components\Pages\Patients\CreatePatient.razor`
+**File**: `C:\projects\DDD\DDD\Frontend\Blazor\Scheduling.BlazorApp\Components\Pages\Patients\CreatePatient.razor`
 
 ```razor
 @page "/patients/create"
