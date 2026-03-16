@@ -65,10 +65,10 @@ Package Manager: npm 10.x.x
 
 ## Step 2: Create Angular Project
 
-Navigate to the `Frontend/Angular` directory and create the Angular project with standalone components.
+Navigate to the `05. Frontend/Angular` directory and create the Angular project with standalone components.
 
 ```bash
-cd C:\projects\DDD\DDD\Frontend\Angular
+cd C:\projects\DDD\DDD\05. Frontend\Angular
 
 # Create project with options:
 # - Standalone components (modern Angular)
@@ -117,7 +117,7 @@ Organize the Angular project to mirror the domain structure and follow Angular b
 ### Recommended Folder Structure
 
 ```
-Frontend/Angular/Scheduling.AngularApp/
+05. Frontend/Angular/Scheduling.AngularApp/
 ├── src/
 │   ├── app/
 │   │   ├── core/                           # Singleton services, core logic
@@ -341,7 +341,7 @@ var billingApi = builder.AddProject<Projects.Billing_WebApi>("billing-webapi")
 
 // Add Angular app (optional)
 var angularApp = builder.AddNpmApp("scheduling-angularapp",
-        "../Frontend/Angular/Scheduling.AngularApp", "start")
+        "../05. Frontend/Angular/Scheduling.AngularApp", "start")
     .WithReference(schedulingApi)
     .WithHttpEndpoint(env: "PORT")
     .WithExternalHttpEndpoints();
@@ -374,7 +374,7 @@ builder.Build().Run();
 ### Start Development Server
 
 ```bash
-cd C:\projects\DDD\DDD\Frontend\Angular\Scheduling.AngularApp
+cd C:\projects\DDD\DDD\05. Frontend\Angular\Scheduling.AngularApp
 ng serve
 ```
 
@@ -488,7 +488,7 @@ Before proceeding to the next document, verify:
 ### Angular CLI and Project
 
 - [ ] Angular CLI installed (`ng version` works)
-- [ ] Angular project created at `C:\projects\DDD\DDD\Frontend\Angular\Scheduling.AngularApp`
+- [ ] Angular project created at `C:\projects\DDD\DDD\05. Frontend\Angular\Scheduling.AngularApp`
 - [ ] Angular Material installed and configured
 - [ ] Dev server starts successfully (`ng serve`)
 - [ ] App loads at `http://localhost:4200`

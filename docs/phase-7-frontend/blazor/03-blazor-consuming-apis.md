@@ -23,7 +23,7 @@ The typed HttpClient pattern creates a dedicated service class that encapsulates
 
 ### Implementation
 
-**File**: `C:\projects\DDD\DDD\Frontend\Blazor\Scheduling.BlazorApp\Services\PatientApiService.cs`
+**File**: `C:\projects\DDD\DDD\05. Frontend\Blazor\Scheduling.BlazorApp\Services\PatientApiService.cs`
 
 ```csharp
 using System.Net.Http.Json;
@@ -84,7 +84,7 @@ DTOs (Data Transfer Objects) define the contract between Blazor app and backend 
 
 ### Implementation
 
-**File**: `C:\projects\DDD\DDD\Frontend\Blazor\Scheduling.BlazorApp\Services\PatientDto.cs`
+**File**: `C:\projects\DDD\DDD\05. Frontend\Blazor\Scheduling.BlazorApp\Services\PatientDto.cs`
 
 ```csharp
 namespace Scheduling.BlazorApp.Services;
@@ -125,7 +125,7 @@ Register the typed HttpClient with Aspire service discovery in `Program.cs`.
 
 ### Configuration
 
-**File**: `C:\projects\DDD\DDD\Frontend\Blazor\Scheduling.BlazorApp\Program.cs`
+**File**: `C:\projects\DDD\DDD\05. Frontend\Blazor\Scheduling.BlazorApp\Program.cs`
 
 ```csharp
 // Register typed HttpClient with Aspire service discovery
@@ -202,7 +202,7 @@ public async Task<List<PatientDto>> GetAllPatientsAsync(string? status = null)
 
 ### Component-Level Error Handling
 
-**File**: `C:\projects\DDD\DDD\Frontend\Blazor\Scheduling.BlazorApp\Components\Pages\Patients\PatientList.razor.cs`
+**File**: `C:\projects\DDD\DDD\05. Frontend\Blazor\Scheduling.BlazorApp\Components\Pages\Patients\PatientList.razor.cs`
 
 ```csharp
 private string? errorMessage;
@@ -228,7 +228,7 @@ protected override async Task OnInitializedAsync()
 
 ### UI Error Display
 
-**File**: `C:\projects\DDD\DDD\Frontend\Blazor\Scheduling.BlazorApp\Components\Pages\Patients\PatientList.razor`
+**File**: `C:\projects\DDD\DDD\05. Frontend\Blazor\Scheduling.BlazorApp\Components\Pages\Patients\PatientList.razor`
 
 ```razor
 @if (errorMessage is not null)

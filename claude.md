@@ -127,7 +127,7 @@ Shared/
 WebApplications/
 ├── Scheduling.WebApi/                 # Scheduling API host
 └── Billing.WebApi/                    # Billing API host
-Frontend/
+05. Frontend/
 ├── Blazor/
 │   └── Scheduling.BlazorApp/         # Blazor Server frontend
 └── Angular/

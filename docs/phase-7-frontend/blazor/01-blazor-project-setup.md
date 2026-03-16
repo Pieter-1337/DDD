@@ -69,10 +69,10 @@ Create the project using the .NET 9 Blazor template with interactive server rend
 cd C:\projects\DDD\DDD
 
 # Create Blazor Server project
-dotnet new blazor -n Scheduling.BlazorApp -o Frontend/Blazor/Scheduling.BlazorApp --interactivity Server
+dotnet new blazor -n Scheduling.BlazorApp -o 05. Frontend/Blazor/Scheduling.BlazorApp --interactivity Server
 
 # Add to solution
-dotnet sln add Frontend/Blazor/Scheduling.BlazorApp
+dotnet sln add 05. Frontend/Blazor/Scheduling.BlazorApp
 ```
 
 ### Understanding the Template Parameters
@@ -81,13 +81,13 @@ dotnet sln add Frontend/Blazor/Scheduling.BlazorApp
 |-----------|-------|---------|
 | `blazor` | Template name | Creates a Blazor web application |
 | `-n Scheduling.BlazorApp` | Project name | Names the project and namespace |
-| `-o Frontend/Blazor/Scheduling.BlazorApp` | Output directory | Places project in Frontend/Blazor folder |
+| `-o 05. Frontend/Blazor/Scheduling.BlazorApp` | Output directory | Places project in 05. Frontend/Blazor folder |
 | `--interactivity Server` | Render mode | Configures Blazor Server (SignalR-based) |
 
 ### Generated Project Structure
 
 ```
-Frontend/Blazor/Scheduling.BlazorApp/
+05. Frontend/Blazor/Scheduling.BlazorApp/
 ├── Components/
 │   ├── Layout/
 │   │   ├── MainLayout.razor          # Main layout wrapper
@@ -117,7 +117,7 @@ FluentUI Blazor provides Microsoft's Fluent Design System components for Blazor 
 ### Install the NuGet Package
 
 ```bash
-cd Frontend/Blazor/Scheduling.BlazorApp
+cd 05. Frontend/Blazor/Scheduling.BlazorApp
 dotnet add package Microsoft.FluentUI.AspNetCore.Components
 ```
 
@@ -138,7 +138,7 @@ Then remove the `Version` attribute from the csproj:
 
 Add FluentUI services to the DI container:
 
-**Frontend/Blazor/Scheduling.BlazorApp/Program.cs**:
+**05. Frontend/Blazor/Scheduling.BlazorApp/Program.cs**:
 ```csharp
 using Microsoft.FluentUI.AspNetCore.Components;
 
@@ -174,7 +174,7 @@ app.Run();
 
 Add the FluentUI namespace globally so it's available in all components:
 
-**Frontend/Blazor/Scheduling.BlazorApp/Components/_Imports.razor**:
+**05. Frontend/Blazor/Scheduling.BlazorApp/Components/_Imports.razor**:
 ```razor
 @using System.Net.Http
 @using System.Net.Http.Json
@@ -193,7 +193,7 @@ Add the FluentUI namespace globally so it's available in all components:
 
 Include FluentUI CSS and JavaScript in the root component:
 
-**Frontend/Blazor/Scheduling.BlazorApp/Components/App.razor**:
+**05. Frontend/Blazor/Scheduling.BlazorApp/Components/App.razor**:
 ```razor
 <!DOCTYPE html>
 <html lang="en">
@@ -230,7 +230,7 @@ Add the Blazor app to the Aspire orchestration so it starts alongside the backen
 
 ```bash
 cd Aspire.AppHost
-dotnet add reference ../Frontend/Blazor/Scheduling.BlazorApp/Scheduling.BlazorApp.csproj
+dotnet add reference ../05. Frontend/Blazor/Scheduling.BlazorApp/Scheduling.BlazorApp.csproj
 ```
 
 ### Update AppHost.cs
@@ -285,7 +285,7 @@ Configure typed HttpClients to communicate with backend APIs using Aspire servic
 First, add a reference to the Aspire ServiceDefaults project:
 
 ```bash
-cd Frontend/Blazor/Scheduling.BlazorApp
+cd 05. Frontend/Blazor/Scheduling.BlazorApp
 dotnet add reference ../../../ServiceDefaults/Aspire.ServiceDefaults.csproj
 ```
 
@@ -293,7 +293,7 @@ dotnet add reference ../../../ServiceDefaults/Aspire.ServiceDefaults.csproj
 
 Update Program.cs to register HttpClients with Aspire service discovery:
 
-**Frontend/Blazor/Scheduling.BlazorApp/Program.cs**:
+**05. Frontend/Blazor/Scheduling.BlazorApp/Program.cs**:
 ```csharp
 using Microsoft.FluentUI.AspNetCore.Components;
 
@@ -362,7 +362,7 @@ The `https+http://` scheme tells Aspire to prefer HTTPS but fall back to HTTP if
 
 For cleaner component code, create a service that wraps the HttpClient:
 
-**Frontend/Blazor/Scheduling.BlazorApp/Services/PatientApiService.cs**:
+**05. Frontend/Blazor/Scheduling.BlazorApp/Services/PatientApiService.cs**:
 ```csharp
 namespace Scheduling.BlazorApp.Services;
 
@@ -432,7 +432,7 @@ Organize the Blazor project following Blazor conventions and Clean Architecture 
 ### Recommended Structure
 
 ```
-Frontend/Blazor/Scheduling.BlazorApp/
+05. Frontend/Blazor/Scheduling.BlazorApp/
 ├── Components/
 │   ├── Layout/
 │   │   ├── MainLayout.razor              # Main layout wrapper
@@ -485,7 +485,7 @@ Frontend/Blazor/Scheduling.BlazorApp/
 
 Here's the complete Program.cs with all configurations:
 
-**Frontend/Blazor/Scheduling.BlazorApp/Program.cs**:
+**05. Frontend/Blazor/Scheduling.BlazorApp/Program.cs**:
 ```csharp
 using Microsoft.FluentUI.AspNetCore.Components;
 using Scheduling.BlazorApp.Services;

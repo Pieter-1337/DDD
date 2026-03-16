@@ -38,7 +38,7 @@ The Create Patient form demonstrates a complete form implementation with FluentV
 
 ### Component Implementation
 
-**File**: `C:\projects\DDD\DDD\Frontend\Blazor\Scheduling.BlazorApp\Components\Pages\Patients\CreatePatient.razor`
+**File**: `C:\projects\DDD\DDD\05. Frontend\Blazor\Scheduling.BlazorApp\Components\Pages\Patients\CreatePatient.razor`
 
 ```razor
 @page "/patients/create"
@@ -166,7 +166,7 @@ The form model is a simple POCO with nullable properties. FluentValidation handl
 
 ### Form Model
 
-**File**: `C:\projects\DDD\DDD\Frontend\Blazor\Scheduling.BlazorApp\Models\CreatePatientModel.cs`
+**File**: `C:\projects\DDD\DDD\05. Frontend\Blazor\Scheduling.BlazorApp\Models\CreatePatientModel.cs`
 
 ```csharp
 namespace Scheduling.BlazorApp.Models;
@@ -187,7 +187,7 @@ public class CreatePatientModel
 
 ### Validator Implementation
 
-**File**: `C:\projects\DDD\DDD\Frontend\Blazor\Scheduling.BlazorApp\Validators\CreatePatientModelValidator.cs`
+**File**: `C:\projects\DDD\DDD\05. Frontend\Blazor\Scheduling.BlazorApp\Validators\CreatePatientModelValidator.cs`
 
 ```csharp
 using FluentValidation;
@@ -250,7 +250,7 @@ dotnet add package Blazored.FluentValidation
 
 ### Register Validators in Dependency Injection
 
-**File**: `C:\projects\DDD\DDD\Frontend\Blazor\Scheduling.BlazorApp\Program.cs`
+**File**: `C:\projects\DDD\DDD\05. Frontend\Blazor\Scheduling.BlazorApp\Program.cs`
 
 ```csharp
 using FluentValidation;
