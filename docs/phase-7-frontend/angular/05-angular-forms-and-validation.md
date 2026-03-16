@@ -81,112 +81,8 @@ import { PatientService } from '../../../core/services/patient.service';
     MatDatepickerModule,
     MatNativeDateModule,
   ],
-  template: `
-    <div class="create-patient-container">
-      <h1>Create Patient</h1>
-
-      <form [formGroup]="form" (ngSubmit)="onSubmit()">
-        <mat-form-field>
-          <mat-label>First Name</mat-label>
-          <input matInput formControlName="firstName" />
-          @if (form.controls.firstName.hasError('required')) {
-            <mat-error>First name is required</mat-error>
-          }
-          @if (form.controls.firstName.hasError('maxlength')) {
-            <mat-error>Maximum 100 characters</mat-error>
-          }
-        </mat-form-field>
-
-        <mat-form-field>
-          <mat-label>Last Name</mat-label>
-          <input matInput formControlName="lastName" />
-          @if (form.controls.lastName.hasError('required')) {
-            <mat-error>Last name is required</mat-error>
-          }
-          @if (form.controls.lastName.hasError('maxlength')) {
-            <mat-error>Maximum 100 characters</mat-error>
-          }
-        </mat-form-field>
-
-        <mat-form-field>
-          <mat-label>Email</mat-label>
-          <input matInput formControlName="email" type="email" />
-          @if (form.controls.email.hasError('required')) {
-            <mat-error>Email is required</mat-error>
-          }
-          @if (form.controls.email.hasError('email')) {
-            <mat-error>Invalid email format</mat-error>
-          }
-        </mat-form-field>
-
-        <mat-form-field>
-          <mat-label>Date of Birth</mat-label>
-          <input matInput [matDatepicker]="picker" formControlName="dateOfBirth" />
-          <mat-datepicker-toggle matIconSuffix [for]="picker" />
-          <mat-datepicker #picker />
-          @if (form.controls.dateOfBirth.hasError('required')) {
-            <mat-error>Date of birth is required</mat-error>
-          }
-          @if (form.controls.dateOfBirth.hasError('pastDate')) {
-            <mat-error>{{ form.controls.dateOfBirth.errors?.['pastDate'].message }}</mat-error>
-          }
-        </mat-form-field>
-
-        <div class="actions">
-          <button mat-raised-button color="primary" type="submit"
-                  [disabled]="form.invalid || isSubmitting">
-            {{ isSubmitting ? 'Creating...' : 'Create Patient' }}
-          </button>
-          <button mat-button type="button" (click)="onCancel()">
-            Cancel
-          </button>
-        </div>
-
-        @if (serverErrors.length > 0) {
-          <div class="server-errors">
-            @for (error of serverErrors; track error) {
-              <p class="error">{{ error }}</p>
-            }
-          </div>
-        }
-      </form>
-    </div>
-  `,
-  styles: [`
-    .create-patient-container {
-      max-width: 600px;
-      margin: 2rem auto;
-      padding: 2rem;
-    }
-
-    form {
-      display: flex;
-      flex-direction: column;
-      gap: 1rem;
-    }
-
-    mat-form-field {
-      width: 100%;
-    }
-
-    .actions {
-      display: flex;
-      gap: 1rem;
-      margin-top: 1rem;
-    }
-
-    .server-errors {
-      margin-top: 1rem;
-      padding: 1rem;
-      background-color: #ffebee;
-      border-radius: 4px;
-    }
-
-    .error {
-      color: #c62828;
-      margin: 0.25rem 0;
-    }
-  `]
+  templateUrl: './create-patient.component.html',
+  styleUrl: './create-patient.component.css',
 })
 export class CreatePatientComponent {
   private fb = inject(FormBuilder);
@@ -241,6 +137,116 @@ export class CreatePatientComponent {
       this.serverErrors = [err.message || 'Failed to create patient'];
     }
   }
+}
+```
+
+**create-patient.component.html**:
+```html
+<div class="create-patient-container">
+  <h1>Create Patient</h1>
+
+  <form [formGroup]="form" (ngSubmit)="onSubmit()">
+    <mat-form-field>
+      <mat-label>First Name</mat-label>
+      <input matInput formControlName="firstName" />
+      @if (form.controls.firstName.hasError('required')) {
+        <mat-error>First name is required</mat-error>
+      }
+      @if (form.controls.firstName.hasError('maxlength')) {
+        <mat-error>Maximum 100 characters</mat-error>
+      }
+    </mat-form-field>
+
+    <mat-form-field>
+      <mat-label>Last Name</mat-label>
+      <input matInput formControlName="lastName" />
+      @if (form.controls.lastName.hasError('required')) {
+        <mat-error>Last name is required</mat-error>
+      }
+      @if (form.controls.lastName.hasError('maxlength')) {
+        <mat-error>Maximum 100 characters</mat-error>
+      }
+    </mat-form-field>
+
+    <mat-form-field>
+      <mat-label>Email</mat-label>
+      <input matInput formControlName="email" type="email" />
+      @if (form.controls.email.hasError('required')) {
+        <mat-error>Email is required</mat-error>
+      }
+      @if (form.controls.email.hasError('email')) {
+        <mat-error>Invalid email format</mat-error>
+      }
+    </mat-form-field>
+
+    <mat-form-field>
+      <mat-label>Date of Birth</mat-label>
+      <input matInput [matDatepicker]="picker" formControlName="dateOfBirth" />
+      <mat-datepicker-toggle matIconSuffix [for]="picker" />
+      <mat-datepicker #picker />
+      @if (form.controls.dateOfBirth.hasError('required')) {
+        <mat-error>Date of birth is required</mat-error>
+      }
+      @if (form.controls.dateOfBirth.hasError('pastDate')) {
+        <mat-error>{{ form.controls.dateOfBirth.errors?.['pastDate'].message }}</mat-error>
+      }
+    </mat-form-field>
+
+    <div class="actions">
+      <button mat-raised-button color="primary" type="submit"
+              [disabled]="form.invalid || isSubmitting">
+        {{ isSubmitting ? 'Creating...' : 'Create Patient' }}
+      </button>
+      <button mat-button type="button" (click)="onCancel()">
+        Cancel
+      </button>
+    </div>
+
+    @if (serverErrors.length > 0) {
+      <div class="server-errors">
+        @for (error of serverErrors; track error) {
+          <p class="error">{{ error }}</p>
+        }
+      </div>
+    }
+  </form>
+</div>
+```
+
+**create-patient.component.css**:
+```css
+.create-patient-container {
+  max-width: 600px;
+  margin: 2rem auto;
+  padding: 2rem;
+}
+
+form {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+mat-form-field {
+  width: 100%;
+}
+
+.actions {
+  display: flex;
+  gap: 1rem;
+  margin-top: 1rem;
+}
+
+.server-errors {
+  margin-top: 1rem;
+  padding: 1rem;
+  background-color: #ffebee;
+  border-radius: 4px;
+}
+
+.error {
+  color: #c62828;
+  margin: 0.25rem 0;
 }
 ```
 

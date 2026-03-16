@@ -549,65 +549,8 @@ import { Patient } from '../../../core/models/patient.model';
   selector: 'app-patient-list',
   standalone: true,
   imports: [CommonModule],
-  template: `
-    <div class="container">
-      <h2>Patients</h2>
-
-      <div *ngIf="errorMessage()" class="alert alert-danger">
-        {{ errorMessage() }}
-      </div>
-
-      <div *ngIf="isLoading()">
-        <p>Loading patients...</p>
-      </div>
-
-      <table *ngIf="!isLoading() && patients().length > 0" class="table">
-        <thead>
-          <tr>
-            <th>Name</th>
-            <th>Email</th>
-            <th>Date of Birth</th>
-            <th>Status</th>
-            <th>Actions</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr *ngFor="let patient of patients()">
-            <td>{{ patient.firstName }} {{ patient.lastName }}</td>
-            <td>{{ patient.email }}</td>
-            <td>{{ patient.dateOfBirth | date }}</td>
-            <td>
-              <span [class]="'badge bg-' + (patient.status === 'Active' ? 'success' : 'secondary')">
-                {{ patient.status }}
-              </span>
-            </td>
-            <td>
-              <button
-                *ngIf="patient.status === 'Active'"
-                (click)="suspendPatient(patient.id)"
-                class="btn btn-sm btn-warning">
-                Suspend
-              </button>
-              <button
-                *ngIf="patient.status === 'Suspended'"
-                (click)="activatePatient(patient.id)"
-                class="btn btn-sm btn-success">
-                Activate
-              </button>
-            </td>
-          </tr>
-        </tbody>
-      </table>
-
-      <div *ngIf="!isLoading() && patients().length === 0">
-        <p>No patients found.</p>
-      </div>
-    </div>
-  `,
-  styles: [`
-    .container { padding: 2rem; }
-    .alert { margin-bottom: 1rem; }
-  `]
+  templateUrl: './patient-list.component.html',
+  styleUrl: './patient-list.component.css',
 })
 export class PatientListComponent implements OnInit {
   private patientService = inject(PatientService);
@@ -654,6 +597,71 @@ export class PatientListComponent implements OnInit {
     });
   }
 }
+```
+
+**File**: `src/app/features/patients/patient-list/patient-list.component.html`
+
+```html
+<div class="container">
+  <h2>Patients</h2>
+
+  <div *ngIf="errorMessage()" class="alert alert-danger">
+    {{ errorMessage() }}
+  </div>
+
+  <div *ngIf="isLoading()">
+    <p>Loading patients...</p>
+  </div>
+
+  <table *ngIf="!isLoading() && patients().length > 0" class="table">
+    <thead>
+      <tr>
+        <th>Name</th>
+        <th>Email</th>
+        <th>Date of Birth</th>
+        <th>Status</th>
+        <th>Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr *ngFor="let patient of patients()">
+        <td>{{ patient.firstName }} {{ patient.lastName }}</td>
+        <td>{{ patient.email }}</td>
+        <td>{{ patient.dateOfBirth | date }}</td>
+        <td>
+          <span [class]="'badge bg-' + (patient.status === 'Active' ? 'success' : 'secondary')">
+            {{ patient.status }}
+          </span>
+        </td>
+        <td>
+          <button
+            *ngIf="patient.status === 'Active'"
+            (click)="suspendPatient(patient.id)"
+            class="btn btn-sm btn-warning">
+            Suspend
+          </button>
+          <button
+            *ngIf="patient.status === 'Suspended'"
+            (click)="activatePatient(patient.id)"
+            class="btn btn-sm btn-success">
+            Activate
+          </button>
+        </td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div *ngIf="!isLoading() && patients().length === 0">
+    <p>No patients found.</p>
+  </div>
+</div>
+```
+
+**File**: `src/app/features/patients/patient-list/patient-list.component.css`
+
+```css
+.container { padding: 2rem; }
+.alert { margin-bottom: 1rem; }
 ```
 
 ---

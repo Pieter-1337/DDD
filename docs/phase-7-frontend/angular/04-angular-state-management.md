@@ -50,18 +50,7 @@ import { Patient } from '../../models/patient.model';
 @Component({
   selector: 'app-patient-list',
   standalone: true,
-  template: `
-    <div>
-      @if (isLoading()) {
-        <p>Loading...</p>
-      } @else {
-        <p>Found {{ filteredCount() }} patients</p>
-        @for (patient of filteredPatients(); track patient.id) {
-          <div>{{ patient.firstName }} {{ patient.lastName }}</div>
-        }
-      }
-    </div>
-  `
+  templateUrl: './patient-list.component.html',
 })
 export class PatientListComponent {
   // Writable signals
@@ -101,6 +90,20 @@ export class PatientListComponent {
     this.selectedStatus.set(status); // Computed values auto-update
   }
 }
+```
+
+**patient-list.component.html**:
+```html
+<div>
+  @if (isLoading()) {
+    <p>Loading...</p>
+  } @else {
+    <p>Found {{ filteredCount() }} patients</p>
+    @for (patient of filteredPatients(); track patient.id) {
+      <div>{{ patient.firstName }} {{ patient.lastName }}</div>
+    }
+  }
+</div>
 ```
 
 ### Signal Update Patterns
@@ -213,14 +216,7 @@ import { PatientService } from '../../../core/services/patient.service';
 @Component({
   selector: 'app-create-patient',
   standalone: true,
-  template: `
-    <form [formGroup]="form" (ngSubmit)="onSubmit()">
-      <!-- Form fields -->
-      <button type="submit" [disabled]="form.invalid || isSubmitting()">
-        Create Patient
-      </button>
-    </form>
-  `
+  templateUrl: './create-patient.component.html',
 })
 export class CreatePatientComponent {
   private fb = inject(FormBuilder);
@@ -265,6 +261,16 @@ export class CreatePatientComponent {
     });
   }
 }
+```
+
+**create-patient.component.html**:
+```html
+<form [formGroup]="form" (ngSubmit)="onSubmit()">
+  <!-- Form fields -->
+  <button type="submit" [disabled]="form.invalid || isSubmitting()">
+    Create Patient
+  </button>
+</form>
 ```
 
 ### MatSnackBar Styling
@@ -313,107 +319,113 @@ import { NotificationService } from '../../core/services/notification.service';
   selector: 'app-notifications',
   standalone: true,
   imports: [CommonModule],
-  template: `
-    <div class="notification-container">
-      @for (notification of notificationService.notifications(); track $index) {
-        <div
-          class="notification"
-          [class.success]="notification.type === 'success'"
-          [class.error]="notification.type === 'error'"
-          [class.warning]="notification.type === 'warning'"
-          [class.info]="notification.type === 'info'"
-        >
-          <span class="notification-message">{{ notification.message }}</span>
-          <button
-            class="notification-close"
-            (click)="notificationService.dismiss($index)"
-            aria-label="Close notification"
-          >
-            ×
-          </button>
-        </div>
-      }
-    </div>
-  `,
-  styles: [`
-    .notification-container {
-      position: fixed;
-      top: 20px;
-      right: 20px;
-      z-index: 9999;
-      display: flex;
-      flex-direction: column;
-      gap: 10px;
-      max-width: 400px;
-    }
-
-    .notification {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding: 12px 16px;
-      border-radius: 4px;
-      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
-      background-color: white;
-      border-left: 4px solid;
-      animation: slideIn 0.3s ease-out;
-    }
-
-    @keyframes slideIn {
-      from {
-        transform: translateX(400px);
-        opacity: 0;
-      }
-      to {
-        transform: translateX(0);
-        opacity: 1;
-      }
-    }
-
-    .notification.success {
-      border-left-color: #4caf50;
-      background-color: #f1f8f4;
-    }
-
-    .notification.error {
-      border-left-color: #f44336;
-      background-color: #fef5f5;
-    }
-
-    .notification.warning {
-      border-left-color: #ff9800;
-      background-color: #fff8f0;
-    }
-
-    .notification.info {
-      border-left-color: #2196f3;
-      background-color: #f0f7ff;
-    }
-
-    .notification-message {
-      flex: 1;
-      margin-right: 12px;
-    }
-
-    .notification-close {
-      background: none;
-      border: none;
-      font-size: 24px;
-      line-height: 1;
-      cursor: pointer;
-      color: #666;
-      padding: 0;
-      width: 24px;
-      height: 24px;
-    }
-
-    .notification-close:hover {
-      color: #000;
-    }
-  `]
+  templateUrl: './notification-display.component.html',
+  styleUrl: './notification-display.component.css',
 })
 export class NotificationDisplayComponent {
   notificationService = inject(NotificationService);
+}
+```
+
+**notification-display.component.html**:
+```html
+<div class="notification-container">
+  @for (notification of notificationService.notifications(); track $index) {
+    <div
+      class="notification"
+      [class.success]="notification.type === 'success'"
+      [class.error]="notification.type === 'error'"
+      [class.warning]="notification.type === 'warning'"
+      [class.info]="notification.type === 'info'"
+    >
+      <span class="notification-message">{{ notification.message }}</span>
+      <button
+        class="notification-close"
+        (click)="notificationService.dismiss($index)"
+        aria-label="Close notification"
+      >
+        ×
+      </button>
+    </div>
+  }
+</div>
+```
+
+**notification-display.component.css**:
+```css
+.notification-container {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  z-index: 9999;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-width: 400px;
+}
+
+.notification {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  border-radius: 4px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  background-color: white;
+  border-left: 4px solid;
+  animation: slideIn 0.3s ease-out;
+}
+
+@keyframes slideIn {
+  from {
+    transform: translateX(400px);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+.notification.success {
+  border-left-color: #4caf50;
+  background-color: #f1f8f4;
+}
+
+.notification.error {
+  border-left-color: #f44336;
+  background-color: #fef5f5;
+}
+
+.notification.warning {
+  border-left-color: #ff9800;
+  background-color: #fff8f0;
+}
+
+.notification.info {
+  border-left-color: #2196f3;
+  background-color: #f0f7ff;
+}
+
+.notification-message {
+  flex: 1;
+  margin-right: 12px;
+}
+
+.notification-close {
+  background: none;
+  border: none;
+  font-size: 24px;
+  line-height: 1;
+  cursor: pointer;
+  color: #666;
+  padding: 0;
+  width: 24px;
+  height: 24px;
+}
+
+.notification-close:hover {
+  color: #000;
 }
 ```
 
@@ -430,12 +442,15 @@ import { NotificationDisplayComponent } from './shared/components/notification-d
   selector: 'app-root',
   standalone: true,
   imports: [RouterOutlet, NotificationDisplayComponent],
-  template: `
-    <app-notifications></app-notifications>
-    <router-outlet></router-outlet>
-  `
+  templateUrl: './app.component.html',
 })
 export class AppComponent {}
+```
+
+**app.component.html**:
+```html
+<app-notifications></app-notifications>
+<router-outlet></router-outlet>
 ```
 
 ---
@@ -493,38 +508,7 @@ import { Patient } from '../../../models/patient.model';
   selector: 'app-patient-list',
   standalone: true,
   imports: [CommonModule, FormsModule],
-  template: `
-    <div class="patient-list">
-      <div class="filters">
-        <input
-          type="text"
-          placeholder="Search by name..."
-          [(ngModel)]="searchTerm"
-          (ngModelChange)="onSearchChange($event)"
-        />
-        <select [(ngModel)]="statusFilter" (ngModelChange)="onStatusChange($event)">
-          <option value="">All Statuses</option>
-          <option value="Active">Active</option>
-          <option value="Inactive">Inactive</option>
-        </select>
-      </div>
-
-      @if (isLoading()) {
-        <p>Loading patients...</p>
-      } @else if (filteredPatients().length === 0) {
-        <p>No patients found</p>
-      } @else {
-        <p>Showing {{ filteredPatients().length }} of {{ patients().length }} patients</p>
-        @for (patient of filteredPatients(); track patient.id) {
-          <div class="patient-card">
-            <h3>{{ patient.firstName }} {{ patient.lastName }}</h3>
-            <p>DOB: {{ patient.dateOfBirth | date }}</p>
-            <p>Status: {{ patient.status }}</p>
-          </div>
-        }
-      }
-    </div>
-  `
+  templateUrl: './patient-list.component.html',
 })
 export class PatientListComponent {
   private patientService = inject(PatientService);
@@ -583,6 +567,40 @@ export class PatientListComponent {
     // filteredPatients computed signal automatically updates
   }
 }
+```
+
+**patient-list.component.html**:
+```html
+<div class="patient-list">
+  <div class="filters">
+    <input
+      type="text"
+      placeholder="Search by name..."
+      [(ngModel)]="searchTerm"
+      (ngModelChange)="onSearchChange($event)"
+    />
+    <select [(ngModel)]="statusFilter" (ngModelChange)="onStatusChange($event)">
+      <option value="">All Statuses</option>
+      <option value="Active">Active</option>
+      <option value="Inactive">Inactive</option>
+    </select>
+  </div>
+
+  @if (isLoading()) {
+    <p>Loading patients...</p>
+  } @else if (filteredPatients().length === 0) {
+    <p>No patients found</p>
+  } @else {
+    <p>Showing {{ filteredPatients().length }} of {{ patients().length }} patients</p>
+    @for (patient of filteredPatients(); track patient.id) {
+      <div class="patient-card">
+        <h3>{{ patient.firstName }} {{ patient.lastName }}</h3>
+        <p>DOB: {{ patient.dateOfBirth | date }}</p>
+        <p>Status: {{ patient.status }}</p>
+      </div>
+    }
+  }
+</div>
 ```
 
 **Key points**:

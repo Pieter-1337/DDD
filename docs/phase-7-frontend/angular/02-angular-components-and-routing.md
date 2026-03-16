@@ -8,23 +8,34 @@ This document covers Angular's component model, routing configuration, and page 
 
 ## Angular Component Model
 
-Angular components are self-contained units with a TypeScript class, HTML template, and CSS styles. Angular 17+ defaults to **standalone components**, eliminating the need for NgModules.
+Angular components are self-contained units consisting of a TypeScript class (`.ts`), HTML template (`.html`), and CSS styles (`.css`) in separate files. Angular 17+ defaults to **standalone components**, eliminating the need for NgModules.
 
 ### Component Anatomy
 
 ```typescript
 import { Component, signal } from '@angular/core';
+import { CommonModule } from '@angular/common';
 
 @Component({
-  selector: 'app-example',           // HTML tag: <app-example></app-example>
-  standalone: true,                   // No NgModule needed (Angular 17+)
-  imports: [CommonModule],            // Import other components/modules
-  template: `<h1>{{ title() }}</h1>`, // Inline template
-  styles: [`h1 { color: blue; }`],   // Inline styles
+  selector: 'app-example',
+  standalone: true,
+  imports: [CommonModule],
+  templateUrl: './example.component.html',
+  styleUrl: './example.component.css',
 })
 export class ExampleComponent {
   title = signal('Hello Angular');   // Signal-based reactive state
 }
+```
+
+**example.component.html**:
+```html
+<h1>{{ title() }}</h1>
+```
+
+**example.component.css**:
+```css
+h1 { color: blue; }
 ```
 
 ### Key Decorator Properties
@@ -34,10 +45,10 @@ export class ExampleComponent {
 | `selector` | Component HTML tag name | `'app-patient-list'` |
 | `standalone` | Enable standalone mode (no NgModule) | `true` |
 | `imports` | Components/modules used in template | `[MatTableModule, FormsModule]` |
-| `template` | Inline HTML template | `` `<div>...</div>` `` |
-| `templateUrl` | External template file path | `'./component.html'` |
-| `styles` | Inline CSS styles | `['h1 { color: red; }']` |
-| `styleUrl` | External stylesheet path | `'./component.css'` |
+| `templateUrl` | External HTML template file | `'./example.component.html'` |
+| `styleUrl` | External CSS stylesheet file | `'./example.component.css'` |
+| `template` | Inline HTML template (for trivial cases) | `` `<h1>Hello</h1>` `` |
+| `styles` | Inline CSS styles (for trivial cases) | `['h1 { color: red; }']` |
 
 ### Component Lifecycle Hooks
 
@@ -64,7 +75,7 @@ import { Component, Input, Output, EventEmitter } from '@angular/core';
 
 @Component({
   selector: 'app-child',
-  template: `<button (click)="handleClick()">Click Me</button>`,
+  templateUrl: './child.component.html',
 })
 export class ChildComponent {
   @Input() data!: string;                    // Parent -> Child
@@ -77,6 +88,11 @@ export class ChildComponent {
 
 // Usage in parent:
 // <app-child [data]="myData" (action)="handleAction()"></app-child>
+```
+
+**child.component.html**:
+```html
+<button (click)="handleClick()">Click Me</button>
 ```
 
 ### Signal-Based Reactivity (Angular 17+)
@@ -158,14 +174,17 @@ import { RouterOutlet } from '@angular/router';
   selector: 'app-root',
   standalone: true,
   imports: [RouterOutlet],
-  template: `
-    <nav>
-      <a routerLink="/patients">Patients</a>
-    </nav>
-    <router-outlet></router-outlet>
-  `,
+  templateUrl: './app.component.html',
 })
 export class AppComponent {}
+```
+
+**app.component.html**:
+```html
+<nav>
+  <a routerLink="/patients">Patients</a>
+</nav>
+<router-outlet></router-outlet>
 ```
 
 ### Route Configuration Options
@@ -208,68 +227,8 @@ import { Patient } from '../../../core/models/patient.model';
     MatProgressSpinnerModule,
     FormsModule,
   ],
-  template: `
-    <h1>Patients</h1>
-
-    <div class="toolbar">
-      <mat-form-field>
-        <mat-label>Status</mat-label>
-        <mat-select [(ngModel)]="selectedStatus" (selectionChange)="loadPatients()">
-          <mat-option value="">All</mat-option>
-          <mat-option value="Active">Active</mat-option>
-          <mat-option value="Suspended">Suspended</mat-option>
-        </mat-select>
-      </mat-form-field>
-
-      <button mat-raised-button color="primary" (click)="router.navigate(['/patients/create'])">
-        Create Patient
-      </button>
-    </div>
-
-    @if (isLoading()) {
-      <mat-spinner />
-    } @else {
-      <table mat-table [dataSource]="patients()">
-        <ng-container matColumnDef="firstName">
-          <th mat-header-cell *matHeaderCellDef>First Name</th>
-          <td mat-cell *matCellDef="let patient">{{ patient.firstName }}</td>
-        </ng-container>
-
-        <ng-container matColumnDef="lastName">
-          <th mat-header-cell *matHeaderCellDef>Last Name</th>
-          <td mat-cell *matCellDef="let patient">{{ patient.lastName }}</td>
-        </ng-container>
-
-        <ng-container matColumnDef="email">
-          <th mat-header-cell *matHeaderCellDef>Email</th>
-          <td mat-cell *matCellDef="let patient">{{ patient.email }}</td>
-        </ng-container>
-
-        <ng-container matColumnDef="status">
-          <th mat-header-cell *matHeaderCellDef>Status</th>
-          <td mat-cell *matCellDef="let patient">{{ patient.status }}</td>
-        </ng-container>
-
-        <ng-container matColumnDef="actions">
-          <th mat-header-cell *matHeaderCellDef>Actions</th>
-          <td mat-cell *matCellDef="let patient">
-            <button mat-button (click)="router.navigate(['/patients', patient.id])">View</button>
-          </td>
-        </ng-container>
-
-        <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
-        <tr mat-row *matRowDef="let row; columns: displayedColumns;"></tr>
-      </table>
-    }
-  `,
-  styles: [`
-    .toolbar {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: 1rem;
-    }
-  `],
+  templateUrl: './patient-list.component.html',
+  styleUrl: './patient-list.component.css',
 })
 export class PatientListComponent implements OnInit {
   private patientService = inject(PatientService);
@@ -297,6 +256,72 @@ export class PatientListComponent implements OnInit {
 }
 ```
 
+**patient-list.component.html**:
+```html
+<h1>Patients</h1>
+
+<div class="toolbar">
+  <mat-form-field>
+    <mat-label>Status</mat-label>
+    <mat-select [(ngModel)]="selectedStatus" (selectionChange)="loadPatients()">
+      <mat-option value="">All</mat-option>
+      <mat-option value="Active">Active</mat-option>
+      <mat-option value="Suspended">Suspended</mat-option>
+    </mat-select>
+  </mat-form-field>
+
+  <button mat-raised-button color="primary" (click)="router.navigate(['/patients/create'])">
+    Create Patient
+  </button>
+</div>
+
+@if (isLoading()) {
+  <mat-spinner />
+} @else {
+  <table mat-table [dataSource]="patients()">
+    <ng-container matColumnDef="firstName">
+      <th mat-header-cell *matHeaderCellDef>First Name</th>
+      <td mat-cell *matCellDef="let patient">{{ patient.firstName }}</td>
+    </ng-container>
+
+    <ng-container matColumnDef="lastName">
+      <th mat-header-cell *matHeaderCellDef>Last Name</th>
+      <td mat-cell *matCellDef="let patient">{{ patient.lastName }}</td>
+    </ng-container>
+
+    <ng-container matColumnDef="email">
+      <th mat-header-cell *matHeaderCellDef>Email</th>
+      <td mat-cell *matCellDef="let patient">{{ patient.email }}</td>
+    </ng-container>
+
+    <ng-container matColumnDef="status">
+      <th mat-header-cell *matHeaderCellDef>Status</th>
+      <td mat-cell *matCellDef="let patient">{{ patient.status }}</td>
+    </ng-container>
+
+    <ng-container matColumnDef="actions">
+      <th mat-header-cell *matHeaderCellDef>Actions</th>
+      <td mat-cell *matCellDef="let patient">
+        <button mat-button (click)="router.navigate(['/patients', patient.id])">View</button>
+      </td>
+    </ng-container>
+
+    <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
+    <tr mat-row *matRowDef="let row; columns: displayedColumns;"></tr>
+  </table>
+}
+```
+
+**patient-list.component.css**:
+```css
+.toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+}
+```
+
 ### Patient Detail Component
 
 **features/patients/patient-detail/patient-detail.component.ts**:
@@ -319,27 +344,7 @@ import { Patient } from '../../../core/models/patient.model';
     MatButtonModule,
     MatProgressSpinnerModule,
   ],
-  template: `
-    @if (isLoading()) {
-      <mat-spinner />
-    } @else if (patient(); as p) {
-      <h1>{{ p.firstName }} {{ p.lastName }}</h1>
-
-      <mat-card>
-        <mat-card-content>
-          <p><strong>Email:</strong> {{ p.email }}</p>
-          <p><strong>Status:</strong> {{ p.status }}</p>
-          <p><strong>Date of Birth:</strong> {{ p.dateOfBirth | date }}</p>
-        </mat-card-content>
-        <mat-card-actions>
-          @if (p.status !== 'Suspended') {
-            <button mat-raised-button color="warn" (click)="suspend()">Suspend</button>
-          }
-          <button mat-button (click)="router.navigate(['/patients'])">Back to List</button>
-        </mat-card-actions>
-      </mat-card>
-    }
-  `,
+  templateUrl: './patient-detail.component.html',
 })
 export class PatientDetailComponent implements OnInit {
   private patientService = inject(PatientService);
@@ -374,6 +379,29 @@ export class PatientDetailComponent implements OnInit {
 }
 ```
 
+**patient-detail.component.html**:
+```html
+@if (isLoading()) {
+  <mat-spinner />
+} @else if (patient(); as p) {
+  <h1>{{ p.firstName }} {{ p.lastName }}</h1>
+
+  <mat-card>
+    <mat-card-content>
+      <p><strong>Email:</strong> {{ p.email }}</p>
+      <p><strong>Status:</strong> {{ p.status }}</p>
+      <p><strong>Date of Birth:</strong> {{ p.dateOfBirth | date }}</p>
+    </mat-card-content>
+    <mat-card-actions>
+      @if (p.status !== 'Suspended') {
+        <button mat-raised-button color="warn" (click)="suspend()">Suspend</button>
+      }
+      <button mat-button (click)="router.navigate(['/patients'])">Back to List</button>
+    </mat-card-actions>
+  </mat-card>
+}
+```
+
 ### Create Patient Component
 
 **features/patients/create-patient/create-patient.component.ts**:
@@ -399,63 +427,8 @@ import { PatientService } from '../../../core/services/patient.service';
     MatDatepickerModule,
     MatNativeDateModule,
   ],
-  template: `
-    <h1>Create Patient</h1>
-
-    <form [formGroup]="form" (ngSubmit)="submit()">
-      <mat-form-field>
-        <mat-label>First Name</mat-label>
-        <input matInput formControlName="firstName" required />
-        @if (form.controls.firstName.invalid && form.controls.firstName.touched) {
-          <mat-error>First name is required</mat-error>
-        }
-      </mat-form-field>
-
-      <mat-form-field>
-        <mat-label>Last Name</mat-label>
-        <input matInput formControlName="lastName" required />
-        @if (form.controls.lastName.invalid && form.controls.lastName.touched) {
-          <mat-error>Last name is required</mat-error>
-        }
-      </mat-form-field>
-
-      <mat-form-field>
-        <mat-label>Email</mat-label>
-        <input matInput type="email" formControlName="email" required />
-        @if (form.controls.email.invalid && form.controls.email.touched) {
-          <mat-error>Valid email is required</mat-error>
-        }
-      </mat-form-field>
-
-      <mat-form-field>
-        <mat-label>Date of Birth</mat-label>
-        <input matInput [matDatepicker]="picker" formControlName="dateOfBirth" required />
-        <mat-datepicker-toggle matSuffix [for]="picker"></mat-datepicker-toggle>
-        <mat-datepicker #picker></mat-datepicker>
-      </mat-form-field>
-
-      <div class="actions">
-        <button mat-raised-button color="primary" type="submit" [disabled]="isSubmitting()">
-          Create
-        </button>
-        <button mat-button type="button" (click)="router.navigate(['/patients'])">
-          Cancel
-        </button>
-      </div>
-    </form>
-  `,
-  styles: [`
-    form {
-      display: flex;
-      flex-direction: column;
-      gap: 1rem;
-      max-width: 500px;
-    }
-    .actions {
-      display: flex;
-      gap: 0.5rem;
-    }
-  `],
+  templateUrl: './create-patient.component.html',
+  styleUrl: './create-patient.component.css',
 })
 export class CreatePatientComponent {
   private patientService = inject(PatientService);
@@ -486,13 +459,75 @@ export class CreatePatientComponent {
 }
 ```
 
+**create-patient.component.html**:
+```html
+<h1>Create Patient</h1>
+
+<form [formGroup]="form" (ngSubmit)="submit()">
+  <mat-form-field>
+    <mat-label>First Name</mat-label>
+    <input matInput formControlName="firstName" required />
+    @if (form.controls.firstName.invalid && form.controls.firstName.touched) {
+      <mat-error>First name is required</mat-error>
+    }
+  </mat-form-field>
+
+  <mat-form-field>
+    <mat-label>Last Name</mat-label>
+    <input matInput formControlName="lastName" required />
+    @if (form.controls.lastName.invalid && form.controls.lastName.touched) {
+      <mat-error>Last name is required</mat-error>
+    }
+  </mat-form-field>
+
+  <mat-form-field>
+    <mat-label>Email</mat-label>
+    <input matInput type="email" formControlName="email" required />
+    @if (form.controls.email.invalid && form.controls.email.touched) {
+      <mat-error>Valid email is required</mat-error>
+    }
+  </mat-form-field>
+
+  <mat-form-field>
+    <mat-label>Date of Birth</mat-label>
+    <input matInput [matDatepicker]="picker" formControlName="dateOfBirth" required />
+    <mat-datepicker-toggle matSuffix [for]="picker"></mat-datepicker-toggle>
+    <mat-datepicker #picker></mat-datepicker>
+  </mat-form-field>
+
+  <div class="actions">
+    <button mat-raised-button color="primary" type="submit" [disabled]="isSubmitting()">
+      Create
+    </button>
+    <button mat-button type="button" (click)="router.navigate(['/patients'])">
+      Cancel
+    </button>
+  </div>
+</form>
+```
+
+**create-patient.component.css**:
+```css
+form {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  max-width: 500px;
+}
+
+.actions {
+  display: flex;
+  gap: 0.5rem;
+}
+```
+
 ---
 
 ## Angular vs Blazor Component Comparison
 
 | Concept | Blazor | Angular |
 |---------|--------|---------|
-| **Component file** | `.razor` (markup + code) | `.component.ts` (TypeScript class) |
+| **Component file** | `.razor` (markup + code) | `.component.ts` + `.component.html` + `.component.css` |
 | **Template syntax** | Razor (`@if`, `@foreach`, `@bind`) | Angular (`@if`, `@for`, `{{ }}`, `[(ngModel)]`) |
 | **Routing definition** | `@page "/path"` in component | `Routes` array with `loadComponent` |
 | **Route parameters** | `[Parameter]` property attribute | `ActivatedRoute.snapshot.paramMap.get('id')` |
