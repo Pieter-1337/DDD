@@ -274,40 +274,6 @@ Both tracks build identical functionality. Choose one or both.
 
 ---
 
-## API Client Configuration
-
-### Blazor Server
-
-Blazor uses typed `HttpClient` with Aspire service discovery:
-
-```csharp
-// Program.cs
-builder.Services.AddHttpClient<ISchedulingApiClient, SchedulingApiClient>(client =>
-{
-    client.BaseAddress = new Uri("https+http://scheduling-webapi");
-});
-```
-
-**Aspire resolves `scheduling-webapi`** to the actual URL (e.g., `http://localhost:5001`). No hard-coded ports needed.
-
-### Angular
-
-Angular uses `proxy.conf.json` for local development:
-
-```json
-{
-  "/api": {
-    "target": "http://localhost:5001",
-    "secure": false,
-    "changeOrigin": true
-  }
-}
-```
-
-**Production:** Replace with environment-specific API base URLs (`environment.ts`).
-
----
-
 ## Relationship to BFF Pattern (Phase 8)
 
 Phase 8 documents the **Backend for Frontend (BFF)** pattern as an optional enhancement. BFFs are useful when:
