@@ -19,26 +19,15 @@ dotnet add package Microsoft.EntityFrameworkCore.Design
 
 **Note:** This project uses Central Package Management - see [Phase 1 documentation](../phase-1-ddd-fundamentals/03-building-patient-aggregate.md#understanding-central-package-management-cpm) for details on how CPM works.
 
-### Step 2: Add connection string to appsettings.json
+### Step 2: Add connection string via User Secrets
 
-Location: `DDD/appsettings.json`
+Store connection strings in User Secrets (not appsettings.json) to keep credentials out of source control:
 
-```json
-{
-  "ConnectionStrings": {
-    "DefaultConnection": "Server=(localdb)\\mssqllocaldb;Database=DDD;Trusted_Connection=True;MultipleActiveResultSets=true"
-  },
-  "Logging": {
-    "LogLevel": {
-      "Default": "Information",
-      "Microsoft.AspNetCore": "Warning"
-    }
-  },
-  "AllowedHosts": "*"
-}
+```bash
+dotnet user-secrets set "ConnectionStrings:DefaultConnection" "Data Source=YOUR_SERVER;Initial Catalog=DDD;Integrated Security=true;TrustServerCertificate=True"
 ```
 
-**Using LocalDB** - comes with Visual Studio, no separate SQL Server install needed.
+**Do NOT add `MultipleActiveResultSets=true` (MARS)**. MARS disables EF Core savepoints on transactions. Savepoints let EF Core safely roll back a failed `SaveChanges` without corrupting the entire transaction. With MARS enabled, a partial save failure leaves the transaction in an undefined state. EF Core doesn't need MARS — it materializes queries before executing the next one, so multiple active result sets never occur.
 
 ### Step 3: Register Infrastructure in Program.cs
 
