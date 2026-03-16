@@ -2,7 +2,7 @@
 
 ## What We're Building
 
-This phase adds user interfaces to the DDD learning project. Both the **Blazor** (primary) and **Angular** (optional) tracks build the same patient management UI with identical functionality.
+This phase adds user interfaces to the DDD learning project. Both the **Blazor** and **Angular** tracks build the same patient management UI with identical functionality. Choose either track — or build both to compare frameworks and to enable the BFF pattern exploration in Phase 8.
 
 The UI provides:
 - List all patients with optional status filtering
@@ -31,9 +31,9 @@ Browser
 +------------------+
 |  Frontend App    |
 |                  |
-|  - Blazor Server |  <-- Primary track
+|  - Blazor Server |  <-- C# / .NET track
 |    OR            |
-|  - Angular SPA   |  <-- Optional track
+|  - Angular SPA   |  <-- TypeScript track
 +------------------+
    |
    | HTTP requests
@@ -226,15 +226,15 @@ Without this endpoint, the frontend can display patient data but not billing pro
 
 ## Track Comparison Table
 
-Choose your frontend framework. Both tracks build identical functionality.
+Both tracks build identical functionality. Choose one or both.
 
 | # | Topic | Blazor Doc | Angular Doc |
 |---|-------|-----------|-------------|
-| **01** | Project Setup | [blazor/01-blazor-project-setup.md](./blazor/01-blazor-project-setup.md) | [angular/01-angular-project-setup-optional.md](./angular/01-angular-project-setup-optional.md) |
-| **02** | Components & Routing | [blazor/02-blazor-components-and-routing.md](./blazor/02-blazor-components-and-routing.md) | [angular/02-angular-components-and-routing-optional.md](./angular/02-angular-components-and-routing-optional.md) |
-| **03** | Consuming APIs | [blazor/03-blazor-consuming-apis.md](./blazor/03-blazor-consuming-apis.md) | [angular/03-angular-consuming-apis-optional.md](./angular/03-angular-consuming-apis-optional.md) |
-| **04** | State Management | [blazor/04-blazor-state-management.md](./blazor/04-blazor-state-management.md) | [angular/04-angular-state-management-optional.md](./angular/04-angular-state-management-optional.md) |
-| **05** | Forms & Validation | [blazor/05-blazor-forms-and-validation.md](./blazor/05-blazor-forms-and-validation.md) | [angular/05-angular-forms-and-validation-optional.md](./angular/05-angular-forms-and-validation-optional.md) |
+| **01** | Project Setup | [blazor/01-blazor-project-setup.md](./blazor/01-blazor-project-setup.md) | [angular/01-angular-project-setup.md](./angular/01-angular-project-setup.md) |
+| **02** | Components & Routing | [blazor/02-blazor-components-and-routing.md](./blazor/02-blazor-components-and-routing.md) | [angular/02-angular-components-and-routing.md](./angular/02-angular-components-and-routing.md) |
+| **03** | Consuming APIs | [blazor/03-blazor-consuming-apis.md](./blazor/03-blazor-consuming-apis.md) | [angular/03-angular-consuming-apis.md](./angular/03-angular-consuming-apis.md) |
+| **04** | State Management | [blazor/04-blazor-state-management.md](./blazor/04-blazor-state-management.md) | [angular/04-angular-state-management.md](./angular/04-angular-state-management.md) |
+| **05** | Forms & Validation | [blazor/05-blazor-forms-and-validation.md](./blazor/05-blazor-forms-and-validation.md) | [angular/05-angular-forms-and-validation.md](./angular/05-angular-forms-and-validation.md) |
 
 ---
 
@@ -334,7 +334,7 @@ Backend APIs (Scheduling, Billing)  <-- Direct consumption
 - You need custom aggregation endpoints per frontend
 - You need different authentication strategies
 
-See [phase-8-api-gateway-bff/02-bff-pattern-optional.md](../phase-8-api-gateway-bff/02-bff-pattern-optional.md) for BFF implementation details.
+See [phase-8-api-gateway-bff/02-bff-pattern.md](../phase-8-api-gateway-bff/02-bff-pattern.md) for BFF implementation details.
 
 ---
 
@@ -427,7 +427,7 @@ Before starting frontend development, verify:
 
 Choose your frontend track:
 
-### Blazor Server (Primary Track)
+### Blazor Server
 
 Start with [blazor/01-blazor-project-setup.md](./blazor/01-blazor-project-setup.md) to:
 1. Create Blazor Server project
@@ -435,13 +435,17 @@ Start with [blazor/01-blazor-project-setup.md](./blazor/01-blazor-project-setup.
 3. Configure Aspire integration
 4. Set up typed HttpClient for API calls
 
-### Angular SPA (Optional Track)
+### Angular SPA
 
-Start with [angular/01-angular-project-setup-optional.md](./angular/01-angular-project-setup-optional.md) to:
+Start with [angular/01-angular-project-setup.md](./angular/01-angular-project-setup.md) to:
 1. Create Angular project with standalone components
 2. Add Angular Material UI library
 3. Configure proxy for local API calls
 4. Set up HttpClient and environment configuration
+
+### Why build both?
+
+Building both frontends against the same backend APIs unlocks learning opportunities in Phase 8 (BFF pattern). Two frontends with different rendering models (server-side vs client-side SPA) are the natural trigger for introducing separate Backend for Frontend services, each tailored to their frontend's needs.
 
 ---
 
@@ -472,4 +476,4 @@ Start with [angular/01-angular-project-setup-optional.md](./angular/01-angular-p
 
 > **Next:** Choose your track:
 > - **Blazor:** [blazor/01-blazor-project-setup.md](./blazor/01-blazor-project-setup.md)
-> - **Angular:** [angular/01-angular-project-setup-optional.md](./angular/01-angular-project-setup-optional.md)
+> - **Angular:** [angular/01-angular-project-setup.md](./angular/01-angular-project-setup.md)

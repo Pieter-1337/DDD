@@ -1,6 +1,6 @@
-# Angular Project Setup (OPTIONAL)
+# Angular Project Setup
 
-> **NOTE:** This document covers an OPTIONAL track. The Blazor track is the primary frontend implementation. Only follow this if you want to explore Angular as an alternative to compare frontend paradigms and practice consuming the same backend APIs from a different framework.
+> **Track:** This is the Angular track. Both Blazor and Angular build the same patient management UI — choose whichever framework you want to learn. Building both enables the BFF pattern exploration in Phase 8.
 
 ## Purpose
 
@@ -629,4 +629,4 @@ Now that the Angular project is set up, the next document will cover:
 ## Navigation
 
 - **Previous:** [../00-frontend-overview.md](../00-frontend-overview.md)
-- **Next:** [02-angular-components-and-routing-optional.md](./02-angular-components-and-routing-optional.md)
+- **Next:** [02-angular-components-and-routing.md](./02-angular-components-and-routing.md)

@@ -1,6 +1,6 @@
-# Angular — State Management (OPTIONAL)
+# Angular — State Management
 
-> **NOTE:** This is part of the OPTIONAL Angular track.
+> **Track:** Angular frontend track.
 
 ---
 
@@ -612,5 +612,5 @@ Ensure your state management implementation follows best practices:
 
 ## Navigation
 
-- Previous: [03-angular-consuming-apis-optional.md](./03-angular-consuming-apis-optional.md)
-- Next: [05-angular-forms-and-validation-optional.md](./05-angular-forms-and-validation-optional.md)
+- Previous: [03-angular-consuming-apis.md](./03-angular-consuming-apis.md)
+- Next: [05-angular-forms-and-validation.md](./05-angular-forms-and-validation.md)

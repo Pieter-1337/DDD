@@ -135,7 +135,34 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Billing.Tests", "Core\Billi
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Billing.WebApi", "WebApplications\Billing.WebApi\Billing.WebApi.csproj", "{14E2E34C-78C2-6C6C-543E-1C25AACF1B22}"
 EndProject
-Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "NewFolder1", "NewFolder1", "{F6565570-441E-4DBF-B445-E121AEAA2323}"
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "phase-7-frontend", "phase-7-frontend", "{A1C2D3E4-F5A6-4B7C-8D9E-0F1A2B3C4D5E}"
+	ProjectSection(SolutionItems) = preProject
+		docs\phase-7-frontend\00-frontend-overview.md = docs\phase-7-frontend\00-frontend-overview.md
+	EndProjectSection
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "blazor", "blazor", "{B2D3E4F5-A6B7-4C8D-9E0F-1A2B3C4D5E6F}"
+	ProjectSection(SolutionItems) = preProject
+		docs\phase-7-frontend\blazor\01-blazor-project-setup.md = docs\phase-7-frontend\blazor\01-blazor-project-setup.md
+		docs\phase-7-frontend\blazor\02-blazor-components-and-routing.md = docs\phase-7-frontend\blazor\02-blazor-components-and-routing.md
+		docs\phase-7-frontend\blazor\03-blazor-consuming-apis.md = docs\phase-7-frontend\blazor\03-blazor-consuming-apis.md
+		docs\phase-7-frontend\blazor\04-blazor-state-management.md = docs\phase-7-frontend\blazor\04-blazor-state-management.md
+		docs\phase-7-frontend\blazor\05-blazor-forms-and-validation.md = docs\phase-7-frontend\blazor\05-blazor-forms-and-validation.md
+	EndProjectSection
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "angular", "angular", "{C3D4E5F6-B7C8-4D9E-0F1A-2B3C4D5E6F7A}"
+	ProjectSection(SolutionItems) = preProject
+		docs\phase-7-frontend\angular\01-angular-project-setup.md = docs\phase-7-frontend\angular\01-angular-project-setup.md
+		docs\phase-7-frontend\angular\02-angular-components-and-routing.md = docs\phase-7-frontend\angular\02-angular-components-and-routing.md
+		docs\phase-7-frontend\angular\03-angular-consuming-apis.md = docs\phase-7-frontend\angular\03-angular-consuming-apis.md
+		docs\phase-7-frontend\angular\04-angular-state-management.md = docs\phase-7-frontend\angular\04-angular-state-management.md
+		docs\phase-7-frontend\angular\05-angular-forms-and-validation.md = docs\phase-7-frontend\angular\05-angular-forms-and-validation.md
+	EndProjectSection
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "phase-8-api-gateway-bff", "phase-8-api-gateway-bff", "{D4E5F6A7-C8D9-4E0F-1A2B-3C4D5E6F7A8B}"
+	ProjectSection(SolutionItems) = preProject
+		docs\phase-8-api-gateway-bff\01-api-gateway.md = docs\phase-8-api-gateway-bff\01-api-gateway.md
+		docs\phase-8-api-gateway-bff\02-bff-pattern.md = docs\phase-8-api-gateway-bff\02-bff-pattern.md
+	EndProjectSection
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -418,7 +445,10 @@ Global
 		{59287F43-F715-412A-BB16-BE54AD500750} = {4E605ED7-C4B0-4942-BF58-9A2ACAF15414}
 		{68D7AFD1-E09A-4F88-AB8A-6F75B270CF5A} = {4E605ED7-C4B0-4942-BF58-9A2ACAF15414}
 		{14E2E34C-78C2-6C6C-543E-1C25AACF1B22} = {02EA681E-C7D8-13C7-8484-4AC65E1B71E8}
-		{F6565570-441E-4DBF-B445-E121AEAA2323} = {68ECA03B-0FF4-4C25-A648-C83FCB98C045}
+		{A1C2D3E4-F5A6-4B7C-8D9E-0F1A2B3C4D5E} = {68ECA03B-0FF4-4C25-A648-C83FCB98C045}
+		{B2D3E4F5-A6B7-4C8D-9E0F-1A2B3C4D5E6F} = {A1C2D3E4-F5A6-4B7C-8D9E-0F1A2B3C4D5E}
+		{C3D4E5F6-B7C8-4D9E-0F1A-2B3C4D5E6F7A} = {A1C2D3E4-F5A6-4B7C-8D9E-0F1A2B3C4D5E}
+		{D4E5F6A7-C8D9-4E0F-1A2B-3C4D5E6F7A8B} = {68ECA03B-0FF4-4C25-A648-C83FCB98C045}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {C211A4F3-E9B4-4BC3-9EE5-6536CAAF6F04}

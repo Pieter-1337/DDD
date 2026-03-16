@@ -1,6 +1,6 @@
-# Angular — Consuming APIs (OPTIONAL)
+# Angular — Consuming APIs
 
-> **NOTE:** This is part of the OPTIONAL Angular track. If you're following the Blazor track, see the Blazor documentation instead.
+> **Track:** Angular frontend track. For the Blazor equivalent, see the Blazor documentation.
 
 ---
 
@@ -684,6 +684,6 @@ export class PatientListComponent implements OnInit {
 
 ## Navigation
 
-- **Previous**: [02-angular-components-and-routing-optional.md](./02-angular-components-and-routing-optional.md)
-- **Next**: [04-angular-state-management-optional.md](./04-angular-state-management-optional.md)
+- **Previous**: [02-angular-components-and-routing.md](./02-angular-components-and-routing.md)
+- **Next**: [04-angular-state-management.md](./04-angular-state-management.md)
 - **Up**: [Phase 7 Index](../README.md)

@@ -1,6 +1,6 @@
-# Angular — Forms and Validation (OPTIONAL)
+# Angular — Forms and Validation
 
-> **NOTE:** This is part of the OPTIONAL Angular track. If you're focusing on Blazor Server (the primary track), you can skip this document.
+> **Track:** Angular frontend track. For the Blazor equivalent, see the Blazor documentation.
 
 This document covers reactive forms in Angular, including validation, error handling, and integration with Angular Material form components. Forms are a critical part of any frontend application, and Angular's reactive forms provide explicit control and excellent testability.
 
@@ -546,5 +546,5 @@ After implementing forms and validation, verify the following:
 
 ## Navigation
 
-- **Previous**: [04-angular-state-management-optional.md](./04-angular-state-management-optional.md)
+- **Previous**: [04-angular-state-management.md](./04-angular-state-management.md)
 - **Back to overview**: [../00-frontend-overview.md](../00-frontend-overview.md)

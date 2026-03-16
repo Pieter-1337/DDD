@@ -345,7 +345,7 @@ This allows using `nameof(GetPatientAsync)` in `CreatedAtAction` calls.
 
 - [x] Frontend overview and architecture (framework-agnostic)
 - [x] Blazor Server with FluentUI components
-- [x] Angular with Angular Material (optional track)
+- [x] Angular with Angular Material
 - [x] Component architecture and routing
 - [x] Consuming backend APIs with typed HttpClient / Angular HttpClient
 - [x] State management patterns (Blazor scoped services, Angular signals)
@@ -355,13 +355,13 @@ This allows using `nameof(GetPatientAsync)` in `CreatedAtAction` calls.
 
 - [x] Documentation created (11 documents: 1 overview + 5 Blazor + 5 Angular)
 - [ ] Blazor Server project setup with FluentUI and Aspire
-- [ ] Angular project setup with Angular Material (optional)
+- [ ] Angular project setup with Angular Material
 - [ ] Patient management UI (list, create, detail, suspend)
 - [ ] API integration end-to-end
 
 ### Key Decisions Made
 
-1. **Two-track approach** - Blazor Server (primary) and Angular (optional), same topics mirrored
+1. **Two-track approach** - Blazor Server and Angular, same topics mirrored. Building both enables BFF pattern in Phase 8
 2. **FluentUI for Blazor** - Microsoft's component library for Blazor Server
 3. **Angular Material for Angular** - Google's component library for Angular
 4. **Typed HttpClient** - Blazor uses typed HttpClient with Aspire service discovery
@@ -376,11 +376,11 @@ This allows using `nameof(GetPatientAsync)` in `CreatedAtAction` calls.
 - `phase-7-frontend/blazor/03-blazor-consuming-apis.md` - Typed HttpClient, service discovery
 - `phase-7-frontend/blazor/04-blazor-state-management.md` - Component state, scoped services
 - `phase-7-frontend/blazor/05-blazor-forms-and-validation.md` - EditForm, FluentValidation
-- `phase-7-frontend/angular/01-angular-project-setup-optional.md` - Angular CLI + Material
-- `phase-7-frontend/angular/02-angular-components-and-routing-optional.md` - Standalone components, Router
-- `phase-7-frontend/angular/03-angular-consuming-apis-optional.md` - HttpClient, RxJS, proxy config
-- `phase-7-frontend/angular/04-angular-state-management-optional.md` - Signals, MatSnackBar
-- `phase-7-frontend/angular/05-angular-forms-and-validation-optional.md` - Reactive Forms, validation
+- `phase-7-frontend/angular/01-angular-project-setup.md` - Angular CLI + Material
+- `phase-7-frontend/angular/02-angular-components-and-routing.md` - Standalone components, Router
+- `phase-7-frontend/angular/03-angular-consuming-apis.md` - HttpClient, RxJS, proxy config
+- `phase-7-frontend/angular/04-angular-state-management.md` - Signals, MatSnackBar
+- `phase-7-frontend/angular/05-angular-forms-and-validation.md` - Reactive Forms, validation
 
 ---
 
@@ -395,8 +395,8 @@ This allows using `nameof(GetPatientAsync)` in `CreatedAtAction` calls.
 
 ### Docs Available
 
-- `phase-8-api-gateway-bff/01-api-gateway-optional.md` - YARP API Gateway (optional)
-- `phase-8-api-gateway-bff/02-bff-pattern-optional.md` - BFF pattern (optional)
+- `phase-8-api-gateway-bff/01-api-gateway.md` - YARP API Gateway (optional)
+- `phase-8-api-gateway-bff/02-bff-pattern.md` - BFF pattern (optional)
 
 ---
 

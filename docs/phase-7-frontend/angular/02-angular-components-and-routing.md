@@ -1,6 +1,6 @@
-# Angular Components and Routing (OPTIONAL)
+# Angular Components and Routing
 
-> **NOTE:** This is part of the OPTIONAL Angular track for developers who want to compare Angular with Blazor.
+> **Track:** Angular frontend track.
 
 This document covers Angular's component model, routing configuration, and page implementations for the Patient management UI. It demonstrates standalone components (Angular 17+ default), signal-based reactivity, and lazy-loaded routes.
 
@@ -541,5 +541,5 @@ After implementing the components, verify:
 
 ## Navigation
 
-- **Previous:** [01-angular-project-setup-optional.md](./01-angular-project-setup-optional.md)
-- **Next:** [03-angular-consuming-apis-optional.md](./03-angular-consuming-apis-optional.md)
+- **Previous:** [01-angular-project-setup.md](./01-angular-project-setup.md)
+- **Next:** [03-angular-consuming-apis.md](./03-angular-consuming-apis.md)
