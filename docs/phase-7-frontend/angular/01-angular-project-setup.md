@@ -95,6 +95,22 @@ Angular projects aren't .NET projects, but Visual Studio supports JavaScript/Typ
 
 ### Create `.esproj` File
 
+The `.esproj` file must be placed inside the Angular project folder (next to `package.json`, `angular.json`, etc.). Windows Explorer can't create files with custom extensions directly, so use one of these approaches:
+
+**Option A — VS Code** (easiest):
+1. Open the `Frontend/Angular/Scheduling.AngularApp/` folder in VS Code
+2. Right-click in the Explorer panel → New File
+3. Name it `Scheduling.AngularApp.esproj`
+4. Paste the XML content below and save
+
+**Option B — Terminal**:
+```bash
+cd Frontend/Angular/Scheduling.AngularApp
+# The file will be created in the same folder as package.json and angular.json
+touch Scheduling.AngularApp.esproj
+```
+Then open the file and paste the content below.
+
 **File**: `Frontend/Angular/Scheduling.AngularApp/Scheduling.AngularApp.esproj`
 
 ```xml
@@ -109,6 +125,19 @@ Angular projects aren't .NET projects, but Visual Studio supports JavaScript/Typ
 </Project>
 ```
 
+Your Angular project folder should now look like:
+```
+Frontend/Angular/Scheduling.AngularApp/
+├── Scheduling.AngularApp.esproj    <-- new file (lives next to package.json)
+├── angular.json
+├── package.json
+├── tsconfig.json
+├── src/
+│   ├── app/
+│   └── ...
+└── ...
+```
+
 | Property | Purpose |
 |----------|---------|
 | `StartupCommand` | Command VS runs when debugging (`npm start` runs `ng serve`) |
@@ -119,10 +148,14 @@ Angular projects aren't .NET projects, but Visual Studio supports JavaScript/Typ
 
 ### Add to Solution
 
-```bash
-cd C:\projects\DDD\DDD
-dotnet sln add Frontend/Angular/Scheduling.AngularApp/Scheduling.AngularApp.esproj --solution-folder "05. Frontend\Angular"
-```
+The JavaScript SDK is a Visual Studio component, so `dotnet sln add` from the CLI won't work. Instead, add the project via Visual Studio:
+
+1. Open `DDD.sln` in Visual Studio
+2. Right-click the **Angular** folder under **05. Frontend** in Solution Explorer
+3. Add → Existing Project
+4. Browse to `Frontend/Angular/Scheduling.AngularApp/Scheduling.AngularApp.esproj`
+
+The Angular project now appears in Solution Explorer alongside .NET projects.
 
 The Angular project now appears in Solution Explorer alongside .NET projects.
 
