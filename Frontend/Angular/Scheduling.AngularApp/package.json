@@ -3,8 +3,9 @@
   "version": "0.0.0",
   "scripts": {
     "ng": "ng",
-    "start": "ng serve",
-    "start-aspire": "ng serve --port %PORT%",
+    "check-certs": "IF NOT EXIST certs\\local-key.pem (echo Error: local-key.pem not found. Run mkcert to generate certificates. See docs. & exit /b 1)",
+    "start": "npm run check-certs && ng serve",
+    "start-aspire": "npm run check-certs && ng serve --port %PORT%",
     "build": "ng build",
     "watch": "ng build --watch --configuration development",
     "test": "ng test"

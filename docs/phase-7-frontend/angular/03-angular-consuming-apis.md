@@ -256,7 +256,7 @@ export class PatientListComponent implements OnInit {
 
 ### Why CORS is Needed
 
-- **Angular dev server**: Runs on `https://localhost:4200`
+- **Angular dev server**: Runs on `https://localhost:7003` (via Aspire)
 - **Backend API**: Runs on an HTTPS port (check Aspire dashboard or `launchSettings.json`)
 - **Different Origins**: Different protocols, domains, or ports = cross-origin request
 - **Browser Security**: Browsers block cross-origin requests by default
@@ -271,7 +271,7 @@ Add CORS policy in `Program.cs` for both `Scheduling.WebApi` and `Billing.WebApi
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("Angular", policy => policy
-        .WithOrigins("https://localhost:4200")
+        .WithOrigins("https://localhost:7003")
         .AllowAnyHeader()
         .AllowAnyMethod());
 });
@@ -287,7 +287,7 @@ app.UseCors("Angular");
 ```
 
 **Key Points**:
-- `WithOrigins("https://localhost:4200")` — Allow requests from Angular dev server
+- `WithOrigins("https://localhost:7003")` — Allow requests from Angular dev server
 - `AllowAnyHeader()` — Allow all HTTP headers (Authorization, Content-Type, etc.)
 - `AllowAnyMethod()` — Allow all HTTP methods (GET, POST, PUT, DELETE)
 - `UseCors()` must be called **before** `UseAuthorization()` in the middleware pipeline
@@ -302,7 +302,7 @@ app.UseCors("Angular");
 5. Verify:
    - No CORS errors in console
    - Network tab shows successful responses
-   - Response headers include `Access-Control-Allow-Origin: https://localhost:4200`
+   - Response headers include `Access-Control-Allow-Origin: https://localhost:7003`
 
 ---
 

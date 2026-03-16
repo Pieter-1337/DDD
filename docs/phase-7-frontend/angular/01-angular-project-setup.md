@@ -215,6 +215,10 @@ Frontend/Angular/Scheduling.AngularApp/
 │   │   └── environment.prod.ts             # Production config
 │   ├── styles.scss                         # Global styles
 │   └── index.html                          # HTML shell
+├── certs/                                  # Local SSL certificates (gitignored)
+│   ├── local-cert.pem
+│   ├── local-key.pem
+│   └── README.md
 ├── angular.json                            # Angular CLI config
 ├── package.json                            # npm dependencies
 └── tsconfig.json                           # TypeScript config
@@ -230,7 +234,106 @@ Frontend/Angular/Scheduling.AngularApp/
 
 ---
 
-## Step 6: Standardize API Ports
+## Step 6: Configure HTTPS with Self-Signed Certificate
+
+Angular's dev server runs on HTTP by default. To match the backend APIs (which use HTTPS) and avoid mixed-content issues, configure HTTPS using a locally-trusted certificate generated with [mkcert](https://github.com/FiloSottile/mkcert).
+
+### Install mkcert
+
+```bash
+# Windows (via Chocolatey)
+choco install mkcert
+
+# Or via Scoop
+scoop install mkcert
+```
+
+Then install the local CA (one-time, adds to your system's trust store):
+
+```bash
+mkcert -install
+```
+
+### Generate Certificates
+
+From the Angular project root:
+
+```bash
+cd Frontend/Angular/Scheduling.AngularApp
+mkdir certs
+mkcert -cert-file certs/local-cert.pem -key-file certs/local-key.pem localhost "*.localhost"
+```
+
+This creates:
+- `certs/local-cert.pem` — the certificate
+- `certs/local-key.pem` — the private key
+
+### Configure Angular to Use HTTPS
+
+**File: `angular.json`** — add SSL options to the `serve` section:
+
+```json
+"serve": {
+  "builder": "@angular/build:dev-server",
+  "options": {
+    "ssl": true,
+    "sslKey": "certs/local-key.pem",
+    "sslCert": "certs/local-cert.pem"
+  },
+  ...
+}
+```
+
+### Add Certificate Validation Script
+
+**File: `package.json`** — add a `check-certs` script and update `start` to validate certs exist:
+
+```json
+"scripts": {
+  "check-certs": "IF NOT EXIST certs\\local-key.pem (echo Error: local-key.pem not found. Run mkcert to generate certificates. See docs. & exit /b 1)",
+  "start": "npm run check-certs && ng serve",
+  "start-aspire": "npm run check-certs && ng serve --port %PORT%",
+  ...
+}
+```
+
+### Exclude Certificates from Git
+
+**File: `.gitignore`** — add to the Angular project's `.gitignore`:
+
+```
+# SSL certificates (generated locally via mkcert)
+certs/*
+!certs/README.md
+```
+
+### Add Certificate Instructions for Other Developers
+
+**File: `certs/README.md`**
+
+Create a README so other developers know how to generate their own certificates:
+
+```markdown
+# Local Development Certificates
+
+This folder contains locally-trusted SSL certificates for HTTPS development.
+
+## Setup
+
+1. Install mkcert: `choco install mkcert` (or `scoop install mkcert`)
+2. Install the local CA: `mkcert -install`
+3. Generate certificates from the project root:
+   mkcert -cert-file certs/local-cert.pem -key-file certs/local-key.pem localhost "*.localhost"
+Files must be named exactly `local-cert.pem` and `local-key.pem`.
+```
+
+### Result
+
+Angular dev server now runs with a trusted certificate and we can use https
+
+---
+
+## Step 7: Standardize API Ports
 
 By default, .NET scaffolds random ports in `launchSettings.json`. Standardize them so the Angular `environment.ts` works consistently for everyone who clones the project.
 
@@ -262,17 +365,17 @@ Update both API projects:
 |---------|-------|------|
 | Scheduling.WebApi | `https://localhost:7001` | `http://localhost:5001` |
 | Billing.WebApi | `https://localhost:7002` | `http://localhost:5002` |
-| Angular | — | `https://localhost:4200` |
+| Angular | `https://localhost:7003` | - |
 
 ---
 
-## Step 7: Configure CORS
+## Step 8: Configure CORS
 
-Angular's dev server runs on a different port than the backend APIs (e.g., `https://localhost:4200` for Angular, `https://localhost:7001` for Scheduling API). This creates a cross-origin scenario that requires CORS (Cross-Origin Resource Sharing) configuration on the backend.
+Angular's dev server runs on a different port than the backend APIs (e.g., `https://localhost:7003` for Angular, `https://localhost:7001` for Scheduling API). This creates a cross-origin scenario that requires CORS (Cross-Origin Resource Sharing) configuration on the backend.
 
 ### Why CORS is Needed
 
-When the Angular app on `https://localhost:4200` makes HTTP requests to the API on `https://localhost:7001`, browsers enforce the same-origin policy and block the requests unless the API explicitly allows cross-origin requests via CORS headers.
+When the Angular app on `https://localhost:7003` makes HTTP requests to the API on `https://localhost:7001`, browsers enforce the same-origin policy and block the requests unless the API explicitly allows cross-origin requests via CORS headers.
 
 ### Configure CORS in ASP.NET Core Backend
 
@@ -283,7 +386,7 @@ Add the CORS policy before building the app:
 ```csharp
 builder.Services.AddCors(options =>
     options.AddPolicy("Angular", policy => policy
-        .WithOrigins("https://localhost:4200")
+        .WithOrigins("https://localhost:7003")
         .AllowAnyHeader()
         .AllowAnyMethod()));
 ```
@@ -302,17 +405,17 @@ Repeat the same configuration for the Billing API.
 
 | Option | Purpose |
 |--------|---------|
-| `.WithOrigins("https://localhost:4200")` | Allow requests from Angular dev server origin |
+| `.WithOrigins("https://localhost:7003")` | Allow requests from Angular dev server origin |
 | `.AllowAnyHeader()` | Accept any HTTP headers (e.g., `Content-Type`, custom headers) |
 | `.AllowAnyMethod()` | Accept any HTTP method (GET, POST, PUT, DELETE, etc.) |
 
 ### Production Considerations
 
-**Note:** In production, replace `https://localhost:4200` with your actual frontend domain (e.g., `https://app.yourdomain.com`). Never use `.AllowAnyOrigin()` in production — always specify exact allowed origins.
+**Note:** In production, replace `https://localhost:7003` with your actual frontend domain (e.g., `https://app.yourdomain.com`). Never use `.AllowAnyOrigin()` in production — always specify exact allowed origins.
 
 ---
 
-## Step 8: Configure HttpClient
+## Step 9: Configure HttpClient
 
 Angular's `HttpClient` is the standard way to make HTTP requests. Configure it as a global provider.
 
@@ -347,7 +450,7 @@ export const appConfig: ApplicationConfig = {
 
 ---
 
-## Step 9: Environment Configuration
+## Step 10: Environment Configuration
 
 Configure environment-specific settings for API base URLs.
 
@@ -390,7 +493,7 @@ export class PatientService {
 
 ---
 
-## Step 10: Register with Aspire
+## Step 11: Register with Aspire
 
 .NET Aspire orchestrates the Angular dev server alongside the backend APIs, providing a unified development experience with a single `F5` to start everything.
 
@@ -436,20 +539,21 @@ builder.AddJavaScriptApp("scheduling-angularapp",
         "../Frontend/Angular/Scheduling.AngularApp", "start-aspire")
     .WithReference(schedulingApi)
     .WithReference(billingApi)
-    .WithHttpEndpoint(port: 4200, env: "PORT")
+    .WithHttpsEndpoint(port: 7003, env: "PORT")
     .WithExternalHttpEndpoints();
 
 builder.Build().Run();
 ```
 
-> **Note:** `AddNpmApp` was deprecated in Aspire 13. Use `AddJavaScriptApp` instead. The third parameter (`"start-aspire"`) specifies which npm script to run. We use a dedicated `start-aspire` script that passes the Aspire-assigned `PORT` environment variable to `ng serve`. The regular `start` script runs Angular on its default port (4200) for standalone use.
+> **Note:** `AddNpmApp` was deprecated in Aspire 13. Use `AddJavaScriptApp` instead. The third parameter (`"start-aspire"`) specifies which npm script to run. We use a dedicated `start-aspire` script that passes the Aspire-assigned `PORT` environment variable to `ng serve`. The `start` script is for standalone use without Aspire — it uses the default Angular port (`4200`) since Aspire isn't injecting a port.
 
 Add the `start-aspire` script to `package.json`:
 
 ```json
 "scripts": {
-  "start": "ng serve",
-  "start-aspire": "ng serve --port %PORT%",
+  "check-certs": "IF NOT EXIST certs\\local-key.pem (echo Error: ... See docs. & exit /b 1)",
+  "start": "npm run check-certs && ng serve",
+  "start-aspire": "npm run check-certs && ng serve --port %PORT%",
   ...
 }
 ```
@@ -460,12 +564,12 @@ Add the `start-aspire` script to `package.json`:
 |--------|---------|
 | `AddJavaScriptApp(name, path, script)` | Registers a JavaScript app (runs `npm run start-aspire` for instance) |
 | `.WithReference(schedulingApi)` | Injects service discovery for the API |
-| `.WithHttpEndpoint(env: "PORT")` | Assigns a port and injects it as the `PORT` environment variable |
+| `.WithHttpsEndpoint(port: 7003, env: "PORT")` | Assigns the specified port and injects it as the `PORT` environment variable |
 | `.WithExternalHttpEndpoints()` | Allows external access (browser) |
 
 ---
 
-## Step 11: Verify Installation
+## Step 12: Verify Installation
 
 ### Start via Aspire (Recommended)
 
@@ -477,7 +581,6 @@ dotnet run --project Aspire.AppHost
 
 The Aspire dashboard will show all resources including the Angular app. Click the Angular app's URL in the dashboard to open it in the browser — the port is assigned dynamically by Aspire.
 
-> **Alternative:** You can also run Angular standalone with `npm start` (port 4200) from the project folder, but you'll need to start the backend APIs separately. Aspire handles all of this in one go.
 
 ### Test API Connection
 
@@ -581,7 +684,7 @@ Before proceeding to the next document, verify:
 - [x] Angular project created at `C:\projects\DDD\DDD\Frontend\Angular\Scheduling.AngularApp`
 - [x] Angular Material installed and configured
 - [x] Dev server starts successfully (via `Aspire` or `ng serve`)
-- [x] App loads at `Aspire url` or `https://localhost:4200` if used `ng serve`
+- [x] App loads at `Aspire url`
 
 ### CORS Configuration
 
@@ -614,26 +717,15 @@ Before proceeding to the next document, verify:
 
 **Symptom:**
 ```
-Access to fetch at 'https://localhost:7001/api/patients' from origin 'https://localhost:4200'
+Access to fetch at 'https://localhost:7001/api/patients' from origin 'https://localhost:7003'
 has been blocked by CORS policy
 ```
 
 **Solution:**
 - Verify CORS is configured in the backend API's `Program.cs`
 - Ensure `app.UseCors("Angular")` is called before `app.MapControllers()`
-- Check the allowed origin matches exactly (`https://localhost:4200`, not `https`)
+- Check the allowed origin matches exactly (`https://localhost:7003`)
 - Restart the backend API after changing CORS configuration
-
-### Issue: Self-Signed Certificate Errors
-
-**Symptom:**
-```
-Error: unable to verify the first certificate
-```
-
-**Solution:**
-- Trust the ASP.NET Core development certificate: `dotnet dev-certs https --trust`
-- Restart your browser after trusting the certificate
 
 ### Issue: Angular Material Styles Not Applying
 
@@ -648,19 +740,7 @@ Material components render without styling.
   ```
 - Angular 21 uses native CSS animations — no animation provider needed
 
-### Issue: `ng serve` Fails to Start
 
-**Symptom:**
-```
-Error: ENOENT: no such file or directory
-```
-
-**Solution:**
-- Ensure you're in the correct directory (`Scheduling.AngularApp`)
-- Run `npm install` to restore dependencies
-- Delete `node_modules` and run `npm install` again if corruption suspected
-
----
 
 ## Next Steps
 
@@ -698,9 +778,9 @@ Now that the Angular project is set up, the next document will cover:
 | **CLI Command** | `dotnet new blazor` | `ng new --standalone` |
 | **Component Library** | FluentUI Blazor (NuGet) | Angular Material (npm) |
 | **API Access (Dev)** | Aspire service discovery | CORS configuration |
-| **Dev Server** | Kestrel (port 5000-5999) | Webpack Dev Server (port 4200) |
+| **Dev Server** | Kestrel (port 5000-5999) | Webpack Dev Server (port 7003) |
 | **Language** | C# | TypeScript |
-| **Aspire Integration** | `AddProject<Projects.Blazor_App>()` | `AddNpmApp(name, path, script)` |
+| **Aspire Integration** | `AddProject<Projects.Blazor_App>()` | `AddJavaScriptApp(name, path, script)` |
 
 ---
 

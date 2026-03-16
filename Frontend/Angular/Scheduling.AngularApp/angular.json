@@ -67,6 +67,11 @@
               "buildTarget": "Scheduling.AngularApp:build:development"
             }
           },
+          "options": {
+            "ssl": true,
+            "sslKey": "certs/local-key.pem",
+            "sslCert": "certs/local-cert.pem"
+          },
           "defaultConfiguration": "development"
         },
         "test": {

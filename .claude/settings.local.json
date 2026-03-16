@@ -98,7 +98,8 @@
       "Bash(dotnet --info:*)",
       "Bash(dotnet user-secrets list:*)",
       "Bash(dotnet user-secrets set:*)",
-      "Bash(find:*)"
+      "Bash(find:*)",
+      "Bash(grep:*)"
     ]
   }
 }

@@ -48,7 +48,7 @@ builder.Services.AddMassTransitEventBus(builder.Configuration, configure =>
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("Angular", policy => policy
-        .WithOrigins("https://localhost:4200")
+        .WithOrigins("https://localhost:7003")
         .AllowAnyHeader()
         .AllowAnyMethod());
 });

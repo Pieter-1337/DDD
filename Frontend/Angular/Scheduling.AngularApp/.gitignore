@@ -31,6 +31,7 @@ yarn-error.log
 
 # Miscellaneous
 /.angular/cache
+/.nx/cache
 .sass-cache/
 /connect.lock
 /coverage
@@ -42,3 +43,7 @@ __screenshots__/
 # System files
 .DS_Store
 Thumbs.db
+
+# SSL certificates (generated locally via mkcert)
+certs/*
+!certs/README.md
