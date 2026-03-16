@@ -262,17 +262,17 @@ Update both API projects:
 |---------|-------|------|
 | Scheduling.WebApi | `https://localhost:7001` | `http://localhost:5001` |
 | Billing.WebApi | `https://localhost:7002` | `http://localhost:5002` |
-| Angular | — | `http://localhost:4200` |
+| Angular | — | `https://localhost:4200` |
 
 ---
 
 ## Step 7: Configure CORS
 
-Angular's dev server runs on a different port than the backend APIs (e.g., `http://localhost:4200` for Angular, `https://localhost:7001` for Scheduling API). This creates a cross-origin scenario that requires CORS (Cross-Origin Resource Sharing) configuration on the backend.
+Angular's dev server runs on a different port than the backend APIs (e.g., `https://localhost:4200` for Angular, `https://localhost:7001` for Scheduling API). This creates a cross-origin scenario that requires CORS (Cross-Origin Resource Sharing) configuration on the backend.
 
 ### Why CORS is Needed
 
-When the Angular app on `http://localhost:4200` makes HTTP requests to the API on `https://localhost:7001`, browsers enforce the same-origin policy and block the requests unless the API explicitly allows cross-origin requests via CORS headers.
+When the Angular app on `https://localhost:4200` makes HTTP requests to the API on `https://localhost:7001`, browsers enforce the same-origin policy and block the requests unless the API explicitly allows cross-origin requests via CORS headers.
 
 ### Configure CORS in ASP.NET Core Backend
 
@@ -283,7 +283,7 @@ Add the CORS policy before building the app:
 ```csharp
 builder.Services.AddCors(options =>
     options.AddPolicy("Angular", policy => policy
-        .WithOrigins("http://localhost:4200")
+        .WithOrigins("https://localhost:4200")
         .AllowAnyHeader()
         .AllowAnyMethod()));
 ```
@@ -302,13 +302,13 @@ Repeat the same configuration for the Billing API.
 
 | Option | Purpose |
 |--------|---------|
-| `.WithOrigins("http://localhost:4200")` | Allow requests from Angular dev server origin |
+| `.WithOrigins("https://localhost:4200")` | Allow requests from Angular dev server origin |
 | `.AllowAnyHeader()` | Accept any HTTP headers (e.g., `Content-Type`, custom headers) |
 | `.AllowAnyMethod()` | Accept any HTTP method (GET, POST, PUT, DELETE, etc.) |
 
 ### Production Considerations
 
-**Note:** In production, replace `http://localhost:4200` with your actual frontend domain (e.g., `https://app.yourdomain.com`). Never use `.AllowAnyOrigin()` in production — always specify exact allowed origins.
+**Note:** In production, replace `https://localhost:4200` with your actual frontend domain (e.g., `https://app.yourdomain.com`). Never use `.AllowAnyOrigin()` in production — always specify exact allowed origins.
 
 ---
 
@@ -577,36 +577,34 @@ Before proceeding to the next document, verify:
 
 ### Angular CLI and Project
 
-- [ ] Angular CLI installed (`ng version` works)
-- [ ] Angular project created at `C:\projects\DDD\DDD\Frontend\Angular\Scheduling.AngularApp`
-- [ ] Angular Material installed and configured
-- [ ] Dev server starts successfully (`ng serve`)
-- [ ] App loads at `http://localhost:4200`
+- [x] Angular CLI installed (`ng version` works)
+- [x] Angular project created at `C:\projects\DDD\DDD\Frontend\Angular\Scheduling.AngularApp`
+- [x] Angular Material installed and configured
+- [x] Dev server starts successfully (via `Aspire` or `ng serve`)
+- [x] App loads at `Aspire url` or `https://localhost:4200` if used `ng serve`
 
 ### CORS Configuration
 
-- [ ] CORS configured in Scheduling.WebApi (`Program.cs`)
-- [ ] CORS configured in Billing.WebApi (`Program.cs`)
-- [ ] No CORS errors in browser console when calling API
+- [x] CORS configured in Scheduling.WebApi (`Program.cs`)
+- [x] CORS configured in Billing.WebApi (`Program.cs`)
+- [x] No CORS errors in browser console when calling API
 
 ### HttpClient Configuration
 
-- [ ] `provideHttpClient()` added to `app.config.ts`
-- [ ] No animation provider needed (Angular 21 uses native CSS animations)
-- [ ] No console errors on page load
+- [x] `provideHttpClient()` added to `app.config.ts`
+- [x] No console errors on page load
 
 ### Backend Availability
 
-- [ ] Scheduling.WebApi running and accessible (e.g., `https://localhost:7001`)
-- [ ] Billing.WebApi running and accessible (e.g., `https://localhost:7002`)
-- [ ] Scalar UI available for testing APIs (`/scalar/v1`)
+- [x] Scheduling.WebApi running and accessible (e.g., `https://localhost:7001`)
+- [x] Billing.WebApi running and accessible (e.g., `https://localhost:7002`)
+- [x] Scalar UI available for testing APIs (`/scalar/v1`)
 
 ### Aspire Integration
 
-- [ ] `Aspire.Hosting.JavaScript` package added to `Directory.Packages.props` and `Aspire.AppHost.csproj`
-- [ ] `AddJavaScriptApp()` registered in `AppHost.cs`
-- [ ] Angular app appears in Aspire dashboard
-- [ ] Aspire dashboard link opens `http://localhost:4200`
+- [x] `Aspire.Hosting.JavaScript` package added to `Directory.Packages.props` and `Aspire.AppHost.csproj`
+- [x] `AddJavaScriptApp()` registered in `AppHost.cs`
+- [x] Angular app appears in Aspire dashboard
 
 ---
 
@@ -616,14 +614,14 @@ Before proceeding to the next document, verify:
 
 **Symptom:**
 ```
-Access to fetch at 'https://localhost:7001/api/patients' from origin 'http://localhost:4200'
+Access to fetch at 'https://localhost:7001/api/patients' from origin 'https://localhost:4200'
 has been blocked by CORS policy
 ```
 
 **Solution:**
 - Verify CORS is configured in the backend API's `Program.cs`
 - Ensure `app.UseCors("Angular")` is called before `app.MapControllers()`
-- Check the allowed origin matches exactly (`http://localhost:4200`, not `https`)
+- Check the allowed origin matches exactly (`https://localhost:4200`, not `https`)
 - Restart the backend API after changing CORS configuration
 
 ### Issue: Self-Signed Certificate Errors
