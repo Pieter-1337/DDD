@@ -14,8 +14,8 @@ var billingApi = builder.AddProject<Projects.Billing_WebApi>("billing-webapi")
     .WithReference(messaging)
     .WaitFor(messaging);
 
-// Add Angular app
-builder.AddJavaScriptApp("scheduling-angularapp", "../Frontend/Angular/Scheduling.AngularApp")
+// Add Angular app and define script to run on startup serve/start/other...
+builder.AddJavaScriptApp("scheduling-angularapp", "../Frontend/Angular/Scheduling.AngularApp", "start")
     .WithReference(schedulingApi)
     .WithReference(billingApi)
     .WithHttpEndpoint(env: "PORT")
