@@ -44,6 +44,15 @@ builder.Services.AddMassTransitEventBus(builder.Configuration, configure =>
     configure.AddConsumers(typeof(Billing.Infrastructure.ServiceCollectionExtensions).Assembly);
 });
 
+// Add cors
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("Angular", policy => policy
+        .WithOrigins("https//localhost:4200")
+        .AllowAnyHeader()
+        .AllowAnyMethod());
+});
+
 var app = builder.Build();
 
 // Map Aspire default endpoints (health checks)
@@ -56,5 +65,6 @@ if (app.Environment.IsDevelopment())
 
 app.UseHttpsRedirection();
 app.UseAuthorization();
+app.UseCors("Angular");
 app.MapControllers();
 app.Run();

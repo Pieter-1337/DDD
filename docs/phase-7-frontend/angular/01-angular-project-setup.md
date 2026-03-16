@@ -285,31 +285,29 @@ Angular's `HttpClient` is the standard way to make HTTP requests. Configure it a
 **File: `src/app/app.config.ts`**
 
 ```typescript
-import { ApplicationConfig, provideZoneChangeDetection } from '@angular/core';
+import { ApplicationConfig, provideBrowserGlobalErrorListeners } from '@angular/core';
 import { provideRouter } from '@angular/router';
-import { provideHttpClient, withInterceptorsFromDi } from '@angular/common/http';
-import { provideAnimationsAsync } from '@angular/platform-browser/animations/async';
+import { provideHttpClient } from '@angular/common/http';
 import { routes } from './app.routes';
 
 export const appConfig: ApplicationConfig = {
   providers: [
-    provideZoneChangeDetection({ eventCoalescing: true }),
+    provideBrowserGlobalErrorListeners(),
     provideRouter(routes),
-    provideHttpClient(withInterceptorsFromDi()), // Enable HttpClient
-    provideAnimationsAsync(),                     // Enable Angular Material animations
+    provideHttpClient(),
   ],
 };
 ```
+
+> **Note:** Angular 21 no longer requires `provideAnimationsAsync()` — it was deprecated in Angular 20.2. Angular Material now uses native CSS animations handled by the browser. No animation provider is needed.
 
 ### Provider Explanations
 
 | Provider | Purpose |
 |----------|---------|
-| `provideZoneChangeDetection` | Enables Angular's change detection with optimizations |
+| `provideBrowserGlobalErrorListeners` | Registers global error and unhandled rejection listeners |
 | `provideRouter` | Configures Angular Router with defined routes |
 | `provideHttpClient` | Enables `HttpClient` for dependency injection |
-| `withInterceptorsFromDi()` | Allows classic class-based interceptors |
-| `provideAnimationsAsync` | Enables Angular Material animations (lazy-loaded) |
 
 ---
 
@@ -324,7 +322,8 @@ Configure environment-specific settings for API base URLs.
 ```typescript
 export const environment = {
   production: false,
-  apiBaseUrl: '', // Relative path — CORS allows cross-origin requests in dev
+  schedulingApiUrl: 'https://localhost:7001', // Scheduling.WebApi
+  billingApiUrl: 'https://localhost:7002',    // Billing.WebApi
 };
 ```
 
@@ -335,7 +334,8 @@ export const environment = {
 ```typescript
 export const environment = {
   production: true,
-  apiBaseUrl: 'https://api.yourdomain.com', // Replace with actual production API URL
+  schedulingApiUrl: 'https://scheduling-api.yourdomain.com', // Replace with actual URL
+  billingApiUrl: 'https://billing-api.yourdomain.com',       // Replace with actual URL
 };
 ```
 
@@ -346,9 +346,7 @@ import { environment } from '../../environments/environment';
 
 @Injectable({ providedIn: 'root' })
 export class PatientService {
-  private readonly baseUrl = `${environment.apiBaseUrl}/api/patients`;
-  // In dev: '' + '/api/patients' = '/api/patients' (same-origin or CORS)
-  // In prod: 'https://api.yourdomain.com' + '/api/patients'
+  private readonly baseUrl = `${environment.schedulingApiUrl}/api/patients`;
 }
 ```
 
@@ -536,7 +534,7 @@ Before proceeding to the next document, verify:
 ### HttpClient Configuration
 
 - [ ] `provideHttpClient()` added to `app.config.ts`
-- [ ] `provideAnimationsAsync()` added for Material animations
+- [ ] No animation provider needed (Angular 21 uses native CSS animations)
 - [ ] No console errors on page load
 
 ### Backend Availability
@@ -591,7 +589,7 @@ Material components render without styling.
   ```scss
   @import '@angular/material/prebuilt-themes/indigo-pink.css';
   ```
-- Ensure `provideAnimationsAsync()` is in `app.config.ts`
+- Angular 21 uses native CSS animations — no animation provider needed
 
 ### Issue: `ng serve` Fails to Start
 

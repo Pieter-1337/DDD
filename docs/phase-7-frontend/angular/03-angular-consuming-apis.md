@@ -106,6 +106,7 @@ import {
   CreatePatientResponse,
   PatientFilterParams
 } from '../models/patient.model';
+import { environment } from '../../../environments/environment';
 
 /**
  * Service for managing patient data via Scheduling.WebApi
@@ -113,7 +114,7 @@ import {
 @Injectable({ providedIn: 'root' })
 export class PatientService {
   private http = inject(HttpClient);
-  private baseUrl = '/api/patients';
+  private baseUrl = `${environment.schedulingApiUrl}/api/patients`;
 
   /**
    * Get all patients with optional filtering
@@ -316,7 +317,8 @@ For production builds, use environment files to configure the base URL.
 ```typescript
 export const environment = {
   production: false,
-  apiUrl: '/api',  // Relative path — requires CORS on backend
+  schedulingApiUrl: 'https://localhost:7001', // Scheduling.WebApi — CORS configured
+  billingApiUrl: 'https://localhost:7002',    // Billing.WebApi — CORS configured
 };
 ```
 
@@ -327,7 +329,8 @@ export const environment = {
 ```typescript
 export const environment = {
   production: true,
-  apiUrl: 'https://your-api.azurewebsites.net/api',
+  schedulingApiUrl: 'https://scheduling-api.yourdomain.com',
+  billingApiUrl: 'https://billing-api.yourdomain.com',
 };
 ```
 
@@ -339,7 +342,7 @@ import { environment } from '../../environments/environment';
 @Injectable({ providedIn: 'root' })
 export class PatientService {
   private http = inject(HttpClient);
-  private baseUrl = `${environment.apiUrl}/patients`;
+  private baseUrl = `${environment.schedulingApiUrl}/api/patients`;
 
   // ... methods
 }
@@ -432,12 +435,13 @@ export class ErrorHandlerService {
 
 ```typescript
 import { catchError } from 'rxjs/operators';
+import { environment } from '../../../environments/environment';
 
 @Injectable({ providedIn: 'root' })
 export class PatientService {
   private http = inject(HttpClient);
   private errorHandler = inject(ErrorHandlerService);
-  private baseUrl = '/api/patients';
+  private baseUrl = `${environment.schedulingApiUrl}/api/patients`;
 
   getAll(params?: PatientFilterParams): Observable<Patient[]> {
     let httpParams = new HttpParams();
