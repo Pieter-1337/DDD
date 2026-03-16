@@ -93,50 +93,25 @@ ng new Scheduling.AngularApp --style=scss --routing=true --ssr=false --standalon
 
 Angular projects aren't .NET projects, but Visual Studio supports JavaScript/TypeScript projects via `.esproj` files. This lets the Angular project appear in Solution Explorer under the `05. Frontend > Angular` solution folder.
 
-### Create `.esproj` File
+### Add via Visual Studio
 
-The `.esproj` file must be placed inside the Angular project folder (next to `package.json`, `angular.json`, etc.). Windows Explorer can't create files with custom extensions directly, so use one of these approaches:
+Visual Studio can create the `.esproj` file for you and add it to the solution in one step:
 
-**Option A — VS Code** (easiest):
-1. Open the `Frontend/Angular/Scheduling.AngularApp/` folder in VS Code
-2. Right-click in the Explorer panel → New File
-3. Name it `Scheduling.AngularApp.esproj`
-4. Paste the XML content below and save
+1. Open `DDD.sln` in Visual Studio
+2. Right-click the **Angular** folder under **05. Frontend** in Solution Explorer
+3. **Add → New Project**
+4. Search for **"Standalone JavaScript/TypeScript"** and select the template
+5. Set the project name to `Scheduling.AngularApp`
+6. Set the location to `Frontend/Angular/`
+7. Click Create
 
-**Option B — Terminal**:
-```bash
-cd Frontend/Angular/Scheduling.AngularApp
-# The file will be created in the same folder as package.json and angular.json
-touch Scheduling.AngularApp.esproj
-```
-Then open the file and paste the content below.
+Since the Angular project already exists in that folder, Visual Studio wraps it with a `.esproj` file rather than scaffolding new files. The project now appears in Solution Explorer with full file browsing.
 
-**File**: `Frontend/Angular/Scheduling.AngularApp/Scheduling.AngularApp.esproj`
+**Prerequisite:** The **Node.js development** workload must be installed via the Visual Studio Installer.
 
-```xml
-<Project Sdk="Microsoft.VisualStudio.JavaScript.Sdk/1.0">
-  <PropertyGroup>
-    <StartupCommand>npm start</StartupCommand>
-    <JavaScriptTestRoot>src/</JavaScriptTestRoot>
-    <JavaScriptTestFramework>Vitest</JavaScriptTestFramework>
-    <ShouldRunBuildScript>false</ShouldRunBuildScript>
-    <PublishAssetsDirectory>$(DefaultItemExcludes);dist\</PublishAssetsDirectory>
-  </PropertyGroup>
-</Project>
-```
+### What the `.esproj` does
 
-Your Angular project folder should now look like:
-```
-Frontend/Angular/Scheduling.AngularApp/
-├── Scheduling.AngularApp.esproj    <-- new file (lives next to package.json)
-├── angular.json
-├── package.json
-├── tsconfig.json
-├── src/
-│   ├── app/
-│   └── ...
-└── ...
-```
+Visual Studio creates a `Scheduling.AngularApp.esproj` file in the Angular project folder (next to `package.json`). This is a lightweight project file that tells VS how to handle the JavaScript project:
 
 | Property | Purpose |
 |----------|---------|
@@ -145,19 +120,6 @@ Frontend/Angular/Scheduling.AngularApp/
 | `JavaScriptTestFramework` | Angular 21+ uses Vitest by default (replaces Karma/Jasmine) |
 | `ShouldRunBuildScript` | `false` — skip `npm run build` on VS build (Angular CLI handles builds) |
 | `PublishAssetsDirectory` | Where production build output goes (`dist/`) |
-
-### Add to Solution
-
-The JavaScript SDK is a Visual Studio component, so `dotnet sln add` from the CLI won't work. Instead, add the project via Visual Studio:
-
-1. Open `DDD.sln` in Visual Studio
-2. Right-click the **Angular** folder under **05. Frontend** in Solution Explorer
-3. Add → Existing Project
-4. Browse to `Frontend/Angular/Scheduling.AngularApp/Scheduling.AngularApp.esproj`
-
-The Angular project now appears in Solution Explorer alongside .NET projects.
-
-The Angular project now appears in Solution Explorer alongside .NET projects.
 
 ---
 
