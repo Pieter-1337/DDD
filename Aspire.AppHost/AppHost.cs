@@ -18,7 +18,7 @@ var billingApi = builder.AddProject<Projects.Billing_WebApi>("billing-webapi")
 builder.AddJavaScriptApp("scheduling-angularapp", "../Frontend/Angular/Scheduling.AngularApp", "start")
     .WithReference(schedulingApi)
     .WithReference(billingApi)
-    .WithHttpEndpoint(env: "PORT")
+    .WithHttpEndpoint(port: 4200, env: "PORT")
     .WithExternalHttpEndpoints();
 
 builder.Build().Run();

@@ -257,7 +257,7 @@ export class PatientListComponent implements OnInit {
 ### Why CORS is Needed
 
 - **Angular dev server**: Runs on `http://localhost:4200`
-- **Backend API**: Runs on `https://localhost:7001` (or Aspire-assigned port)
+- **Backend API**: Runs on an HTTPS port (check Aspire dashboard or `launchSettings.json`)
 - **Different Origins**: Different protocols, domains, or ports = cross-origin request
 - **Browser Security**: Browsers block cross-origin requests by default
 - **Solution**: Configure CORS on the backend to allow requests from the Angular origin
@@ -317,8 +317,8 @@ For production builds, use environment files to configure the base URL.
 ```typescript
 export const environment = {
   production: false,
-  schedulingApiUrl: 'https://localhost:7001', // Scheduling.WebApi — CORS configured
-  billingApiUrl: 'https://localhost:7002',    // Billing.WebApi — CORS configured
+  schedulingApiUrl: 'https://localhost:7001', // Scheduling.WebApi
+  billingApiUrl: 'https://localhost:7002',    // Billing.WebApi
 };
 ```
 

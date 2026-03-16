@@ -230,7 +230,43 @@ Frontend/Angular/Scheduling.AngularApp/
 
 ---
 
-## Step 6: Configure CORS
+## Step 6: Standardize API Ports
+
+By default, .NET scaffolds random ports in `launchSettings.json`. Standardize them so the Angular `environment.ts` works consistently for everyone who clones the project.
+
+Update both API projects:
+
+**File: `WebApplications/Scheduling.WebApi/Properties/launchSettings.json`**
+
+```json
+"http": {
+  "applicationUrl": "http://localhost:5001"
+},
+"https": {
+  "applicationUrl": "https://localhost:7001;http://localhost:5001"
+}
+```
+
+**File: `WebApplications/Billing.WebApi/Properties/launchSettings.json`**
+
+```json
+"http": {
+  "applicationUrl": "http://localhost:5002"
+},
+"https": {
+  "applicationUrl": "https://localhost:7002;http://localhost:5002"
+}
+```
+
+| Service | HTTPS | HTTP |
+|---------|-------|------|
+| Scheduling.WebApi | `https://localhost:7001` | `http://localhost:5001` |
+| Billing.WebApi | `https://localhost:7002` | `http://localhost:5002` |
+| Angular | — | `http://localhost:4200` |
+
+---
+
+## Step 7: Configure CORS
 
 Angular's dev server runs on a different port than the backend APIs (e.g., `http://localhost:4200` for Angular, `https://localhost:7001` for Scheduling API). This creates a cross-origin scenario that requires CORS (Cross-Origin Resource Sharing) configuration on the backend.
 
@@ -276,7 +312,7 @@ Repeat the same configuration for the Billing API.
 
 ---
 
-## Step 7: Configure HttpClient
+## Step 8: Configure HttpClient
 
 Angular's `HttpClient` is the standard way to make HTTP requests. Configure it as a global provider.
 
@@ -311,7 +347,7 @@ export const appConfig: ApplicationConfig = {
 
 ---
 
-## Step 8: Environment Configuration
+## Step 9: Environment Configuration
 
 Configure environment-specific settings for API base URLs.
 
@@ -326,6 +362,8 @@ export const environment = {
   billingApiUrl: 'https://localhost:7002',    // Billing.WebApi
 };
 ```
+
+> **Note:** These ports are defined in each API's `Properties/launchSettings.json` and are checked into source control, so they're consistent across machines.
 
 ### Production Environment
 
@@ -352,9 +390,9 @@ export class PatientService {
 
 ---
 
-## Step 9: Register with Aspire (Optional)
+## Step 10: Register with Aspire
 
-.NET Aspire can orchestrate the Angular dev server alongside .NET services. This is optional but provides a unified development experience.
+.NET Aspire orchestrates the Angular dev server alongside the backend APIs, providing a unified development experience with a single `F5` to start everything.
 
 ### Install the Aspire JavaScript Hosting Package
 
@@ -379,73 +417,73 @@ Then add the reference to `Aspire.AppHost/Aspire.AppHost.csproj`:
 ```csharp
 var builder = DistributedApplication.CreateBuilder(args);
 
-// Existing services
-var rabbitmq = builder.AddRabbitMQ("rabbitmq");
+// Add RabbitMQ with management plugin enabled
+var messagingPassword = builder.AddParameter("messaging-password");
+var messaging = builder.AddRabbitMQ("messaging", password: messagingPassword)
+    .WithManagementPlugin()
+    .WithDataVolume();
+
 var schedulingApi = builder.AddProject<Projects.Scheduling_WebApi>("scheduling-webapi")
-    .WithReference(rabbitmq);
+    .WithReference(messaging)
+    .WaitFor(messaging);
+
 var billingApi = builder.AddProject<Projects.Billing_WebApi>("billing-webapi")
-    .WithReference(rabbitmq);
+    .WithReference(messaging)
+    .WaitFor(messaging);
 
 // Add Angular app
-var angularApp = builder.AddJavaScriptApp("scheduling-angularapp",
-        "../Frontend/Angular/Scheduling.AngularApp")
+builder.AddJavaScriptApp("scheduling-angularapp",
+        "../Frontend/Angular/Scheduling.AngularApp", "start")
     .WithReference(schedulingApi)
     .WithReference(billingApi)
-    .WithHttpEndpoint(env: "PORT")
+    .WithHttpEndpoint(port: 4200, env: "PORT")
     .WithExternalHttpEndpoints();
 
 builder.Build().Run();
 ```
 
-> **Note:** `AddNpmApp` was deprecated. Use `AddJavaScriptApp` instead — it auto-detects npm from `package.json` and runs the `dev` script during local development.
+> **Note:** `AddNpmApp` was deprecated in Aspire 13. Use `AddJavaScriptApp` instead. The third parameter (`"start"`) specifies which npm script to run — this maps to `ng serve` in `package.json`.
 
 ### JavaScript App Options
 
 | Method | Purpose |
 |--------|---------|
-| `AddJavaScriptApp(name, path)` | Registers a JavaScript app (auto-detects npm, runs `dev` script) |
+| `AddJavaScriptApp(name, path, script)` | Registers a JavaScript app (runs `npm run <script>`) |
 | `.WithReference(schedulingApi)` | Injects service discovery for the API |
-| `.WithHttpEndpoint(env: "PORT")` | Exposes the Angular dev server HTTP endpoint |
+| `.WithHttpEndpoint(port: 4200, env: "PORT")` | Pins the Angular dev server to port 4200 |
 | `.WithExternalHttpEndpoints()` | Allows external access (browser) |
-
-### Aspire vs Manual Dev Server
-
-| Approach | When to Use |
-|----------|------------|
-| **Aspire orchestration** | Unified dashboard, service discovery, one `F5` to start everything |
-| **Manual `ng serve`** | Simpler setup, faster iteration, already familiar workflow |
-
-**Recommendation:** Start with manual `ng serve` and CORS configuration. Add Aspire integration later if you want unified orchestration.
 
 ---
 
-## Step 10: Verify Installation
+## Step 11: Verify Installation
 
-### Start Development Server
+### Start via Aspire (Recommended)
+
+Run the Aspire AppHost from Visual Studio (`F5`) or the CLI:
 
 ```bash
-cd C:\projects\DDD\DDD\Frontend\Angular\Scheduling.AngularApp
-ng serve
+dotnet run --project Aspire.AppHost
 ```
 
-Expected output:
-```
-✔ Browser application bundle generation complete.
-Initial Chunk Files | Names         |  Raw Size
-main.js             | main          | 250.45 kB |
-styles.css          | styles        |  75.23 kB |
+The Aspire dashboard will show all resources:
 
-Application bundle generation complete. [2.345 seconds]
-Watch mode enabled. Watching for file changes...
-➜ Local:   http://localhost:4200/
-```
+| Resource | Type | URL |
+|----------|------|-----|
+| scheduling-webapi | Project | `https://localhost:7001` |
+| billing-webapi | Project | `https://localhost:7002` |
+| scheduling-angularapp | JavaScript | `http://localhost:4200` |
+| messaging (RabbitMQ) | Container | Management UI via dashboard |
+
+Open `http://localhost:4200` in the browser to verify the Angular app loads.
+
+> **Alternative:** You can also run Angular standalone with `ng serve` from the project folder, but you'll need to start the backend APIs separately. Aspire handles all of this in one go.
 
 ### Test API Connection
 
 1. Open `http://localhost:4200` in browser
 2. Open browser DevTools (F12) → Network tab
 3. Navigate to a patient list page (once implemented)
-4. Verify requests to `/api/patients` succeed with status 200
+4. Verify requests to the backend API succeed with status 200
 5. Check Console tab — no CORS errors should appear
 
 ### Test Angular Material
@@ -562,11 +600,12 @@ Before proceeding to the next document, verify:
 - [ ] Billing.WebApi running and accessible (e.g., `https://localhost:7002`)
 - [ ] Scalar UI available for testing APIs (`/scalar/v1`)
 
-### Optional: Aspire Integration
+### Aspire Integration
 
-- [ ] (If using Aspire) `AddNpmApp()` registered in `AppHost.cs`
-- [ ] (If using Aspire) Angular app appears in Aspire dashboard
-- [ ] (If using Aspire) Aspire dashboard shows Angular app as healthy
+- [ ] `Aspire.Hosting.JavaScript` package added to `Directory.Packages.props` and `Aspire.AppHost.csproj`
+- [ ] `AddJavaScriptApp()` registered in `AppHost.cs`
+- [ ] Angular app appears in Aspire dashboard
+- [ ] Aspire dashboard link opens `http://localhost:4200`
 
 ---
 
@@ -643,7 +682,7 @@ Now that the Angular project is set up, the next document will cover:
 - Added Angular Material UI library
 - Configured CORS for cross-origin API access during development
 - Set up `HttpClient` for making HTTP requests
-- (Optional) Registered Angular app with .NET Aspire
+- Registered Angular app with .NET Aspire
 
 ### Key Files Created
 
