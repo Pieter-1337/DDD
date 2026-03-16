@@ -8,7 +8,7 @@ This document covers Angular's component model, routing configuration, and page 
 
 ## Angular Component Model
 
-Angular components are self-contained units consisting of a TypeScript class (`.ts`), HTML template (`.html`), and CSS styles (`.css`) in separate files. Angular 17+ defaults to **standalone components**, eliminating the need for NgModules.
+Angular components are self-contained units consisting of a TypeScript class (`.ts`), HTML template (`.html`), and SCSS styles (`.scss`) in separate files. Angular 17+ defaults to **standalone components**, eliminating the need for NgModules.
 
 ### Component Anatomy
 
@@ -21,7 +21,7 @@ import { CommonModule } from '@angular/common';
   standalone: true,
   imports: [CommonModule],
   templateUrl: './example.component.html',
-  styleUrl: './example.component.css',
+  styleUrl: './example.component.scss',
 })
 export class ExampleComponent {
   title = signal('Hello Angular');   // Signal-based reactive state
@@ -33,8 +33,8 @@ export class ExampleComponent {
 <h1>{{ title() }}</h1>
 ```
 
-**example.component.css**:
-```css
+**example.component.scss**:
+```scss
 h1 { color: blue; }
 ```
 
@@ -46,9 +46,9 @@ h1 { color: blue; }
 | `standalone` | Enable standalone mode (no NgModule) | `true` |
 | `imports` | Components/modules used in template | `[MatTableModule, FormsModule]` |
 | `templateUrl` | External HTML template file | `'./example.component.html'` |
-| `styleUrl` | External CSS stylesheet file | `'./example.component.css'` |
+| `styleUrl` | External SCSS stylesheet file | `'./example.component.scss'` |
 | `template` | Inline HTML template (for trivial cases) | `` `<h1>Hello</h1>` `` |
-| `styles` | Inline CSS styles (for trivial cases) | `['h1 { color: red; }']` |
+| `styles` | Inline SCSS styles (for trivial cases) | `['h1 { color: red; }']` |
 
 ### Component Lifecycle Hooks
 
@@ -228,7 +228,7 @@ import { Patient } from '../../../core/models/patient.model';
     FormsModule,
   ],
   templateUrl: './patient-list.component.html',
-  styleUrl: './patient-list.component.css',
+  styleUrl: './patient-list.component.scss',
 })
 export class PatientListComponent implements OnInit {
   private patientService = inject(PatientService);
@@ -312,8 +312,8 @@ export class PatientListComponent implements OnInit {
 }
 ```
 
-**patient-list.component.css**:
-```css
+**patient-list.component.scss**:
+```scss
 .toolbar {
   display: flex;
   justify-content: space-between;
@@ -428,7 +428,7 @@ import { PatientService } from '../../../core/services/patient.service';
     MatNativeDateModule,
   ],
   templateUrl: './create-patient.component.html',
-  styleUrl: './create-patient.component.css',
+  styleUrl: './create-patient.component.scss',
 })
 export class CreatePatientComponent {
   private patientService = inject(PatientService);
@@ -506,8 +506,8 @@ export class CreatePatientComponent {
 </form>
 ```
 
-**create-patient.component.css**:
-```css
+**create-patient.component.scss**:
+```scss
 form {
   display: flex;
   flex-direction: column;
@@ -527,7 +527,7 @@ form {
 
 | Concept | Blazor | Angular |
 |---------|--------|---------|
-| **Component file** | `.razor` (markup + code) | `.component.ts` + `.component.html` + `.component.css` |
+| **Component file** | `.razor` (markup + code) | `.component.ts` + `.component.html` + `.component.scss` |
 | **Template syntax** | Razor (`@if`, `@foreach`, `@bind`) | Angular (`@if`, `@for`, `{{ }}`, `[(ngModel)]`) |
 | **Routing definition** | `@page "/path"` in component | `Routes` array with `loadComponent` |
 | **Route parameters** | `[Parameter]` property attribute | `ActivatedRoute.snapshot.paramMap.get('id')` |

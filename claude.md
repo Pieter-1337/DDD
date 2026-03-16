@@ -190,7 +190,7 @@ RabbitMQ is managed by .NET Aspire for local development. The `docker-compose.ym
 ```
 
 ## Current Phase
-**Current**: Phase 7 - Frontend (Blazor Server)
+**Current**: Phase 7 - Frontend (Blazor Server + Angular)
 
 ### Completed Phases
 - ✅ Phase 1: DDD Fundamentals
@@ -200,6 +200,10 @@ RabbitMQ is managed by .NET Aspire for local development. The `docker-compose.ym
 - ✅ Phase 5: Event-Driven Architecture (MassTransit, RabbitMQ, Integration Events)
 - ✅ Phase 6: Integration (Aspire orchestration, Billing BC, Observability)
 
+### Phase 7 Progress
+- **Angular track**: Project setup complete (doc 01) — implementing components next (doc 02)
+- **Blazor track**: Docs written, implementation pending
+
 ## Learning Resources Referenced
 - Pluralsight: "Domain-Driven Design Fundamentals" (Julie Lerman & Steve Smith)
 - Pluralsight: "Domain-Driven Design in Practice" (Vladimir Khorikov)
@@ -208,9 +212,9 @@ RabbitMQ is managed by .NET Aspire for local development. The `docker-compose.ym
 - Microsoft eBook: ".NET Microservices: Architecture for Containerized .NET Applications"
 
 ## Next Steps
-1. Build Blazor Server frontend with FluentUI (Phase 7)
-2. Patient management UI (list, create, detail, suspend)
-3. API integration with typed HttpClient and Aspire service discovery
+1. Implement Angular components and routing (Phase 7, doc 02)
+2. Build Blazor Server frontend with FluentUI (Phase 7)
+3. API integration for both frontends
 4. Explore API Gateway with YARP (Phase 8, optional)
 
 ## Notes for Claude Code

@@ -320,7 +320,7 @@ import { NotificationService } from '../../core/services/notification.service';
   standalone: true,
   imports: [CommonModule],
   templateUrl: './notification-display.component.html',
-  styleUrl: './notification-display.component.css',
+  styleUrl: './notification-display.component.scss',
 })
 export class NotificationDisplayComponent {
   notificationService = inject(NotificationService);
@@ -351,8 +351,8 @@ export class NotificationDisplayComponent {
 </div>
 ```
 
-**notification-display.component.css**:
-```css
+**notification-display.component.scss**:
+```scss
 .notification-container {
   position: fixed;
   top: 20px;

@@ -550,7 +550,7 @@ import { Patient } from '../../../core/models/patient.model';
   standalone: true,
   imports: [CommonModule],
   templateUrl: './patient-list.component.html',
-  styleUrl: './patient-list.component.css',
+  styleUrl: './patient-list.component.scss',
 })
 export class PatientListComponent implements OnInit {
   private patientService = inject(PatientService);
@@ -657,9 +657,9 @@ export class PatientListComponent implements OnInit {
 </div>
 ```
 
-**File**: `src/app/features/patients/patient-list/patient-list.component.css`
+**File**: `src/app/features/patients/patient-list/patient-list.component.scss`
 
-```css
+```scss
 .container { padding: 2rem; }
 .alert { margin-bottom: 1rem; }
 ```

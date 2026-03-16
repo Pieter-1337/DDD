@@ -82,7 +82,7 @@ import { PatientService } from '../../../core/services/patient.service';
     MatNativeDateModule,
   ],
   templateUrl: './create-patient.component.html',
-  styleUrl: './create-patient.component.css',
+  styleUrl: './create-patient.component.scss',
 })
 export class CreatePatientComponent {
   private fb = inject(FormBuilder);
@@ -213,8 +213,8 @@ export class CreatePatientComponent {
 </div>
 ```
 
-**create-patient.component.css**:
-```css
+**create-patient.component.scss**:
+```scss
 .create-patient-container {
   max-width: 600px;
   margin: 2rem auto;
