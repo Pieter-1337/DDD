@@ -6,7 +6,7 @@
 
 ## Overview
 
-This document covers how Angular applications consume backend APIs using HttpClient, including service architecture, RxJS patterns, proxy configuration, and error handling strategies. We'll implement the Patient service that communicates with the Scheduling.WebApi.
+This document covers how Angular applications consume backend APIs using HttpClient, including service architecture, RxJS patterns, CORS configuration, and error handling strategies. We'll implement the Patient service that communicates with the Scheduling.WebApi.
 
 ---
 
@@ -15,7 +15,7 @@ This document covers how Angular applications consume backend APIs using HttpCli
 Angular uses the `HttpClient` service from `@angular/common/http` to make HTTP requests:
 
 - **Returns RxJS Observables** — HTTP calls are lazy and don't execute until subscribed
-- **Proxy Configuration** — In development, `proxy.conf.json` proxies `/api` requests to the backend
+- **CORS Configuration** — In development, CORS is configured on the backend to allow cross-origin requests from Angular
 - **Environment Files** — In production, configure the base URL via environment files
 - **Automatic JSON Parsing** — Request and response bodies are automatically serialized/deserialized
 
@@ -251,63 +251,57 @@ export class PatientListComponent implements OnInit {
 
 ---
 
-## Proxy Configuration Deep Dive
+## CORS Configuration
 
-### Why Proxy is Needed
+### Why CORS is Needed
 
 - **Angular dev server**: Runs on `http://localhost:4200`
 - **Backend API**: Runs on `https://localhost:7001` (or Aspire-assigned port)
-- **CORS Problem**: Browsers block cross-origin requests by default
-- **Solution**: Proxy intercepts `/api` requests and forwards to backend
+- **Different Origins**: Different protocols, domains, or ports = cross-origin request
+- **Browser Security**: Browsers block cross-origin requests by default
+- **Solution**: Configure CORS on the backend to allow requests from the Angular origin
 
-### Proxy Configuration
+### Configure CORS on Backend
 
-**File**: `proxy.conf.json` (in project root)
+Add CORS policy in `Program.cs` for both `Scheduling.WebApi` and `Billing.WebApi`:
 
-```json
+```csharp
+// Add CORS policy
+builder.Services.AddCors(options =>
 {
-  "/api": {
-    "target": "https://localhost:7001",
-    "secure": false,
-    "changeOrigin": true,
-    "logLevel": "debug"
-  }
-}
+    options.AddPolicy("Angular", policy => policy
+        .WithOrigins("http://localhost:4200")
+        .AllowAnyHeader()
+        .AllowAnyMethod());
+});
+
+// ... other service registrations
+
+var app = builder.Build();
+
+// Apply CORS middleware (before UseAuthorization)
+app.UseCors("Angular");
+
+// ... other middleware
 ```
 
-| Property | Purpose | Value |
-|----------|---------|-------|
-| `target` | Backend API base URL | `https://localhost:7001` (or Aspire port) |
-| `secure` | Verify SSL certificates | `false` for self-signed certs in dev |
-| `changeOrigin` | Change origin header to match target | `true` to avoid CORS issues |
-| `logLevel` | Console logging level | `debug`, `info`, `warn`, `error`, `silent` |
+**Key Points**:
+- `WithOrigins("http://localhost:4200")` — Allow requests from Angular dev server
+- `AllowAnyHeader()` — Allow all HTTP headers (Authorization, Content-Type, etc.)
+- `AllowAnyMethod()` — Allow all HTTP methods (GET, POST, PUT, DELETE)
+- `UseCors()` must be called **before** `UseAuthorization()` in the middleware pipeline
+- Apply this configuration to **both** `Scheduling.WebApi` and `Billing.WebApi`
 
-### Update angular.json
-
-Register the proxy configuration:
-
-```json
-{
-  "projects": {
-    "scheduling-app": {
-      "architect": {
-        "serve": {
-          "options": {
-            "proxyConfig": "proxy.conf.json"
-          }
-        }
-      }
-    }
-  }
-}
-```
-
-### Verify Proxy is Working
+### Verify CORS is Working
 
 1. Start backend API (via Aspire or directly)
 2. Start Angular dev server: `ng serve`
-3. Open browser console and check for proxy logs
-4. Make an API call and verify the request goes to correct backend URL
+3. Open browser console (F12)
+4. Make an API call from Angular
+5. Verify:
+   - No CORS errors in console
+   - Network tab shows successful responses
+   - Response headers include `Access-Control-Allow-Origin: http://localhost:4200`
 
 ---
 
@@ -322,7 +316,7 @@ For production builds, use environment files to configure the base URL.
 ```typescript
 export const environment = {
   production: false,
-  apiUrl: '/api',  // Uses proxy in development
+  apiUrl: '/api',  // Relative path — requires CORS on backend
 };
 ```
 
@@ -372,8 +366,8 @@ Understanding the differences helps when working in both ecosystems:
 | **Return Type** | `Task<T>` | `Observable<T>` |
 | **Lazy Execution** | No (executes immediately) | Yes (executes on subscribe) |
 | **Registration** | `builder.Services.AddHttpClient<T>()` | `provideHttpClient()` in `app.config.ts` |
-| **Base URL** | Aspire service discovery / configuration | `proxy.conf.json` (dev) / environment (prod) |
-| **CORS** | No issues (server-to-server) | Proxy needed in development |
+| **Base URL** | Aspire service discovery / configuration | Environment config + CORS (dev) / environment (prod) |
+| **CORS** | No issues (server-to-server) | CORS configured on backend |
 | **Error Handling** | try/catch | `catchError` operator |
 | **Serialization** | System.Text.Json (automatic) | Automatic JSON parsing |
 | **Streaming** | `IAsyncEnumerable<T>` | Observables support streaming naturally |
@@ -666,8 +660,7 @@ export class PatientListComponent implements OnInit {
 - [ ] PatientService created with all CRUD methods
 - [ ] All service methods return `Observable<T>`
 - [ ] `inject()` function used instead of constructor injection
-- [ ] Proxy configuration created (`proxy.conf.json`)
-- [ ] Proxy registered in `angular.json`
+- [ ] CORS configured on backend APIs (`Program.cs`)
 - [ ] GetAll works with and without status filter
 - [ ] GetById returns patient data
 - [ ] Create posts data and returns response with validation errors
@@ -677,7 +670,7 @@ export class PatientListComponent implements OnInit {
 - [ ] Environment files configured for dev/prod
 - [ ] Signals used in component for reactive state
 - [ ] Loading and error states displayed in UI
-- [ ] Proxy successfully forwards `/api` requests to backend
+- [ ] API requests succeed without CORS errors in browser console
 - [ ] No CORS errors in browser console
 
 ---

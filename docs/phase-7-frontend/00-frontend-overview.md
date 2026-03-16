@@ -249,7 +249,7 @@ Both tracks build identical functionality. Choose one or both.
 | **State Management** | Scoped services, component state | Services, signals |
 | **Component Library** | FluentUI Blazor (Microsoft Fluent 2 design) | Angular Material |
 | **Forms** | `EditForm` + FluentValidation | Reactive Forms + validation |
-| **API Client** | Typed `HttpClient` with Aspire service discovery | Angular `HttpClient` + proxy.conf.json |
+| **API Client** | Typed `HttpClient` with Aspire service discovery | Angular `HttpClient` + CORS |
 | **Bundle Size** | N/A (server-rendered) | ~200KB gzipped (initial load) |
 | **Deployment** | ASP.NET Core app | Static files + nginx/CDN |
 | **SEO** | Excellent (server-rendered HTML) | Requires SSR or prerendering |
@@ -261,7 +261,7 @@ Both tracks build identical functionality. Choose one or both.
 - You're a .NET developer comfortable with C#
 - Server-side rendering is preferred (SEO, low client load)
 - Real-time updates via SignalR are useful
-- You want to reuse C# validation and models
+- You want to share C# models and validation with backend projects
 - Team expertise is in .NET
 
 ### When to Choose Angular
@@ -271,6 +271,7 @@ Both tracks build identical functionality. Choose one or both.
 - Team expertise is in TypeScript/JavaScript
 - You're building a public-facing SPA
 - You need a mature SPA ecosystem (RxJS, signals, standalone components)
+- Note: TypeScript models must be defined separately (or generated from API specs using tools like NSwag or openapi-generator)
 
 ---
 
@@ -294,6 +295,8 @@ Frontend (Blazor or Angular)
    v
 Backend APIs (Scheduling, Billing)  <-- Direct consumption
 ```
+
+> **Note:** Blazor Server is inherently a BFF — it runs server-side, makes API calls server-to-server, and communicates with the browser via SignalR. It can aggregate data from multiple backend APIs without needing a separate BFF service. The BFF pattern in Phase 8 is primarily relevant for the Angular SPA track.
 
 **When to add a BFF:**
 - You build both Blazor and Angular frontends with different needs
@@ -406,7 +409,7 @@ Start with [blazor/01-blazor-project-setup.md](./blazor/01-blazor-project-setup.
 Start with [angular/01-angular-project-setup.md](./angular/01-angular-project-setup.md) to:
 1. Create Angular project with standalone components
 2. Add Angular Material UI library
-3. Configure proxy for local API calls
+3. Configure CORS for cross-origin API access
 4. Set up HttpClient and environment configuration
 
 ### Why build both?

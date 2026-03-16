@@ -13,6 +13,8 @@ Blazor Server runs on the server, making HTTP calls server-to-server:
 - **Aspire service discovery** — Resolves service names to URLs automatically at runtime
 - **Server-side execution** — API calls happen in the SignalR circuit context, not in JavaScript
 
+> **Blazor Server as BFF:** This server-to-server architecture means Blazor Server naturally acts as a Backend for Frontend (BFF). It can aggregate data from multiple APIs, handle authentication tokens server-side, and expose only cookie-based auth to the browser — no separate BFF service needed.
+
 This architecture means your Blazor app can call internal APIs that aren't exposed to the public internet.
 
 ---
@@ -116,6 +118,8 @@ public record CreatePatientResponse(
 - **Separate request/response** — Don't reuse DTOs for different purposes
 - **Nullable for optional fields** — Use `?` for fields that may be absent
 - **Validation in API** — DTOs are data containers, not domain models
+
+> **Model sharing:** Since Blazor Server and the backend are both C#, you could reference shared DTO projects directly instead of redefining models. However, for this learning project we keep DTOs separate per application to reinforce bounded context boundaries. In practice, a shared contracts NuGet package is a common approach.
 
 ---
 

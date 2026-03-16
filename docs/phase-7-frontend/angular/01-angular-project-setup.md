@@ -93,25 +93,47 @@ ng new Scheduling.AngularApp --style=scss --routing=true --ssr=false --standalon
 
 Angular projects aren't .NET projects, but Visual Studio supports JavaScript/TypeScript projects via `.esproj` files. This lets the Angular project appear in Solution Explorer under the `05. Frontend > Angular` solution folder.
 
-### Add via Visual Studio
+### Step 1: Create the `.esproj` file
 
-Visual Studio can create the `.esproj` file for you and add it to the solution in one step:
+The `.esproj` file goes inside the Angular project folder, next to `package.json`. Create it via VS Code or terminal:
+
+**VS Code:** Open `Frontend/Angular/Scheduling.AngularApp/`, right-click in the Explorer panel → New File → name it `Scheduling.AngularApp.esproj`
+
+**Terminal:**
+```bash
+touch Frontend/Angular/Scheduling.AngularApp/Scheduling.AngularApp.esproj
+```
+
+Paste this content:
+
+```xml
+<Project Sdk="Microsoft.VisualStudio.JavaScript.Sdk/1.0.4671869">
+  <PropertyGroup>
+    <StartupCommand>npm start</StartupCommand>
+    <JavaScriptTestRoot>src/</JavaScriptTestRoot>
+    <JavaScriptTestFramework>Vitest</JavaScriptTestFramework>
+    <ShouldRunBuildScript>false</ShouldRunBuildScript>
+    <PublishAssetsDirectory>$(DefaultItemExcludes);dist\</PublishAssetsDirectory>
+  </PropertyGroup>
+</Project>
+```
+
+**Note:** The SDK version must be the exact NuGet version, not just `1.0` — MSBuild can't resolve the short version for this SDK. Find the latest version at [nuget.org/packages/Microsoft.VisualStudio.JavaScript.SDK](https://www.nuget.org/packages/Microsoft.VisualStudio.JavaScript.SDK) — use the full version number shown on the page (e.g. `1.0.4671869`).
+
+### Step 2: Add to Solution via Visual Studio
 
 1. Open `DDD.sln` in Visual Studio
 2. Right-click the **Angular** folder under **05. Frontend** in Solution Explorer
-3. **Add → New Project**
-4. Search for **"Standalone JavaScript/TypeScript"** and select the template
-5. Set the project name to `Scheduling.AngularApp`
-6. Set the location to `Frontend/Angular/`
-7. Click Create
+3. **Add → Existing Project**
+4. Browse to `Frontend/Angular/Scheduling.AngularApp/Scheduling.AngularApp.esproj`
 
-Since the Angular project already exists in that folder, Visual Studio wraps it with a `.esproj` file rather than scaffolding new files. The project now appears in Solution Explorer with full file browsing.
+The Angular project now appears in Solution Explorer with full file browsing.
 
 **Prerequisite:** The **Node.js development** workload must be installed via the Visual Studio Installer.
 
 ### What the `.esproj` does
 
-Visual Studio creates a `Scheduling.AngularApp.esproj` file in the Angular project folder (next to `package.json`). This is a lightweight project file that tells VS how to handle the JavaScript project:
+The `.esproj` is a lightweight project file that tells Visual Studio how to handle the JavaScript project:
 
 | Property | Purpose |
 |----------|---------|
@@ -140,15 +162,17 @@ ng add @angular/material
 | **Typography** | Yes | Sets global Material typography styles |
 | **Animations** | Yes | Enables Angular animations module |
 
-**Result:** Angular Material is installed and configured in `app.config.ts`.
+**Result:** Angular Material is installed. In Angular 21, Material 3 theming is configured entirely in `styles.scss` (using `mat.theme()`) — no changes to `app.config.ts` are needed. Animations are built into the browser platform by default.
 
 ---
 
 ## Step 5: Project Structure
 
-Organize the Angular project to mirror the domain structure and follow Angular best practices.
+The Angular project will grow to mirror the domain structure as you work through the subsequent docs. **Do not create these folders manually** — the Angular CLI generates them when you use commands like `ng generate component` and `ng generate service` in later steps.
 
-### Recommended Folder Structure
+### End-State Folder Structure (Reference)
+
+The tree below shows what the project will look like after completing all Phase 7 Angular docs:
 
 ```
 Frontend/Angular/Scheduling.AngularApp/
@@ -163,7 +187,7 @@ Frontend/Angular/Scheduling.AngularApp/
 │   │   │   │   └── billing-profile.model.ts
 │   │   │   └── interceptors/
 │   │   │       └── error.interceptor.ts    # Global HTTP error handling
-│   │   ├── features/                       # Feature modules (lazy-loadable)
+│   │   ├── features/                       # Feature-specific components (lazy-loadable)
 │   │   │   └── patients/
 │   │   │       ├── patient-list/
 │   │   │       │   ├── patient-list.component.ts
@@ -189,7 +213,6 @@ Frontend/Angular/Scheduling.AngularApp/
 │   ├── environments/
 │   │   ├── environment.ts                  # Development config
 │   │   └── environment.prod.ts             # Production config
-│   ├── proxy.conf.json                     # Dev server API proxy
 │   ├── styles.scss                         # Global styles
 │   └── index.html                          # HTML shell
 ├── angular.json                            # Angular CLI config
@@ -207,73 +230,49 @@ Frontend/Angular/Scheduling.AngularApp/
 
 ---
 
-## Step 6: Configure API Proxy
+## Step 6: Configure CORS
 
-Angular's dev server runs on a different port than the backend APIs (e.g., `http://localhost:4200` for Angular, `https://localhost:7001` for Scheduling API). To avoid CORS issues during development, configure a proxy to forward API requests.
+Angular's dev server runs on a different port than the backend APIs (e.g., `http://localhost:4200` for Angular, `https://localhost:7001` for Scheduling API). This creates a cross-origin scenario that requires CORS (Cross-Origin Resource Sharing) configuration on the backend.
 
-### Create Proxy Configuration
+### Why CORS is Needed
 
-**File: `src/proxy.conf.json`**
+When the Angular app on `http://localhost:4200` makes HTTP requests to the API on `https://localhost:7001`, browsers enforce the same-origin policy and block the requests unless the API explicitly allows cross-origin requests via CORS headers.
 
-```json
-{
-  "/api": {
-    "target": "https://localhost:7001",
-    "secure": false,
-    "changeOrigin": true,
-    "logLevel": "debug"
-  }
-}
+### Configure CORS in ASP.NET Core Backend
+
+**File: `WebApplications/Scheduling.WebApi/Program.cs`**
+
+Add the CORS policy before building the app:
+
+```csharp
+builder.Services.AddCors(options =>
+    options.AddPolicy("Angular", policy => policy
+        .WithOrigins("http://localhost:4200")
+        .AllowAnyHeader()
+        .AllowAnyMethod()));
 ```
 
-### Proxy Options Explained
+Then enable the CORS middleware in the request pipeline (before `app.MapControllers()`):
 
-| Option | Value | Purpose |
-|--------|-------|---------|
-| `target` | `https://localhost:7001` | Backend API base URL (Scheduling.WebApi) |
-| `secure` | `false` | Accept self-signed SSL certificates in dev |
-| `changeOrigin` | `true` | Change `Host` header to match target |
-| `logLevel` | `debug` | Log proxy requests to console |
-
-### Update Angular CLI Configuration
-
-**File: `angular.json`**
-
-```json
-{
-  "projects": {
-    "Scheduling.AngularApp": {
-      "architect": {
-        "serve": {
-          "options": {
-            "proxyConfig": "src/proxy.conf.json"
-          }
-        }
-      }
-    }
-  }
-}
+```csharp
+app.UseCors("Angular");
 ```
 
-### Proxy Flow
+**File: `WebApplications/Billing.WebApi/Program.cs`**
 
-```
-Browser request to http://localhost:4200/api/patients
-        |
-        v
-Angular dev server intercepts /api/* requests
-        |
-        v
-Proxy forwards to https://localhost:7001/api/patients
-        |
-        v
-Scheduling.WebApi responds
-        |
-        v
-Response returned to browser
-```
+Repeat the same configuration for the Billing API.
 
-**Production Note:** In production, replace the proxy with environment-specific API base URLs in `environment.prod.ts`.
+### CORS Options Explained
+
+| Option | Purpose |
+|--------|---------|
+| `.WithOrigins("http://localhost:4200")` | Allow requests from Angular dev server origin |
+| `.AllowAnyHeader()` | Accept any HTTP headers (e.g., `Content-Type`, custom headers) |
+| `.AllowAnyMethod()` | Accept any HTTP method (GET, POST, PUT, DELETE, etc.) |
+
+### Production Considerations
+
+**Note:** In production, replace `http://localhost:4200` with your actual frontend domain (e.g., `https://app.yourdomain.com`). Never use `.AllowAnyOrigin()` in production — always specify exact allowed origins.
 
 ---
 
@@ -325,7 +324,7 @@ Configure environment-specific settings for API base URLs.
 ```typescript
 export const environment = {
   production: false,
-  apiBaseUrl: '', // Empty string uses proxy.conf.json in dev
+  apiBaseUrl: '', // Relative path — CORS allows cross-origin requests in dev
 };
 ```
 
@@ -348,7 +347,7 @@ import { environment } from '../../environments/environment';
 @Injectable({ providedIn: 'root' })
 export class PatientService {
   private readonly baseUrl = `${environment.apiBaseUrl}/api/patients`;
-  // In dev: '' + '/api/patients' = '/api/patients' (proxied)
+  // In dev: '' + '/api/patients' = '/api/patients' (same-origin or CORS)
   // In prod: 'https://api.yourdomain.com' + '/api/patients'
 }
 ```
@@ -399,7 +398,7 @@ builder.Build().Run();
 | **Aspire orchestration** | Unified dashboard, service discovery, one `F5` to start everything |
 | **Manual `ng serve`** | Simpler setup, faster iteration, already familiar workflow |
 
-**Recommendation:** Start with manual `ng serve` and proxy configuration. Add Aspire integration later if you want unified orchestration.
+**Recommendation:** Start with manual `ng serve` and CORS configuration. Add Aspire integration later if you want unified orchestration.
 
 ---
 
@@ -424,12 +423,13 @@ Watch mode enabled. Watching for file changes...
 ➜ Local:   http://localhost:4200/
 ```
 
-### Test API Proxy
+### Test API Connection
 
 1. Open `http://localhost:4200` in browser
 2. Open browser DevTools (F12) → Network tab
 3. Navigate to a patient list page (once implemented)
-4. Verify requests to `/api/patients` are proxied to `https://localhost:7001/api/patients`
+4. Verify requests to `/api/patients` succeed with status 200
+5. Check Console tab — no CORS errors should appear
 
 ### Test Angular Material
 
@@ -486,7 +486,7 @@ Expected result: A Material Design toolbar and button render correctly.
 |--------|--------------|---------|
 | **Dependencies** | `*.csproj` (NuGet packages) | `package.json` (npm packages) |
 | **Build Config** | `*.csproj`, `appsettings.json` | `angular.json`, `tsconfig.json` |
-| **API Client** | Typed `HttpClient` via DI | `HttpClient` + proxy.conf.json |
+| **API Client** | Typed `HttpClient` via DI | `HttpClient` + CORS |
 | **Dev Server** | Kestrel (ASP.NET Core) | Webpack Dev Server (ng serve) |
 
 ### API Access
@@ -494,7 +494,7 @@ Expected result: A Material Design toolbar and button render correctly.
 | Framework | Development | Production |
 |-----------|-------------|------------|
 | **Blazor** | Aspire service discovery (`https+http://scheduling-webapi`) | Configured via `appsettings.json` or env variables |
-| **Angular** | `proxy.conf.json` proxies `/api/*` to backend | `environment.prod.ts` with full API URL |
+| **Angular** | CORS allows cross-origin requests to backend API | `environment.prod.ts` with full API URL |
 
 ### Language & Paradigm
 
@@ -527,11 +527,11 @@ Before proceeding to the next document, verify:
 - [ ] Dev server starts successfully (`ng serve`)
 - [ ] App loads at `http://localhost:4200`
 
-### API Proxy
+### CORS Configuration
 
-- [ ] `proxy.conf.json` created with correct target URL
-- [ ] `angular.json` updated to use proxy configuration
-- [ ] Proxy logs show requests forwarded to backend (check terminal)
+- [ ] CORS configured in Scheduling.WebApi (`Program.cs`)
+- [ ] CORS configured in Billing.WebApi (`Program.cs`)
+- [ ] No CORS errors in browser console when calling API
 
 ### HttpClient Configuration
 
@@ -564,9 +564,10 @@ has been blocked by CORS policy
 ```
 
 **Solution:**
-- Verify `proxy.conf.json` is configured correctly
-- Ensure `angular.json` references the proxy config
-- Restart `ng serve` after changing proxy configuration
+- Verify CORS is configured in the backend API's `Program.cs`
+- Ensure `app.UseCors("Angular")` is called before `app.MapControllers()`
+- Check the allowed origin matches exactly (`http://localhost:4200`, not `https`)
+- Restart the backend API after changing CORS configuration
 
 ### Issue: Self-Signed Certificate Errors
 
@@ -576,8 +577,8 @@ Error: unable to verify the first certificate
 ```
 
 **Solution:**
-- Set `"secure": false` in `proxy.conf.json`
-- Alternatively, trust the development certificate in your OS
+- Trust the ASP.NET Core development certificate: `dotnet dev-certs https --trust`
+- Restart your browser after trusting the certificate
 
 ### Issue: Angular Material Styles Not Applying
 
@@ -623,7 +624,7 @@ Now that the Angular project is set up, the next document will cover:
 
 - Installed Angular CLI and created a standalone component project
 - Added Angular Material UI library
-- Configured API proxy for CORS-free local development
+- Configured CORS for cross-origin API access during development
 - Set up `HttpClient` for making HTTP requests
 - (Optional) Registered Angular app with .NET Aspire
 
@@ -633,7 +634,6 @@ Now that the Angular project is set up, the next document will cover:
 |------|---------|
 | `angular.json` | Angular CLI build and serve configuration |
 | `src/app/app.config.ts` | Application-wide DI providers |
-| `src/proxy.conf.json` | Dev server proxy for backend API |
 | `src/environments/environment.ts` | Environment-specific configuration |
 
 ### Blazor vs Angular Setup Comparison
@@ -642,7 +642,7 @@ Now that the Angular project is set up, the next document will cover:
 |--------|--------------|---------|
 | **CLI Command** | `dotnet new blazor` | `ng new --standalone` |
 | **Component Library** | FluentUI Blazor (NuGet) | Angular Material (npm) |
-| **API Access (Dev)** | Aspire service discovery | proxy.conf.json |
+| **API Access (Dev)** | Aspire service discovery | CORS configuration |
 | **Dev Server** | Kestrel (port 5000-5999) | Webpack Dev Server (port 4200) |
 | **Language** | C# | TypeScript |
 | **Aspire Integration** | `AddProject<Projects.Blazor_App>()` | `AddNpmApp(name, path, script)` |
