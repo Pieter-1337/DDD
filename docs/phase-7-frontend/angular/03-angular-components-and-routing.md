@@ -265,14 +265,14 @@ export class PatientList implements OnInit {
     this.loadPatients();
   }
 
-  loadPatients() {
+  loadPatients() : void {
     this.isLoading.set(true);
-    this.patientService.getAll(this.selectedStatus || undefined).subscribe({
+    this.patientService.getAll({ status: this.selectedStatus || undefined }).subscribe({
       next: (patients) => {
         this.patients.set(patients);
         this.isLoading.set(false);
       },
-      error: () => this.isLoading.set(false),
+      error: () => this.isLoading.set(false)
     });
   }
 }
@@ -383,14 +383,15 @@ export class PatientDetail implements OnInit {
     this.loadPatient(id);
   }
 
-  private loadPatient(id: string) {
+  private loadPatient(id: string): void{
+    this.isLoading.set(true);
     this.patientService.getById(id).subscribe({
       next: (patient) => {
-        this.patient.set(patient);
+        this.patient.set(patient)
         this.isLoading.set(false);
       },
-      error: () => this.isLoading.set(false),
-    });
+      error: () => this.isLoading.set(false)
+    })
   }
 
   suspend() {

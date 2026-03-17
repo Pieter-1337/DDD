@@ -34,6 +34,25 @@ export const appConfig: ApplicationConfig = {
 
 ---
 
+## Shared Response Model
+
+The backend uses a common `SuccessOrFailureDto` base class for command responses. Define its TypeScript equivalent in `shared/` so it can be reused across bounded contexts (Scheduling, Billing, etc.).
+
+**File**: `src/app/shared/models/success-or-failure-response.model.ts`
+
+```typescript
+/**
+ * Base response for commands that return success/failure.
+ * Maps to BuildingBlocks.Application.Dtos.SuccessOrFailureDto on the backend.
+ */
+export interface SuccessOrFailureResponse {
+  success: boolean;
+  message: string;
+}
+```
+
+---
+
 ## Patient Model
 
 Define TypeScript interfaces that match the backend DTOs.
@@ -41,6 +60,8 @@ Define TypeScript interfaces that match the backend DTOs.
 **File**: `src/app/core/models/patient.model.ts`
 
 ```typescript
+import { SuccessOrFailureResponse } from '@shared/models/success-or-failure-response.model';
+
 /**
  * Patient entity returned from API
  */
@@ -66,10 +87,8 @@ export interface CreatePatientRequest {
 /**
  * Response from CreatePatient command
  */
-export interface CreatePatientResponse {
-  success: boolean;
+export interface CreatePatientResponse extends SuccessOrFailureResponse {
   patientId: string;
-  errors?: string[];
 }
 
 /**
@@ -117,6 +136,7 @@ import {
   CreatePatientResponse,
   PatientFilterParams
 } from '@core/models/patient.model';
+import { SuccessOrFailureResponse } from '@shared/models/success-or-failure-response.model';
 import { environment } from '@env/environment';
 
 /**
@@ -163,19 +183,19 @@ export class PatientApi {
   /**
    * Suspend a patient (change status to Suspended)
    * @param id Patient ID
-   * @returns Observable of boolean indicating success
+   * @returns Observable of success/failure response
    */
-  suspend(id: string): Observable<boolean> {
-    return this.http.post<boolean>(`${this.baseUrl}/${id}/suspend`, null);
+  suspend(id: string): Observable<SuccessOrFailureResponse> {
+    return this.http.post<SuccessOrFailureResponse>(`${this.baseUrl}/${id}/suspend`, null);
   }
 
   /**
    * Activate a patient (change status to Active)
    * @param id Patient ID
-   * @returns Observable of boolean indicating success
+   * @returns Observable of success/failure response
    */
-  activate(id: string): Observable<boolean> {
-    return this.http.post<boolean>(`${this.baseUrl}/${id}/activate`, null);
+  activate(id: string): Observable<SuccessOrFailureResponse> {
+    return this.http.post<SuccessOrFailureResponse>(`${this.baseUrl}/${id}/activate`, null);
   }
 }
 ```
@@ -235,20 +255,9 @@ this.patientApi.getAll().pipe(
 
 ### Subscribing in Components
 
-Always unsubscribe to prevent memory leaks. Two common patterns:
+HTTP observables auto-complete after one emission, so they don't leak. For long-lived streams (e.g., WebSocket, interval), use `takeUntilDestroyed()` to clean up. Two common patterns:
 
-**Pattern 1: Async Pipe (Recommended)**
-```typescript
-// Component
-patients$ = this.patientApi.getAll();
-
-// Template
-<div *ngFor="let patient of patients$ | async">
-  {{ patient.firstName }}
-</div>
-```
-
-**Pattern 2: Manual Subscription with Signal**
+**Pattern 1: Signal (Recommended)**
 ```typescript
 export class PatientList implements OnInit {
   patients = signal<Patient[]>([]);
@@ -260,6 +269,21 @@ export class PatientList implements OnInit {
   }
 }
 ```
+
+Signals are the modern Angular 17+ approach and work naturally with the `@if` / `@for` control flow used throughout this project.
+
+**Pattern 2: Async Pipe (Legacy)**
+```typescript
+// Component
+patients$ = this.patientApi.getAll();
+
+// Template
+<div *ngFor="let patient of patients$ | async">
+  {{ patient.firstName }}
+</div>
+```
+
+The async pipe was the go-to pattern before signals. It auto-subscribes/unsubscribes in the template, but requires `| async` on every binding and `*ngIf` wrappers to unwrap values — signals are simpler.
 
 ---
 
@@ -307,7 +331,7 @@ app.UseCors("Angular");
 ### Verify CORS is Working
 
 1. Start backend API (via Aspire or directly)
-2. Start Angular dev server: `ng serve`
+2. Start Angular dev server: (via Aspire or directly)
 3. Open browser console (F12)
 4. Make an API call from Angular
 5. Verify:

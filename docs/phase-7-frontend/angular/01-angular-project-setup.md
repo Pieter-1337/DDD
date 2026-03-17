@@ -201,9 +201,11 @@ Frontend/Angular/Scheduling.AngularApp/
 │   │   │           ├── create-patient.ts
 │   │   │           ├── create-patient.html
 │   │   │           └── create-patient.scss
-│   │   ├── shared/                         # Reusable components, directives, pipes
+│   │   ├── shared/                         # Reusable components, directives, pipes, models
 │   │   │   ├── components/
 │   │   │   │   └── loading-spinner/
+│   │   │   ├── models/
+│   │   │   │   └── success-or-failure-response.model.ts
 │   │   │   └── pipes/
 │   │   │       └── date-format-pipe.ts
 │   │   ├── app.ts                          # Root component

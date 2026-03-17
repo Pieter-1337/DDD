@@ -8,6 +8,7 @@ import { MatTableModule } from '@angular/material/table';
 import { Router } from '@angular/router';
 import { KeyValuePipe } from '@angular/common';
 import { Patient } from '@core/models/patient.model';
+import { PatientApi } from '@core/services/patient-api';
 
 @Component({
   selector: 'app-patient-list',
@@ -36,7 +37,7 @@ export class PatientList implements OnInit {
 
   loadPatients() : void {
     this.isLoading.set(true);
-    this.patientService.GetAll(this.selectedStatus || undefined).subsribe({
+    this.patientService.getAll({ status: this.selectedStatus || undefined }).subscribe({
       next: (patients) => {
         this.patients.set(patients);
         this.isLoading.set(false);

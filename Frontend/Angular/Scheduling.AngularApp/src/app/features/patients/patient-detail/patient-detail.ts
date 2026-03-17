@@ -4,6 +4,7 @@ import { MatProgressSpinnerModule } from "@angular/material/progress-spinner";
 import { DatePipe } from '@angular/common';
 import { MatCardModule } from '@angular/material/card';
 import { Patient } from '@core/models/patient.model';
+import { PatientApi } from '@core/services/patient-api';
 
 @Component({
   selector: 'app-patient-detail',
@@ -12,7 +13,7 @@ import { Patient } from '@core/models/patient.model';
   styleUrl: './patient-detail.scss',
 })
 export class PatientDetail implements OnInit {
-  private patientService = inject(patientApi);
+  private patientService = inject(PatientApi);
   private route = inject(ActivatedRoute);
   router = inject(Router);
 
@@ -27,7 +28,7 @@ export class PatientDetail implements OnInit {
 
   private loadPatient(id: string): void{
     this.isLoading.set(true);
-    this.patientService.Get(id).subscribe({
+    this.patientService.getById(id).subscribe({
       next: (patient) => {
         this.patient.set(patient)
         this.isLoading.set(false);
@@ -38,7 +39,7 @@ export class PatientDetail implements OnInit {
 
   suspend(){
     const id = this.patient()!.id;
-    this.patientService.Suspend(id).subscribe({
+    this.patientService.suspend(id).subscribe({
       next: () => this.loadPatient(id)
     });
   }
