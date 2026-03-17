@@ -1,9 +1,12 @@
 import { Component, inject, OnInit, signal } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
+import { MatProgressSpinnerModule } from "@angular/material/progress-spinner";
+import { DatePipe } from '@angular/common';
+import { MatCardModule } from '@angular/material/card';
 
 @Component({
   selector: 'app-patient-detail',
-  imports: [],
+  imports: [MatProgressSpinnerModule, DatePipe, MatCardModule],
   templateUrl: './patient-detail.html',
   styleUrl: './patient-detail.scss',
 })

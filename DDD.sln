@@ -152,8 +152,8 @@ EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "angular", "angular", "{C3D4E5F6-B7C8-4D9E-0F1A-2B3C4D5E6F7A}"
 	ProjectSection(SolutionItems) = preProject
 		docs\phase-7-frontend\angular\01-angular-project-setup.md = docs\phase-7-frontend\angular\01-angular-project-setup.md
-		docs\phase-7-frontend\angular\02-angular-components-and-routing.md = docs\phase-7-frontend\angular\02-angular-components-and-routing.md
-		docs\phase-7-frontend\angular\03-angular-consuming-apis.md = docs\phase-7-frontend\angular\03-angular-consuming-apis.md
+		docs\phase-7-frontend\angular\02-angular-consuming-apis.md = docs\phase-7-frontend\angular\02-angular-consuming-apis.md
+		docs\phase-7-frontend\angular\03-angular-components-and-routing.md = docs\phase-7-frontend\angular\03-angular-components-and-routing.md
 		docs\phase-7-frontend\angular\04-angular-state-management.md = docs\phase-7-frontend\angular\04-angular-state-management.md
 		docs\phase-7-frontend\angular\05-angular-forms-and-validation.md = docs\phase-7-frontend\angular\05-angular-forms-and-validation.md
 	EndProjectSection

@@ -1,1 +1,19 @@
-<p>patient-detail works!</p>
+@if(isLoading()){
+  <mat-spinner />
+} @else if(patient(); as p) {
+  <h1>{{p.firstName}} {{p.lastName}}</h1>
+
+  <mat-card>
+    <mat-card-content>
+      <p><strong>Email:</strong> {{ p.email }}</p>
+      <p><strong>Status:</strong> {{p.status}}</p>
+      <p><strong>Date of birth</strong> {{p.dateOfBirth | date}}</p>
+    </mat-card-content>
+    <mat-card-actions>
+      @if (p.status !== 'Suspended') {
+        <button mat-raised-button color="warn" (click)="suspend()">Suspend</button>
+      }
+      <button mat-button (click)="router.navigate(['/patients'])">Back to list</button>
+    </mat-card-actions>
+  </mat-card>
+}
