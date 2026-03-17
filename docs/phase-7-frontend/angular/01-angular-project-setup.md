@@ -483,7 +483,7 @@ export const environment = {
 ### Usage in Services
 
 ```typescript
-import { environment } from '../../environments/environment';
+import { environment } from '@env/environment';
 
 @Injectable({ providedIn: 'root' })
 export class PatientApi {
@@ -493,7 +493,42 @@ export class PatientApi {
 
 ---
 
-## Step 11: Register with Aspire
+## Step 11: Configure Path Aliases
+
+Deep relative imports like `../../../core/services/patient-api` become hard to read and fragile when you move files. TypeScript path aliases let you use short, absolute-style imports instead.
+
+### Update `tsconfig.json`
+
+Add a `paths` mapping under `compilerOptions`:
+
+```json
+{
+  "compilerOptions": {
+    "baseUrl": "src",
+    "paths": {
+      "@core/*": ["app/core/*"],
+      "@features/*": ["app/features/*"],
+      "@shared/*": ["app/shared/*"],
+      "@env/*": ["environments/*"]
+    }
+  }
+}
+```
+
+### Before vs After
+
+| Before | After |
+|--------|-------|
+| `import { PatientApi } from '../../../core/services/patient-api'` | `import { PatientApi } from '@core/services/patient-api'` |
+| `import { Patient } from '../../../core/models/patient.model'` | `import { Patient } from '@core/models/patient.model'` |
+| `import { environment } from '../../../environments/environment'` | `import { environment } from '@env/environment'` |
+| `import { NotificationStore } from '../../core/services/notification-store'` | `import { NotificationStore } from '@core/services/notification-store'` |
+
+> **Note**: Keep relative imports (`./`) for files within the same component folder (e.g. `templateUrl: './patient-list.html'`). Path aliases are for cross-folder imports only.
+
+---
+
+## Step 12: Register with Aspire
 
 .NET Aspire orchestrates the Angular dev server alongside the backend APIs, providing a unified development experience with a single `F5` to start everything.
 
@@ -569,7 +604,7 @@ Add the `start-aspire` script to `package.json`:
 
 ---
 
-## Step 12: Verify Installation
+## Step 13: Verify Installation
 
 ### Start via Aspire (Recommended)
 

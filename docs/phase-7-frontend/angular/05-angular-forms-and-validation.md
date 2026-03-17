@@ -68,7 +68,7 @@ import { MatDatepickerModule } from '@angular/material/datepicker';
 import { MatNativeDateModule } from '@angular/material/core';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { HttpErrorResponse } from '@angular/common/http';
-import { PatientApi } from '../../../core/services/patient-api';
+import { PatientApi } from '@core/services/patient-api';
 
 @Component({
   selector: 'app-create-patient',
@@ -330,7 +330,7 @@ export function minAgeValidator(minAge: number): ValidatorFn {
 ### Using Custom Validators
 
 ```typescript
-import { pastDateValidator, minAgeValidator } from '../../../shared/validators/date.validators';
+import { pastDateValidator, minAgeValidator } from '@shared/validators/date.validators';
 
 form = this.fb.nonNullable.group({
   dateOfBirth: ['', [

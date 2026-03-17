@@ -45,7 +45,7 @@ Angular 17+ introduced signals as the primary reactive primitive. Signals automa
 
 ```typescript
 import { Component, signal, computed } from '@angular/core';
-import { Patient } from '../../models/patient.model';
+import { Patient } from '@core/models/patient.model';
 
 @Component({
   selector: 'app-patient-list',
@@ -121,6 +121,19 @@ selectedPatient.update(p => ({ ...p, status: 'Active' }));
 // Read current value
 const currentPatients = patients(); // Note: signals are functions
 ```
+
+---
+
+### Generate Files
+
+Generate the service and component files from the Angular CLI (run from the `Scheduling.AngularApp/` root):
+
+```bash
+ng generate service core/services/notification-store
+ng generate component shared/components/notification-display
+```
+
+This scaffolds the notification store service and the notification display component with their boilerplate files. Then replace the generated code with the implementations below.
 
 ---
 
@@ -211,7 +224,7 @@ import { Component, inject } from '@angular/core';
 import { Router } from '@angular/router';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { FormBuilder, FormGroup, Validators } from '@angular/forms';
-import { PatientApi } from '../../../core/services/patient-api';
+import { PatientApi } from '@core/services/patient-api';
 
 @Component({
   selector: 'app-create-patient',
@@ -313,7 +326,7 @@ If you prefer a custom notification service with full control over display logic
 ```typescript
 import { Component, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { NotificationStore } from '../../core/services/notification-store';
+import { NotificationStore } from '@core/services/notification-store';
 
 @Component({
   selector: 'app-notifications',
@@ -436,7 +449,7 @@ export class NotificationDisplay {
 ```typescript
 import { Component } from '@angular/core';
 import { RouterOutlet } from '@angular/router';
-import { NotificationDisplay } from './shared/components/notification-display/notification-display';
+import { NotificationDisplay } from '@shared/components/notification-display/notification-display';
 
 @Component({
   selector: 'app-root',
@@ -501,8 +514,8 @@ Combining local and computed signals for a filtered patient list:
 import { Component, inject, signal, computed } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { PatientApi } from '../../../core/services/patient-api';
-import { Patient } from '../../../models/patient.model';
+import { PatientApi } from '@core/services/patient-api';
+import { Patient } from '@core/models/patient.model';
 
 @Component({
   selector: 'app-patient-list',

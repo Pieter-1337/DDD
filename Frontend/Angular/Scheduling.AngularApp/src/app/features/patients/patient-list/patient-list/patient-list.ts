@@ -7,6 +7,7 @@ import { MatSelectModule } from '@angular/material/select';
 import { MatTableModule } from '@angular/material/table';
 import { Router } from '@angular/router';
 import { KeyValuePipe } from '@angular/common';
+import { Patient } from '@core/models/patient.model';
 
 @Component({
   selector: 'app-patient-list',

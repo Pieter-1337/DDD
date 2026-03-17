@@ -3,6 +3,7 @@ import { ActivatedRoute, Router } from '@angular/router';
 import { MatProgressSpinnerModule } from "@angular/material/progress-spinner";
 import { DatePipe } from '@angular/common';
 import { MatCardModule } from '@angular/material/card';
+import { Patient } from '@core/models/patient.model';
 
 @Component({
   selector: 'app-patient-detail',

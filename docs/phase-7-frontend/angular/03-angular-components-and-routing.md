@@ -228,8 +228,8 @@ import { MatSelectModule } from '@angular/material/select';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { FormsModule } from '@angular/forms';
-import { PatientApi } from '../../../core/services/patient-api';
-import { Patient } from '../../../core/models/patient.model';
+import { PatientApi } from '@core/services/patient-api';
+import { Patient } from '@core/models/patient.model';
 
 @Component({
   selector: 'app-patient-list',
@@ -356,8 +356,8 @@ import { DatePipe } from '@angular/common';
 import { MatCardModule } from '@angular/material/card';
 import { MatButtonModule } from '@angular/material/button';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
-import { PatientApi } from '../../../core/services/patient-api';
-import { Patient } from '../../../core/models/patient.model';
+import { PatientApi } from '@core/services/patient-api';
+import { Patient } from '@core/models/patient.model';
 
 @Component({
   selector: 'app-patient-detail',
@@ -439,7 +439,7 @@ import { MatInputModule } from '@angular/material/input';
 import { MatButtonModule } from '@angular/material/button';
 import { MatDatepickerModule } from '@angular/material/datepicker';
 import { MatNativeDateModule } from '@angular/material/core';
-import { PatientApi } from '../../../core/services/patient-api';
+import { PatientApi } from '@core/services/patient-api';
 
 @Component({
   selector: 'app-create-patient',

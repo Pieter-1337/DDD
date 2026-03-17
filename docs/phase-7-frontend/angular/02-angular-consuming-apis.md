@@ -1,9 +1,5 @@
 # Angular — Consuming APIs
 
-> **Track:** Angular frontend track. For the Blazor equivalent, see the Blazor documentation.
-
----
-
 ## Overview
 
 This document covers how Angular applications consume backend APIs using HttpClient, including service architecture, RxJS patterns, CORS configuration, and error handling strategies. We'll implement the Patient API service that communicates with the Scheduling.WebApi.
@@ -33,6 +29,8 @@ export const appConfig: ApplicationConfig = {
   ]
 };
 ```
+
+`withInterceptorsFromDi()` tells Angular to pick up HTTP interceptors registered via the DI container (e.g. error handlers, auth token headers). Without it, `provideHttpClient()` only supports functional interceptors defined inline with `withInterceptors()`. Since we'll register our `ErrorHandler` interceptor as a class-based DI provider, we need this flag.
 
 ---
 
@@ -90,6 +88,19 @@ export interface PatientFilterParams {
 
 ---
 
+### Generate Files
+
+Generate the service files from the Angular CLI (run from the `Scheduling.AngularApp/` root):
+
+```bash
+ng generate service core/services/patient-api
+ng generate service core/services/error-handler
+```
+
+This scaffolds each service's `.ts` file with the `@Injectable({ providedIn: 'root' })` decorator. The model file (`patient.model.ts`) is created manually since it only contains TypeScript interfaces.
+
+---
+
 ## Patient API Service
 
 Services in Angular are singletons that encapsulate API communication logic.
@@ -105,8 +116,8 @@ import {
   CreatePatientRequest,
   CreatePatientResponse,
   PatientFilterParams
-} from '../models/patient.model';
-import { environment } from '../../../environments/environment';
+} from '@core/models/patient.model';
+import { environment } from '@env/environment';
 
 /**
  * Service for managing patient data via Scheduling.WebApi
@@ -337,7 +348,7 @@ export const environment = {
 ### Use Environment in Service
 
 ```typescript
-import { environment } from '../../environments/environment';
+import { environment } from '@env/environment';
 
 @Injectable({ providedIn: 'root' })
 export class PatientApi {
@@ -435,7 +446,7 @@ export class ErrorHandler {
 
 ```typescript
 import { catchError } from 'rxjs/operators';
-import { environment } from '../../../environments/environment';
+import { environment } from '@env/environment';
 
 @Injectable({ providedIn: 'root' })
 export class PatientApi {
@@ -542,8 +553,8 @@ Putting it all together:
 ```typescript
 import { Component, OnInit, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { PatientApi } from '../../../core/services/patient-api';
-import { Patient } from '../../../core/models/patient.model';
+import { PatientApi } from '@core/services/patient-api';
+import { Patient } from '@core/models/patient.model';
 
 @Component({
   selector: 'app-patient-list',
