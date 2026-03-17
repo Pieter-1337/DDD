@@ -180,34 +180,34 @@ Frontend/Angular/Scheduling.AngularApp/
 │   ├── app/
 │   │   ├── core/                           # Singleton services, core logic
 │   │   │   ├── services/
-│   │   │   │   ├── patient.service.ts      # Patient API client
-│   │   │   │   └── billing.service.ts      # Billing API client
+│   │   │   │   ├── patient-api.ts          # Patient API client
+│   │   │   │   └── billing-api.ts          # Billing API client
 │   │   │   ├── models/
 │   │   │   │   ├── patient.model.ts        # Patient TypeScript interfaces
 │   │   │   │   └── billing-profile.model.ts
 │   │   │   └── interceptors/
-│   │   │       └── error.interceptor.ts    # Global HTTP error handling
+│   │   │       └── error-handler.ts        # Global HTTP error handling
 │   │   ├── features/                       # Feature-specific components (lazy-loadable)
 │   │   │   └── patients/
 │   │   │       ├── patient-list/
-│   │   │       │   ├── patient-list.component.ts
-│   │   │       │   ├── patient-list.component.html
-│   │   │       │   └── patient-list.component.scss
+│   │   │       │   ├── patient-list.ts
+│   │   │       │   ├── patient-list.html
+│   │   │       │   └── patient-list.scss
 │   │   │       ├── patient-detail/
-│   │   │       │   ├── patient-detail.component.ts
-│   │   │       │   ├── patient-detail.component.html
-│   │   │       │   └── patient-detail.component.scss
+│   │   │       │   ├── patient-detail.ts
+│   │   │       │   ├── patient-detail.html
+│   │   │       │   └── patient-detail.scss
 │   │   │       └── create-patient/
-│   │   │           ├── create-patient.component.ts
-│   │   │           ├── create-patient.component.html
-│   │   │           └── create-patient.component.scss
+│   │   │           ├── create-patient.ts
+│   │   │           ├── create-patient.html
+│   │   │           └── create-patient.scss
 │   │   ├── shared/                         # Reusable components, directives, pipes
 │   │   │   ├── components/
 │   │   │   │   └── loading-spinner/
 │   │   │   └── pipes/
-│   │   │       └── date-format.pipe.ts
-│   │   ├── app.component.ts                # Root component
-│   │   ├── app.component.html
+│   │   │       └── date-format-pipe.ts
+│   │   ├── app.ts                          # Root component
+│   │   ├── app.html
 │   │   ├── app.routes.ts                   # Route configuration
 │   │   └── app.config.ts                   # DI providers
 │   ├── environments/
@@ -228,9 +228,9 @@ Frontend/Angular/Scheduling.AngularApp/
 
 | Folder | Purpose | Examples |
 |--------|---------|----------|
-| `core/` | Singleton services, guards, interceptors | `PatientService`, `AuthGuard` |
+| `core/` | Singleton services, guards, interceptors | `PatientApi`, `AuthGuard` |
 | `features/` | Feature-specific components and routes | `patients/`, `appointments/` |
-| `shared/` | Reusable UI components and utilities | `LoadingSpinnerComponent`, `DatePipe` |
+| `shared/` | Reusable UI components and utilities | `LoadingSpinner`, `DateFormatPipe` |
 
 ---
 
@@ -486,7 +486,7 @@ export const environment = {
 import { environment } from '../../environments/environment';
 
 @Injectable({ providedIn: 'root' })
-export class PatientService {
+export class PatientApi {
   private readonly baseUrl = `${environment.schedulingApiUrl}/api/patients`;
 }
 ```
@@ -594,7 +594,7 @@ The Aspire dashboard will show all resources including the Angular app. Click th
 
 Create a simple test component with a Material button:
 
-**File: `src/app/app.component.html`**
+**File: `src/app/app.html`**
 
 ```html
 <mat-toolbar color="primary">
@@ -606,7 +606,7 @@ Create a simple test component with a Material button:
 </div>
 ```
 
-**File: `src/app/app.component.ts`**
+**File: `src/app/app.ts`**
 
 ```typescript
 import { Component } from '@angular/core';
@@ -617,10 +617,10 @@ import { MatButtonModule } from '@angular/material/button';
   selector: 'app-root',
   standalone: true,
   imports: [MatToolbarModule, MatButtonModule],
-  templateUrl: './app.component.html',
-  styleUrl: './app.component.scss',
+  templateUrl: './app.html',
+  styleUrl: './app.scss',
 })
-export class AppComponent {
+export class App {
   title = 'Scheduling.AngularApp';
 }
 ```

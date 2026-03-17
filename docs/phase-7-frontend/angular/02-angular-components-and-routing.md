@@ -20,20 +20,20 @@ import { CommonModule } from '@angular/common';
   selector: 'app-example',
   standalone: true,
   imports: [CommonModule],
-  templateUrl: './example.component.html',
-  styleUrl: './example.component.scss',
+  templateUrl: './example.html',
+  styleUrl: './example.scss',
 })
-export class ExampleComponent {
+export class Example {
   title = signal('Hello Angular');   // Signal-based reactive state
 }
 ```
 
-**example.component.html**:
+**example.html**:
 ```html
 <h1>{{ title() }}</h1>
 ```
 
-**example.component.scss**:
+**example.scss**:
 ```scss
 h1 { color: blue; }
 ```
@@ -45,8 +45,8 @@ h1 { color: blue; }
 | `selector` | Component HTML tag name | `'app-patient-list'` |
 | `standalone` | Enable standalone mode (no NgModule) | `true` |
 | `imports` | Components/modules used in template | `[MatTableModule, FormsModule]` |
-| `templateUrl` | External HTML template file | `'./example.component.html'` |
-| `styleUrl` | External SCSS stylesheet file | `'./example.component.scss'` |
+| `templateUrl` | External HTML template file | `'./example.html'` |
+| `styleUrl` | External SCSS stylesheet file | `'./example.scss'` |
 | `template` | Inline HTML template (for trivial cases) | `` `<h1>Hello</h1>` `` |
 | `styles` | Inline SCSS styles (for trivial cases) | `['h1 { color: red; }']` |
 
@@ -55,7 +55,7 @@ h1 { color: blue; }
 ```typescript
 import { Component, OnInit, OnDestroy } from '@angular/core';
 
-export class MyComponent implements OnInit, OnDestroy {
+export class My implements OnInit, OnDestroy {
   ngOnInit() {
     // Called after component initialization
     // Ideal for loading data, subscriptions
@@ -75,9 +75,9 @@ import { Component, Input, Output, EventEmitter } from '@angular/core';
 
 @Component({
   selector: 'app-child',
-  templateUrl: './child.component.html',
+  templateUrl: './child.html',
 })
-export class ChildComponent {
+export class Child {
   @Input() data!: string;                    // Parent -> Child
   @Output() action = new EventEmitter<void>(); // Child -> Parent
 
@@ -90,7 +90,7 @@ export class ChildComponent {
 // <app-child [data]="myData" (action)="handleAction()"></app-child>
 ```
 
-**child.component.html**:
+**child.html**:
 ```html
 <button (click)="handleClick()">Click Me</button>
 ```
@@ -102,7 +102,7 @@ Signals provide fine-grained reactivity without zone-based change detection:
 ```typescript
 import { signal, computed } from '@angular/core';
 
-export class MyComponent {
+export class My {
   count = signal(0);                           // Writable signal
   doubleCount = computed(() => this.count() * 2); // Derived signal
 
@@ -131,20 +131,20 @@ export const routes: Routes = [
   {
     path: 'patients',
     loadComponent: () =>
-      import('./features/patients/patient-list/patient-list.component')
-        .then(m => m.PatientListComponent)
+      import('./features/patients/patient-list/patient-list')
+        .then(m => m.PatientList)
   },
   {
     path: 'patients/create',
     loadComponent: () =>
-      import('./features/patients/create-patient/create-patient.component')
-        .then(m => m.CreatePatientComponent)
+      import('./features/patients/create-patient/create-patient')
+        .then(m => m.CreatePatient)
   },
   {
     path: 'patients/:id',
     loadComponent: () =>
-      import('./features/patients/patient-detail/patient-detail.component')
-        .then(m => m.PatientDetailComponent)
+      import('./features/patients/patient-detail/patient-detail')
+        .then(m => m.PatientDetail)
   },
 ];
 ```
@@ -165,7 +165,7 @@ export const appConfig: ApplicationConfig = {
 };
 ```
 
-**src/app/app.component.ts**:
+**src/app/app.ts**:
 ```typescript
 import { Component } from '@angular/core';
 import { RouterOutlet } from '@angular/router';
@@ -174,12 +174,12 @@ import { RouterOutlet } from '@angular/router';
   selector: 'app-root',
   standalone: true,
   imports: [RouterOutlet],
-  templateUrl: './app.component.html',
+  templateUrl: './app.html',
 })
-export class AppComponent {}
+export class App {}
 ```
 
-**app.component.html**:
+**app.html**:
 ```html
 <nav>
   <a routerLink="/patients">Patients</a>
@@ -203,7 +203,7 @@ export class AppComponent {}
 
 ### Patient List Component
 
-**features/patients/patient-list/patient-list.component.ts**:
+**features/patients/patient-list/patient-list.ts**:
 ```typescript
 import { Component, inject, OnInit, signal } from '@angular/core';
 import { Router } from '@angular/router';
@@ -213,7 +213,7 @@ import { MatSelectModule } from '@angular/material/select';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { FormsModule } from '@angular/forms';
-import { PatientService } from '../../../core/services/patient.service';
+import { PatientApi } from '../../../core/services/patient-api';
 import { Patient } from '../../../core/models/patient.model';
 
 @Component({
@@ -227,11 +227,11 @@ import { Patient } from '../../../core/models/patient.model';
     MatProgressSpinnerModule,
     FormsModule,
   ],
-  templateUrl: './patient-list.component.html',
-  styleUrl: './patient-list.component.scss',
+  templateUrl: './patient-list.html',
+  styleUrl: './patient-list.scss',
 })
-export class PatientListComponent implements OnInit {
-  private patientService = inject(PatientService);
+export class PatientList implements OnInit {
+  private patientService = inject(PatientApi);
   router = inject(Router);
 
   patients = signal<Patient[]>([]);
@@ -256,7 +256,7 @@ export class PatientListComponent implements OnInit {
 }
 ```
 
-**patient-list.component.html**:
+**patient-list.html**:
 ```html
 <h1>Patients</h1>
 
@@ -312,7 +312,7 @@ export class PatientListComponent implements OnInit {
 }
 ```
 
-**patient-list.component.scss**:
+**patient-list.scss**:
 ```scss
 .toolbar {
   display: flex;
@@ -324,7 +324,7 @@ export class PatientListComponent implements OnInit {
 
 ### Patient Detail Component
 
-**features/patients/patient-detail/patient-detail.component.ts**:
+**features/patients/patient-detail/patient-detail.ts**:
 ```typescript
 import { Component, inject, OnInit, signal } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
@@ -332,7 +332,7 @@ import { DatePipe } from '@angular/common';
 import { MatCardModule } from '@angular/material/card';
 import { MatButtonModule } from '@angular/material/button';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
-import { PatientService } from '../../../core/services/patient.service';
+import { PatientApi } from '../../../core/services/patient-api';
 import { Patient } from '../../../core/models/patient.model';
 
 @Component({
@@ -344,10 +344,10 @@ import { Patient } from '../../../core/models/patient.model';
     MatButtonModule,
     MatProgressSpinnerModule,
   ],
-  templateUrl: './patient-detail.component.html',
+  templateUrl: './patient-detail.html',
 })
-export class PatientDetailComponent implements OnInit {
-  private patientService = inject(PatientService);
+export class PatientDetail implements OnInit {
+  private patientService = inject(PatientApi);
   private route = inject(ActivatedRoute);
   router = inject(Router);
 
@@ -379,7 +379,7 @@ export class PatientDetailComponent implements OnInit {
 }
 ```
 
-**patient-detail.component.html**:
+**patient-detail.html**:
 ```html
 @if (isLoading()) {
   <mat-spinner />
@@ -404,7 +404,7 @@ export class PatientDetailComponent implements OnInit {
 
 ### Create Patient Component
 
-**features/patients/create-patient/create-patient.component.ts**:
+**features/patients/create-patient/create-patient.ts**:
 ```typescript
 import { Component, inject, signal } from '@angular/core';
 import { Router } from '@angular/router';
@@ -414,7 +414,7 @@ import { MatInputModule } from '@angular/material/input';
 import { MatButtonModule } from '@angular/material/button';
 import { MatDatepickerModule } from '@angular/material/datepicker';
 import { MatNativeDateModule } from '@angular/material/core';
-import { PatientService } from '../../../core/services/patient.service';
+import { PatientApi } from '../../../core/services/patient-api';
 
 @Component({
   selector: 'app-create-patient',
@@ -427,11 +427,11 @@ import { PatientService } from '../../../core/services/patient.service';
     MatDatepickerModule,
     MatNativeDateModule,
   ],
-  templateUrl: './create-patient.component.html',
-  styleUrl: './create-patient.component.scss',
+  templateUrl: './create-patient.html',
+  styleUrl: './create-patient.scss',
 })
-export class CreatePatientComponent {
-  private patientService = inject(PatientService);
+export class CreatePatient {
+  private patientService = inject(PatientApi);
   private fb = inject(FormBuilder);
   router = inject(Router);
 
@@ -459,7 +459,7 @@ export class CreatePatientComponent {
 }
 ```
 
-**create-patient.component.html**:
+**create-patient.html**:
 ```html
 <h1>Create Patient</h1>
 
@@ -506,7 +506,7 @@ export class CreatePatientComponent {
 </form>
 ```
 
-**create-patient.component.scss**:
+**create-patient.scss**:
 ```scss
 form {
   display: flex;
@@ -527,7 +527,7 @@ form {
 
 | Concept | Blazor | Angular |
 |---------|--------|---------|
-| **Component file** | `.razor` (markup + code) | `.component.ts` + `.component.html` + `.component.scss` |
+| **Component file** | `.razor` (markup + code) | `.ts` + `.html` + `.scss` |
 | **Template syntax** | Razor (`@if`, `@foreach`, `@bind`) | Angular (`@if`, `@for`, `{{ }}`, `[(ngModel)]`) |
 | **Routing definition** | `@page "/path"` in component | `Routes` array with `loadComponent` |
 | **Route parameters** | `[Parameter]` property attribute | `ActivatedRoute.snapshot.paramMap.get('id')` |

@@ -55,7 +55,7 @@ import { MatNativeDateModule } from '@angular/material/core';
 
 Here's a complete example of a create patient form using reactive forms and Angular Material.
 
-**File**: `features/patients/create-patient/create-patient.component.ts`
+**File**: `features/patients/create-patient/create-patient.ts`
 
 ```typescript
 import { Component, inject } from '@angular/core';
@@ -68,7 +68,7 @@ import { MatDatepickerModule } from '@angular/material/datepicker';
 import { MatNativeDateModule } from '@angular/material/core';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { HttpErrorResponse } from '@angular/common/http';
-import { PatientService } from '../../../core/services/patient.service';
+import { PatientApi } from '../../../core/services/patient-api';
 
 @Component({
   selector: 'app-create-patient',
@@ -81,12 +81,12 @@ import { PatientService } from '../../../core/services/patient.service';
     MatDatepickerModule,
     MatNativeDateModule,
   ],
-  templateUrl: './create-patient.component.html',
-  styleUrl: './create-patient.component.scss',
+  templateUrl: './create-patient.html',
+  styleUrl: './create-patient.scss',
 })
-export class CreatePatientComponent {
+export class CreatePatient {
   private fb = inject(FormBuilder);
-  private patientService = inject(PatientService);
+  private patientService = inject(PatientApi);
   private snackBar = inject(MatSnackBar);
   private router = inject(Router);
 
@@ -140,7 +140,7 @@ export class CreatePatientComponent {
 }
 ```
 
-**create-patient.component.html**:
+**create-patient.html**:
 ```html
 <div class="create-patient-container">
   <h1>Create Patient</h1>
@@ -213,7 +213,7 @@ export class CreatePatientComponent {
 </div>
 ```
 
-**create-patient.component.scss**:
+**create-patient.scss**:
 ```scss
 .create-patient-container {
   max-width: 600px;

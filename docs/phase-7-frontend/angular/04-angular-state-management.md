@@ -50,9 +50,9 @@ import { Patient } from '../../models/patient.model';
 @Component({
   selector: 'app-patient-list',
   standalone: true,
-  templateUrl: './patient-list.component.html',
+  templateUrl: './patient-list.html',
 })
-export class PatientListComponent {
+export class PatientList {
   // Writable signals
   patients = signal<Patient[]>([]);
   isLoading = signal(true);
@@ -92,7 +92,7 @@ export class PatientListComponent {
 }
 ```
 
-**patient-list.component.html**:
+**patient-list.html**:
 ```html
 <div>
   @if (isLoading()) {
@@ -128,9 +128,9 @@ const currentPatients = patients(); // Note: signals are functions
 
 For state shared across multiple components, use injectable services with signals.
 
-### Notification Service with Signals
+### Notification Store with Signals
 
-**File**: `src/app/core/services/notification.service.ts`
+**File**: `src/app/core/services/notification-store.ts`
 
 ```typescript
 import { Injectable, signal } from '@angular/core';
@@ -142,7 +142,7 @@ export interface Notification {
 }
 
 @Injectable({ providedIn: 'root' })
-export class NotificationService {
+export class NotificationStore {
   // Private writable signal
   private _notifications = signal<Notification[]>([]);
 
@@ -204,23 +204,23 @@ For simpler notification requirements, Angular Material's `MatSnackBar` provides
 
 ### MatSnackBar Setup
 
-**File**: `src/app/features/patients/create-patient/create-patient.component.ts`
+**File**: `src/app/features/patients/create-patient/create-patient.ts`
 
 ```typescript
 import { Component, inject } from '@angular/core';
 import { Router } from '@angular/router';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { FormBuilder, FormGroup, Validators } from '@angular/forms';
-import { PatientService } from '../../../core/services/patient.service';
+import { PatientApi } from '../../../core/services/patient-api';
 
 @Component({
   selector: 'app-create-patient',
   standalone: true,
-  templateUrl: './create-patient.component.html',
+  templateUrl: './create-patient.html',
 })
-export class CreatePatientComponent {
+export class CreatePatient {
   private fb = inject(FormBuilder);
-  private patientService = inject(PatientService);
+  private patientService = inject(PatientApi);
   private router = inject(Router);
   private snackBar = inject(MatSnackBar);
 
@@ -263,7 +263,7 @@ export class CreatePatientComponent {
 }
 ```
 
-**create-patient.component.html**:
+**create-patient.html**:
 ```html
 <form [formGroup]="form" (ngSubmit)="onSubmit()">
   <!-- Form fields -->
@@ -308,26 +308,26 @@ If you prefer a custom notification service with full control over display logic
 
 ### Notification Display Component
 
-**File**: `src/app/shared/components/notification-display/notification-display.component.ts`
+**File**: `src/app/shared/components/notification-display/notification-display.ts`
 
 ```typescript
 import { Component, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { NotificationService } from '../../core/services/notification.service';
+import { NotificationStore } from '../../core/services/notification-store';
 
 @Component({
   selector: 'app-notifications',
   standalone: true,
   imports: [CommonModule],
-  templateUrl: './notification-display.component.html',
-  styleUrl: './notification-display.component.scss',
+  templateUrl: './notification-display.html',
+  styleUrl: './notification-display.scss',
 })
-export class NotificationDisplayComponent {
-  notificationService = inject(NotificationService);
+export class NotificationDisplay {
+  notificationService = inject(NotificationStore);
 }
 ```
 
-**notification-display.component.html**:
+**notification-display.html**:
 ```html
 <div class="notification-container">
   @for (notification of notificationService.notifications(); track $index) {
@@ -351,7 +351,7 @@ export class NotificationDisplayComponent {
 </div>
 ```
 
-**notification-display.component.scss**:
+**notification-display.scss**:
 ```scss
 .notification-container {
   position: fixed;
@@ -431,23 +431,23 @@ export class NotificationDisplayComponent {
 
 ### Add to App Component
 
-**File**: `src/app/app.component.ts`
+**File**: `src/app/app.ts`
 
 ```typescript
 import { Component } from '@angular/core';
 import { RouterOutlet } from '@angular/router';
-import { NotificationDisplayComponent } from './shared/components/notification-display/notification-display.component';
+import { NotificationDisplay } from './shared/components/notification-display/notification-display';
 
 @Component({
   selector: 'app-root',
   standalone: true,
-  imports: [RouterOutlet, NotificationDisplayComponent],
-  templateUrl: './app.component.html',
+  imports: [RouterOutlet, NotificationDisplay],
+  templateUrl: './app.html',
 })
-export class AppComponent {}
+export class App {}
 ```
 
-**app.component.html**:
+**app.html**:
 ```html
 <app-notifications></app-notifications>
 <router-outlet></router-outlet>
@@ -484,7 +484,7 @@ Choosing the right state management approach:
 | Form input values | `FormControl` / `FormGroup` | Built-in validation and dirty tracking |
 | Loading states | Component `signal<boolean>()` | Local to component lifecycle |
 | API response data | Component `signal<T[]>()` | Component-specific data |
-| Cross-page notifications | `MatSnackBar` (simple) or `NotificationService` (custom) | MatSnackBar is simpler, custom service for complex needs |
+| Cross-page notifications | `MatSnackBar` (simple) or `NotificationStore` (custom) | MatSnackBar is simpler, custom service for complex needs |
 | Shared data between routes | Service with `signal<T>()` | Centralized state survives route changes |
 | User preferences | Service + `localStorage` | Persist across sessions |
 | Complex state with history | NgRx Signal Store | Not needed for this project |
@@ -501,17 +501,17 @@ Combining local and computed signals for a filtered patient list:
 import { Component, inject, signal, computed } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { PatientService } from '../../../core/services/patient.service';
+import { PatientApi } from '../../../core/services/patient-api';
 import { Patient } from '../../../models/patient.model';
 
 @Component({
   selector: 'app-patient-list',
   standalone: true,
   imports: [CommonModule, FormsModule],
-  templateUrl: './patient-list.component.html',
+  templateUrl: './patient-list.html',
 })
-export class PatientListComponent {
-  private patientService = inject(PatientService);
+export class PatientList {
+  private patientService = inject(PatientApi);
 
   // Component state
   patients = signal<Patient[]>([]);
@@ -569,7 +569,7 @@ export class PatientListComponent {
 }
 ```
 
-**patient-list.component.html**:
+**patient-list.html**:
 ```html
 <div class="patient-list">
   <div class="filters">
@@ -617,7 +617,7 @@ Ensure your state management implementation follows best practices:
 
 - [ ] Component signals used for local state (`patients`, `isLoading`, `selectedStatus`)
 - [ ] Computed signals work for derived values (`filteredPatients`, `activePatients`)
-- [ ] MatSnackBar or `NotificationService` shows success/error messages
+- [ ] MatSnackBar or `NotificationStore` shows success/error messages
 - [ ] Notifications appear after patient creation/update/deletion
 - [ ] Error messages display on API failures with meaningful content
 - [ ] State updates trigger re-renders automatically via signals

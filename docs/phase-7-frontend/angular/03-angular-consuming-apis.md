@@ -6,7 +6,7 @@
 
 ## Overview
 
-This document covers how Angular applications consume backend APIs using HttpClient, including service architecture, RxJS patterns, CORS configuration, and error handling strategies. We'll implement the Patient service that communicates with the Scheduling.WebApi.
+This document covers how Angular applications consume backend APIs using HttpClient, including service architecture, RxJS patterns, CORS configuration, and error handling strategies. We'll implement the Patient API service that communicates with the Scheduling.WebApi.
 
 ---
 
@@ -90,11 +90,11 @@ export interface PatientFilterParams {
 
 ---
 
-## Patient Service
+## Patient API Service
 
 Services in Angular are singletons that encapsulate API communication logic.
 
-**File**: `src/app/core/services/patient.service.ts`
+**File**: `src/app/core/services/patient-api.ts`
 
 ```typescript
 import { Injectable, inject } from '@angular/core';
@@ -112,7 +112,7 @@ import { environment } from '../../../environments/environment';
  * Service for managing patient data via Scheduling.WebApi
  */
 @Injectable({ providedIn: 'root' })
-export class PatientService {
+export class PatientApi {
   private http = inject(HttpClient);
   private baseUrl = `${environment.schedulingApiUrl}/api/patients`;
 
@@ -186,7 +186,7 @@ An `Observable` is a lazy stream of values. HTTP calls emit one value (the respo
 
 ```typescript
 // Observable is lazy — this does NOT make the HTTP call
-const patients$ = this.patientService.getAll();
+const patients$ = this.patientApi.getAll();
 
 // Subscribing triggers the HTTP call
 patients$.subscribe(patients => {
@@ -202,7 +202,7 @@ Use `pipe()` to chain operators that transform or handle the observable stream:
 import { map, catchError, tap } from 'rxjs/operators';
 import { of } from 'rxjs';
 
-this.patientService.getAll().pipe(
+this.patientApi.getAll().pipe(
   tap(patients => console.log('Raw response:', patients)),  // Side effect (logging)
   map(patients => patients.filter(p => p.status === 'Active')),  // Transform
   catchError(error => {
@@ -229,7 +229,7 @@ Always unsubscribe to prevent memory leaks. Two common patterns:
 **Pattern 1: Async Pipe (Recommended)**
 ```typescript
 // Component
-patients$ = this.patientService.getAll();
+patients$ = this.patientApi.getAll();
 
 // Template
 <div *ngFor="let patient of patients$ | async">
@@ -239,11 +239,11 @@ patients$ = this.patientService.getAll();
 
 **Pattern 2: Manual Subscription with Signal**
 ```typescript
-export class PatientListComponent implements OnInit {
+export class PatientList implements OnInit {
   patients = signal<Patient[]>([]);
 
   ngOnInit() {
-    this.patientService.getAll().subscribe(
+    this.patientApi.getAll().subscribe(
       patients => this.patients.set(patients)
     );
   }
@@ -340,7 +340,7 @@ export const environment = {
 import { environment } from '../../environments/environment';
 
 @Injectable({ providedIn: 'root' })
-export class PatientService {
+export class PatientApi {
   private http = inject(HttpClient);
   private baseUrl = `${environment.schedulingApiUrl}/api/patients`;
 
@@ -387,7 +387,7 @@ Understanding the differences helps when working in both ecosystems:
 
 Create a reusable error handler:
 
-**File**: `src/app/core/services/error-handler.service.ts`
+**File**: `src/app/core/services/error-handler.ts`
 
 ```typescript
 import { Injectable } from '@angular/core';
@@ -398,7 +398,7 @@ import { Observable, throwError } from 'rxjs';
  * Centralized error handling for HTTP requests
  */
 @Injectable({ providedIn: 'root' })
-export class ErrorHandlerService {
+export class ErrorHandler {
   /**
    * Handle HTTP errors and return user-friendly message
    * @param error HttpErrorResponse from Angular
@@ -438,9 +438,9 @@ import { catchError } from 'rxjs/operators';
 import { environment } from '../../../environments/environment';
 
 @Injectable({ providedIn: 'root' })
-export class PatientService {
+export class PatientApi {
   private http = inject(HttpClient);
-  private errorHandler = inject(ErrorHandlerService);
+  private errorHandler = inject(ErrorHandler);
   private baseUrl = `${environment.schedulingApiUrl}/api/patients`;
 
   getAll(params?: PatientFilterParams): Observable<Patient[]> {
@@ -461,7 +461,7 @@ export class PatientService {
 ### Displaying Errors in Component
 
 ```typescript
-export class PatientListComponent implements OnInit {
+export class PatientList implements OnInit {
   patients = signal<Patient[]>([]);
   errorMessage = signal<string>('');
   isLoading = signal<boolean>(false);
@@ -474,7 +474,7 @@ export class PatientListComponent implements OnInit {
     this.isLoading.set(true);
     this.errorMessage.set('');
 
-    this.patientService.getAll().subscribe({
+    this.patientApi.getAll().subscribe({
       next: patients => {
         this.patients.set(patients);
         this.isLoading.set(false);
@@ -537,23 +537,23 @@ export const appConfig: ApplicationConfig = {
 
 Putting it all together:
 
-**File**: `src/app/features/patients/patient-list/patient-list.component.ts`
+**File**: `src/app/features/patients/patient-list/patient-list.ts`
 
 ```typescript
 import { Component, OnInit, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { PatientService } from '../../../core/services/patient.service';
+import { PatientApi } from '../../../core/services/patient-api';
 import { Patient } from '../../../core/models/patient.model';
 
 @Component({
   selector: 'app-patient-list',
   standalone: true,
   imports: [CommonModule],
-  templateUrl: './patient-list.component.html',
-  styleUrl: './patient-list.component.scss',
+  templateUrl: './patient-list.html',
+  styleUrl: './patient-list.scss',
 })
-export class PatientListComponent implements OnInit {
-  private patientService = inject(PatientService);
+export class PatientList implements OnInit {
+  private patientApi = inject(PatientApi);
 
   patients = signal<Patient[]>([]);
   errorMessage = signal<string>('');
@@ -567,7 +567,7 @@ export class PatientListComponent implements OnInit {
     this.isLoading.set(true);
     this.errorMessage.set('');
 
-    this.patientService.getAll().subscribe({
+    this.patientApi.getAll().subscribe({
       next: patients => {
         this.patients.set(patients);
         this.isLoading.set(false);
@@ -584,14 +584,14 @@ export class PatientListComponent implements OnInit {
       return;
     }
 
-    this.patientService.suspend(id).subscribe({
+    this.patientApi.suspend(id).subscribe({
       next: () => this.loadPatients(),
       error: (error: Error) => this.errorMessage.set(error.message)
     });
   }
 
   activatePatient(id: string) {
-    this.patientService.activate(id).subscribe({
+    this.patientApi.activate(id).subscribe({
       next: () => this.loadPatients(),
       error: (error: Error) => this.errorMessage.set(error.message)
     });
@@ -599,7 +599,7 @@ export class PatientListComponent implements OnInit {
 }
 ```
 
-**File**: `src/app/features/patients/patient-list/patient-list.component.html`
+**File**: `src/app/features/patients/patient-list/patient-list.html`
 
 ```html
 <div class="container">
@@ -657,7 +657,7 @@ export class PatientListComponent implements OnInit {
 </div>
 ```
 
-**File**: `src/app/features/patients/patient-list/patient-list.component.scss`
+**File**: `src/app/features/patients/patient-list/patient-list.scss`
 
 ```scss
 .container { padding: 2rem; }
@@ -669,7 +669,7 @@ export class PatientListComponent implements OnInit {
 ## Verification Checklist
 
 - [ ] Patient model interfaces defined (`patient.model.ts`)
-- [ ] PatientService created with all CRUD methods
+- [ ] PatientApi created with all CRUD methods
 - [ ] All service methods return `Observable<T>`
 - [ ] `inject()` function used instead of constructor injection
 - [ ] CORS configured on backend APIs (`Program.cs`)
@@ -678,7 +678,7 @@ export class PatientListComponent implements OnInit {
 - [ ] Create posts data and returns response with validation errors
 - [ ] Suspend and Activate call correct endpoints
 - [ ] Error handling implemented with `catchError`
-- [ ] ErrorHandlerService created for reusable error handling
+- [ ] ErrorHandler created for reusable error handling
 - [ ] Environment files configured for dev/prod
 - [ ] Signals used in component for reactive state
 - [ ] Loading and error states displayed in UI
