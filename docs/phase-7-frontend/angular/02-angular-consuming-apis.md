@@ -689,6 +689,6 @@ export class PatientList implements OnInit {
 
 ## Navigation
 
-- **Previous**: [02-angular-components-and-routing.md](./02-angular-components-and-routing.md)
-- **Next**: [04-angular-state-management.md](./04-angular-state-management.md)
+- **Previous**: [01-angular-project-setup.md](./01-angular-project-setup.md)
+- **Next**: [03-angular-components-and-routing.md](./03-angular-components-and-routing.md)
 - **Up**: [Phase 7 Index](../README.md)

@@ -197,16 +197,31 @@ export class App {}
 | `loadComponent` | Lazy-load standalone component | `() => import('...')` |
 | `loadChildren` | Lazy-load child routes | `() => import('./routes')` |
 
+**pathMatch strategies**: `'prefix'` (default) matches if the URL **starts with** the path — e.g., path `'patients'` matches `/patients`, `/patients/123`, and `/patients/create`. `'full'` matches only if the **entire** URL path equals the path. The most common use case for `'full'` is the root redirect (`{ path: '', redirectTo: '/patients', pathMatch: 'full' }`) — without it, every route would redirect since every URL starts with an empty string.
+
 ---
 
 ## Page Implementations
 
+Generate all three components from the Angular CLI (run from the `Scheduling.AngularApp/` root):
+
+```bash
+ng generate component features/patients/patient-list
+ng generate component features/patients/patient-detail
+ng generate component features/patients/create-patient
+```
+
+This scaffolds each component's `.ts`, `.html`, and `.scss` files in the correct folder. Then replace the generated boilerplate with the code below.
+
 ### Patient List Component
 
-**features/patients/patient-list/patient-list.ts**:
+The main landing page. It fetches all patients from the Scheduling API on init, displays them in a Material data table, and provides a status dropdown to filter by Active/Suspended. The `loadPatients()` method re-fires whenever the filter changes. A "Create Patient" button navigates to the create form.
+
+**`src/app/features/patients/patient-list/patient-list.ts`**:
 ```typescript
 import { Component, inject, OnInit, signal } from '@angular/core';
 import { Router } from '@angular/router';
+import { KeyValuePipe } from '@angular/common';
 import { MatTableModule } from '@angular/material/table';
 import { MatButtonModule } from '@angular/material/button';
 import { MatSelectModule } from '@angular/material/select';
@@ -226,6 +241,7 @@ import { Patient } from '../../../core/models/patient.model';
     MatFormFieldModule,
     MatProgressSpinnerModule,
     FormsModule,
+    KeyValuePipe,
   ],
   templateUrl: './patient-list.html',
   styleUrl: './patient-list.scss',
@@ -238,6 +254,12 @@ export class PatientList implements OnInit {
   isLoading = signal(true);
   selectedStatus = '';
   displayedColumns = ['firstName', 'lastName', 'email', 'status', 'actions'];
+
+  statusOptions: Record<string, string> = {
+    '': 'All',
+    'Active': 'Active',
+    'Suspended': 'Suspended',
+  };
 
   ngOnInit() {
     this.loadPatients();
@@ -256,7 +278,7 @@ export class PatientList implements OnInit {
 }
 ```
 
-**patient-list.html**:
+**`src/app/features/patients/patient-list/patient-list.html`**:
 ```html
 <h1>Patients</h1>
 
@@ -264,9 +286,9 @@ export class PatientList implements OnInit {
   <mat-form-field>
     <mat-label>Status</mat-label>
     <mat-select [(ngModel)]="selectedStatus" (selectionChange)="loadPatients()">
-      <mat-option value="">All</mat-option>
-      <mat-option value="Active">Active</mat-option>
-      <mat-option value="Suspended">Suspended</mat-option>
+      @for (option of statusOptions | keyvalue; track option.key) {
+        <mat-option [value]="option.key">{{ option.value }}</mat-option>
+      }
     </mat-select>
   </mat-form-field>
 
@@ -312,7 +334,7 @@ export class PatientList implements OnInit {
 }
 ```
 
-**patient-list.scss**:
+**`src/app/features/patients/patient-list/patient-list.scss`**:
 ```scss
 .toolbar {
   display: flex;
@@ -324,7 +346,9 @@ export class PatientList implements OnInit {
 
 ### Patient Detail Component
 
-**features/patients/patient-detail/patient-detail.ts**:
+A read-only detail view for a single patient. It reads the `:id` route parameter via `ActivatedRoute`, fetches that patient from the API, and displays their info in a Material card. If the patient is currently Active, a "Suspend" button appears that calls the suspend endpoint and reloads the data. A "Back to List" button navigates back.
+
+**`src/app/features/patients/patient-detail/patient-detail.ts`**:
 ```typescript
 import { Component, inject, OnInit, signal } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
@@ -370,8 +394,7 @@ export class PatientDetail implements OnInit {
   }
 
   suspend() {
-    const id = this.patient()?.id;
-    if (!id) return;
+    const id = this.patient()!.id;
     this.patientService.suspend(id).subscribe({
       next: () => this.loadPatient(id),
     });
@@ -379,7 +402,7 @@ export class PatientDetail implements OnInit {
 }
 ```
 
-**patient-detail.html**:
+**`src/app/features/patients/patient-detail/patient-detail.html`**:
 ```html
 @if (isLoading()) {
   <mat-spinner />
@@ -404,7 +427,9 @@ export class PatientDetail implements OnInit {
 
 ### Create Patient Component
 
-**features/patients/create-patient/create-patient.ts**:
+A reactive form for creating a new patient. Uses `FormBuilder` to define the form group with built-in validators (required, email). On submit it calls `PatientApi.create()`, navigates back to the list on success, and disables the submit button while the request is in flight to prevent double submissions. The cancel button navigates back without saving.
+
+**`src/app/features/patients/create-patient/create-patient.ts`**:
 ```typescript
 import { Component, inject, signal } from '@angular/core';
 import { Router } from '@angular/router';
@@ -459,7 +484,7 @@ export class CreatePatient {
 }
 ```
 
-**create-patient.html**:
+**`src/app/features/patients/create-patient/create-patient.html`**:
 ```html
 <h1>Create Patient</h1>
 
@@ -506,7 +531,7 @@ export class CreatePatient {
 </form>
 ```
 
-**create-patient.scss**:
+**`src/app/features/patients/create-patient/create-patient.scss`**:
 ```scss
 form {
   display: flex;
@@ -576,5 +601,5 @@ After implementing the components, verify:
 
 ## Navigation
 
-- **Previous:** [01-angular-project-setup.md](./01-angular-project-setup.md)
-- **Next:** [03-angular-consuming-apis.md](./03-angular-consuming-apis.md)
+- **Previous:** [02-angular-consuming-apis.md](./02-angular-consuming-apis.md)
+- **Next:** [04-angular-state-management.md](./04-angular-state-management.md)

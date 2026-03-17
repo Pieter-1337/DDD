@@ -630,5 +630,5 @@ Ensure your state management implementation follows best practices:
 
 ## Navigation
 
-- Previous: [03-angular-consuming-apis.md](./03-angular-consuming-apis.md)
+- Previous: [03-angular-components-and-routing.md](./03-angular-components-and-routing.md)
 - Next: [05-angular-forms-and-validation.md](./05-angular-forms-and-validation.md)

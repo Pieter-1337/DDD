@@ -787,4 +787,4 @@ Now that the Angular project is set up, the next document will cover:
 ## Navigation
 
 - **Previous:** [../00-frontend-overview.md](../00-frontend-overview.md)
-- **Next:** [02-angular-components-and-routing.md](./02-angular-components-and-routing.md)
+- **Next:** [02-angular-consuming-apis.md](./02-angular-consuming-apis.md)

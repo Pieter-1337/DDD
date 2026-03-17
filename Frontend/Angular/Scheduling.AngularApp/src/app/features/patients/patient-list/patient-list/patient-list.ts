@@ -1,0 +1,46 @@
+import { Component, inject, OnInit, signal } from '@angular/core';
+import { FormsModule } from '@angular/forms';
+import { MatButtonModule } from '@angular/material/button';
+import { MatFormFieldModule } from '@angular/material/form-field';
+import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
+import { MatSelectModule } from '@angular/material/select';
+import { MatTableModule } from '@angular/material/table';
+import { Router } from '@angular/router';
+import { KeyValuePipe } from '@angular/common';
+
+@Component({
+  selector: 'app-patient-list',
+  standalone: true,
+  imports: [MatTableModule, MatButtonModule, MatSelectModule, MatFormFieldModule, MatProgressSpinnerModule, FormsModule, KeyValuePipe],
+  templateUrl: './patient-list.html',
+  styleUrl: './patient-list.scss',
+})
+export class PatientList implements OnInit {
+  private patientService = inject(PatientApi)
+  router = inject(Router);
+
+  patients = signal<Patient[]>([]);
+  isLoading = signal<boolean>(true);
+  selectedStatus = '';
+  displayedColumns = ['firstName', 'lastName', 'email', 'status', 'actions'];
+  statusOptions: Record<string, string> = {
+    '' : 'All',
+    'Active' : 'Active',
+    'Suspended' :'Suspended'
+  };
+
+  ngOnInit(): void {
+    this.loadPatients();
+  }
+
+  loadPatients() : void {
+    this.isLoading.set(true);
+    this.patientService.GetAll(this.selectedStatus || undefined).subsribe({
+      next: (patients) => {
+        this.patients.set(patients);
+        this.isLoading.set(false);
+      },
+      error: () => this.isLoading.set(false)
+    });
+  }
+}
