@@ -193,7 +193,7 @@ export class CreatePatient {
     </mat-form-field>
 
     <div class="actions">
-      <button mat-raised-button color="primary" type="submit"
+      <button mat-flat-button color="primary" type="submit"
               [disabled]="form.invalid || isSubmitting">
         {{ isSubmitting ? 'Creating...' : 'Create Patient' }}
       </button>

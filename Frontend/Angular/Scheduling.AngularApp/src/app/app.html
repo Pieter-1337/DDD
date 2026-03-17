@@ -1,1 +1,8 @@
-<router-outlet></router-outlet>
+<mat-toolbar color="primary">
+  <mat-icon>local_hospital</mat-icon>
+  <span class="app-title">{{ title() }}</span>
+</mat-toolbar>
+
+<main class="content">
+  <router-outlet></router-outlet>
+</main>

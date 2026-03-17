@@ -292,7 +292,7 @@ export class PatientList implements OnInit {
     </mat-select>
   </mat-form-field>
 
-  <button mat-raised-button color="primary" (click)="router.navigate(['/patients/create'])">
+  <button mat-flat-button color="primary" (click)="router.navigate(['/patients/create'])">
     Create Patient
   </button>
 </div>
@@ -418,7 +418,7 @@ export class PatientDetail implements OnInit {
     </mat-card-content>
     <mat-card-actions>
       @if (p.status !== 'Suspended') {
-        <button mat-raised-button color="warn" (click)="suspend()">Suspend</button>
+        <button mat-flat-button color="warn" (click)="suspend()">Suspend</button>
       }
       <button mat-button (click)="router.navigate(['/patients'])">Back to List</button>
     </mat-card-actions>
@@ -522,7 +522,7 @@ export class CreatePatient {
   </mat-form-field>
 
   <div class="actions">
-    <button mat-raised-button color="primary" type="submit" [disabled]="isSubmitting()">
+    <button mat-flat-button color="primary" type="submit" [disabled]="isSubmitting()">
       Create
     </button>
     <button mat-button type="button" (click)="router.navigate(['/patients'])">

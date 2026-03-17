@@ -639,7 +639,7 @@ Create a simple test component with a Material button:
 </mat-toolbar>
 
 <div style="padding: 20px;">
-  <button mat-raised-button color="accent">Test Button</button>
+  <button mat-flat-button color="accent">Test Button</button>
 </div>
 ```
 

@@ -5,10 +5,11 @@ import { DatePipe } from '@angular/common';
 import { MatCardModule } from '@angular/material/card';
 import { Patient } from '@core/models/patient.model';
 import { PatientApi } from '@core/services/patient-api';
+import { MatButtonModule } from '@angular/material/button';
 
 @Component({
   selector: 'app-patient-detail',
-  imports: [MatProgressSpinnerModule, DatePipe, MatCardModule],
+  imports: [MatProgressSpinnerModule, DatePipe, MatCardModule, MatButtonModule],
   templateUrl: './patient-detail.html',
   styleUrl: './patient-detail.scss',
 })
