@@ -25,7 +25,7 @@ For now, we'll keep it simple with primitive types. Later you can refactor if ne
 
 The aggregate encapsulates **behavior** and **state transitions**:
 
-- How a patient gets suspended
+- How a patient gets suspended or activated
 - How contact info gets updated
 - State changes that have business meaning
 
@@ -262,6 +262,7 @@ public class Patient
             return; // Already suspended, no-op
 
         Status = PatientStatus.Suspended;
+        AddDomainEvent(new PatientSuspendedEvent(Id));
     }
 
     public void Activate()
@@ -270,6 +271,7 @@ public class Patient
             return;
 
         Status = PatientStatus.Active;
+        AddDomainEvent(new PatientActivatedEvent(Id));
     }
 
     public void Deactivate()
@@ -397,6 +399,37 @@ public class PatientTests
 
         // Assert
         patient.Status.Should().Be(PatientStatus.Active);
+    }
+
+    [Fact]
+    public void Suspend_ShouldRaisePatientSuspendedEvent()
+    {
+        // Arrange
+        var patient = Patient.Create("John", "Doe", "test@example.com", DateTime.UtcNow.AddYears(-30));
+
+        // Act
+        patient.Suspend();
+
+        // Assert
+        patient.DomainEvents.Should().ContainSingle(e => e is PatientSuspendedEvent);
+        var evt = patient.DomainEvents.OfType<PatientSuspendedEvent>().Single();
+        evt.PatientId.Should().Be(patient.Id);
+    }
+
+    [Fact]
+    public void Activate_ShouldRaisePatientActivatedEvent()
+    {
+        // Arrange
+        var patient = Patient.Create("John", "Doe", "test@example.com", DateTime.UtcNow.AddYears(-30));
+        patient.Suspend();
+
+        // Act
+        patient.Activate();
+
+        // Assert
+        patient.DomainEvents.Should().Contain(e => e is PatientActivatedEvent);
+        var evt = patient.DomainEvents.OfType<PatientActivatedEvent>().Single();
+        evt.PatientId.Should().Be(patient.Id);
     }
 }
 ```

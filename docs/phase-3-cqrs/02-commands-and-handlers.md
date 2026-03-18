@@ -7,6 +7,7 @@ Commands represent an **intent to change** the system state. They're named imper
 ```csharp
 CreatePatientCommand      // Intent: Create a new patient
 SuspendPatientCommand     // Intent: Suspend an existing patient
+ActivatePatientCommand    // Intent: Activate an existing patient
 UpdateContactInfoCommand  // Intent: Update patient's contact information
 ```
 
@@ -60,6 +61,9 @@ Scheduling.Application/
         ├── SuspendPatient/
         │   ├── SuspendPatientCommand.cs
         │   └── SuspendPatientCommandHandler.cs
+        ├── ActivatePatient/
+        │   ├── ActivatePatientCommand.cs
+        │   └── ActivatePatientCommandHandler.cs
         └── UpdateContactInfo/
             ├── UpdateContactInfoCommand.cs
             └── UpdateContactInfoCommandHandler.cs
@@ -211,7 +215,7 @@ public class SuspendPatientCommandHandler : IRequestHandler<SuspendPatientComman
 }
 ```
 
-### Step 7: Create Application Exception
+### Step 9: Create Application Exception
 
 Location: `Core/Scheduling/Scheduling.Application/Exceptions/PatientNotFoundException.cs`
 
@@ -392,6 +396,11 @@ public class SuspendPatientCommandResponse : SuccessOrFailureDto
 {
     // No additional data needed
 }
+
+public class ActivatePatientCommandResponse : SuccessOrFailureDto
+{
+    // No additional data needed
+}
 ```
 
 ### Combining Multiple Results
@@ -518,6 +527,13 @@ public void Suspend()
         return; // Idempotent state transition
     Status = PatientStatus.Suspended;
 }
+
+public void Activate()
+{
+    if (Status == PatientStatus.Active)
+        return; // Idempotent state transition
+    Status = PatientStatus.Active;
+}
 ```
 
 ---
@@ -610,6 +626,8 @@ public class CreatePatientCommandHandlerTests : SchedulingTestBase
 - [x] `CreatePatientCommandHandler` implements `IRequestHandler` and returns response
 - [x] `SuspendPatientCommand` class created
 - [x] `SuspendPatientCommandHandler` implements `IRequestHandler`
+- [x] `ActivatePatientCommand` class created
+- [x] `ActivatePatientCommandHandler` implements `IRequestHandler`
 - [x] MediatR registered in DI
 - [x] `SuppressAsyncSuffixInActionNames = false` configured
 - [x] Controller receives request DTO, wraps in command
@@ -635,6 +653,8 @@ Core/Scheduling/
     |   |   +-- CreatePatientCommandHandler.cs   <- Queues integration events
     |   |   +-- SuspendPatientCommand.cs         <- Command + Response + Validator
     |   |   +-- SuspendPatientCommandHandler.cs
+    |   |   +-- ActivatePatientCommand.cs        <- Command + Response + Validator
+    |   |   +-- ActivatePatientCommandHandler.cs
     |   +-- Dtos/
     |       +-- PatientDto.cs
     +-- ServiceCollectionExtensions.cs
@@ -644,6 +664,7 @@ Shared/
     +-- Scheduling/
         +-- PatientCreatedIntegrationEvent.cs
         +-- PatientSuspendedIntegrationEvent.cs
+        +-- PatientActivatedIntegrationEvent.cs
 ```
 
 **Note:** All related types (Command, Request DTO, Response DTO, Validators) are in the same file, organized with `#region Validators`. This keeps related code together and makes it easier to understand the full contract.

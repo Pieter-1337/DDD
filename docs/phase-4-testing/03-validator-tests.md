@@ -79,6 +79,7 @@ Core/Scheduling/Scheduling.Domain.Tests/
     └── ValidatorTests/
         ├── CreatePatientCommandValidatorTests.cs
         ├── SuspendPatientCommandValidatorTests.cs
+        ├── ActivatePatientCommandValidatorTests.cs
         ├── GetPatientQueryValidatorTests.cs
         └── GetAllPatientsQueryValidatorTests.cs
 ```
@@ -259,6 +260,62 @@ public class SuspendPatientCommandValidatorTests : SchedulingValidatorTestBase
         // Act
         StartStopwatch();
         var result = await ValidatorFor<SuspendPatientCommand>().ValidateAsync(command);
+        StopStopwatch();
+
+        // Assert
+        result.IsValid.ShouldBeTrue();
+        result.Errors.Count.ShouldBe(0);
+        ElapsedSeconds().ShouldBeLessThan(0.1M);
+    }
+}
+```
+
+### Example: ActivatePatientCommandValidatorTests
+
+```csharp
+using BuildingBlocks.Enumerations;
+using BuildingBlocks.Tests;
+using Microsoft.VisualStudio.TestTools.UnitTesting;
+using Scheduling.Application.Patients.Commands;
+using Shouldly;
+
+namespace Scheduling.Tests.ApplicationTests.ValidatorTests;
+
+[TestClass]
+public class ActivatePatientCommandValidatorTests : SchedulingValidatorTestBase
+{
+    [TestMethod]
+    public async Task Invalid_When_PatientDoesNotExist()
+    {
+        // Arrange
+        var patientId = Guid.NewGuid();
+        SetupPatientNotExists(patientId);  // <-- Mock returns false
+
+        var command = new ActivatePatientCommand { Id = patientId };
+
+        // Act
+        StartStopwatch();
+        var result = await ValidatorFor<ActivatePatientCommand>().ValidateAsync(command);
+        StopStopwatch();
+
+        // Assert
+        result.Errors.ShouldContainValidation(nameof(ActivatePatientCommand.Id), ErrorCode.NotFound.Value);
+        result.Errors.Count.ShouldBe(1);
+        ElapsedSeconds().ShouldBeLessThan(0.1M);
+    }
+
+    [TestMethod]
+    public async Task Valid_When_PatientExists()
+    {
+        // Arrange
+        var patientId = Guid.NewGuid();
+        SetupPatientExists(patientId);  // <-- Mock returns true
+
+        var command = new ActivatePatientCommand { Id = patientId };
+
+        // Act
+        StartStopwatch();
+        var result = await ValidatorFor<ActivatePatientCommand>().ValidateAsync(command);
         StopStopwatch();
 
         // Assert

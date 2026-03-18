@@ -10,9 +10,7 @@
       <p><strong>Date of birth</strong> {{p.dateOfBirth | date}}</p>
     </mat-card-content>
     <mat-card-actions>
-      @if (p.status !== 'Suspended') {
-        <button mat-flat-button color="warn" (click)="suspend()">Suspend</button>
-      }
+      <button mat-flat-button color="warn" (click)="isSuspended() ? activate() : suspend()">{{isSuspended() ? 'Activate' : 'Suspend'}}</button>
       <button mat-button (click)="router.navigate(['/patients'])">Back to list</button>
     </mat-card-actions>
   </mat-card>

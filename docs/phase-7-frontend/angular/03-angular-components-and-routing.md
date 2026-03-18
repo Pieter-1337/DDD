@@ -346,11 +346,11 @@ export class PatientList implements OnInit {
 
 ### Patient Detail Component
 
-A read-only detail view for a single patient. It reads the `:id` route parameter via `ActivatedRoute`, fetches that patient from the API, and displays their info in a Material card. If the patient is currently Active, a "Suspend" button appears that calls the suspend endpoint and reloads the data. A "Back to List" button navigates back.
+A read-only detail view for a single patient. It reads the `:id` route parameter via `ActivatedRoute`, fetches that patient from the API, and displays their info in a Material card. A toggle button supports both suspending and activating patients, using a `computed` signal to derive the current status and determine the appropriate action. A "Back to List" button navigates back.
 
 **`src/app/features/patients/patient-detail/patient-detail.ts`**:
 ```typescript
-import { Component, inject, OnInit, signal } from '@angular/core';
+import { Component, computed, inject, OnInit, signal } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
 import { DatePipe } from '@angular/common';
 import { MatCardModule } from '@angular/material/card';
@@ -369,6 +369,7 @@ import { Patient } from '@core/models/patient.model';
     MatProgressSpinnerModule,
   ],
   templateUrl: './patient-detail.html',
+  styleUrl: './patient-detail.scss',
 })
 export class PatientDetail implements OnInit {
   private patientService = inject(PatientApi);
@@ -376,6 +377,7 @@ export class PatientDetail implements OnInit {
   router = inject(Router);
 
   patient = signal<Patient | null>(null);
+  isSuspended = computed(() => this.patient()?.status !== 'Suspended');
   isLoading = signal(true);
 
   ngOnInit() {
@@ -383,20 +385,27 @@ export class PatientDetail implements OnInit {
     this.loadPatient(id);
   }
 
-  private loadPatient(id: string): void{
+  private loadPatient(id: string): void {
     this.isLoading.set(true);
     this.patientService.getById(id).subscribe({
       next: (patient) => {
-        this.patient.set(patient)
+        this.patient.set(patient);
         this.isLoading.set(false);
       },
-      error: () => this.isLoading.set(false)
-    })
+      error: () => this.isLoading.set(false),
+    });
   }
 
   suspend() {
     const id = this.patient()!.id;
     this.patientService.suspend(id).subscribe({
+      next: () => this.loadPatient(id),
+    });
+  }
+
+  activate() {
+    const id = this.patient()!.id;
+    this.patientService.activate(id).subscribe({
       next: () => this.loadPatient(id),
     });
   }
@@ -417,9 +426,9 @@ export class PatientDetail implements OnInit {
       <p><strong>Date of Birth:</strong> {{ p.dateOfBirth | date }}</p>
     </mat-card-content>
     <mat-card-actions>
-      @if (p.status !== 'Suspended') {
-        <button mat-flat-button color="warn" (click)="suspend()">Suspend</button>
-      }
+      <button mat-flat-button color="warn" (click)="isSuspended() ? suspend() : activate()">
+        {{ isSuspended() ? 'Suspend' : 'Activate' }}
+      </button>
       <button mat-button (click)="router.navigate(['/patients'])">Back to List</button>
     </mat-card-actions>
   </mat-card>
@@ -591,8 +600,8 @@ After implementing the components, verify:
 - [ ] Create Patient form validates required fields
 - [ ] Form submission creates patient and redirects to list
 - [ ] Patient Detail component loads by route parameter (`/patients/:id`)
-- [ ] Suspend button only shows for active patients
-- [ ] Suspend button updates patient status
+- [ ] Suspend/Activate button toggles based on patient status
+- [ ] Suspend and Activate buttons update patient status
 - [ ] Back to List button navigates to patient list
 - [ ] Loading spinners display during API calls
 - [ ] Navigation between pages works without page refresh

@@ -166,6 +166,7 @@ Shared/
     +-- Scheduling/
         +-- PatientCreatedIntegrationEvent.cs
         +-- PatientSuspendedIntegrationEvent.cs
+        +-- PatientActivatedIntegrationEvent.cs
 
 Core/Scheduling/
 +-- Scheduling.Domain/

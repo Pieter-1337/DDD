@@ -831,6 +831,7 @@ Shared/
     +-- Scheduling/
         +-- PatientCreatedIntegrationEvent.cs
         +-- PatientSuspendedIntegrationEvent.cs
+        +-- PatientActivatedIntegrationEvent.cs
 ```
 
 ### Why a Shared Project?
@@ -851,6 +852,7 @@ namespace IntegrationEvents.Scheduling;
 
 public record PatientCreatedIntegrationEvent : IntegrationEventBase { ... }
 public record PatientSuspendedIntegrationEvent : IntegrationEventBase { ... }
+public record PatientActivatedIntegrationEvent : IntegrationEventBase { ... }
 ```
 
 ---

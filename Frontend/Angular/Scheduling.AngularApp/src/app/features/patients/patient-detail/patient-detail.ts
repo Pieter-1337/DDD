@@ -1,4 +1,4 @@
-import { Component, inject, OnInit, signal } from '@angular/core';
+import { Component, computed, inject, OnInit, signal } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
 import { MatProgressSpinnerModule } from "@angular/material/progress-spinner";
 import { DatePipe } from '@angular/common';
@@ -18,8 +18,8 @@ export class PatientDetail implements OnInit {
   private route = inject(ActivatedRoute);
   router = inject(Router);
 
-
   patient = signal<Patient | null>(null);
+  isSuspended = computed(() => this.patient()?.status == 'Suspended')
   isLoading = signal<boolean>(false);
 
     ngOnInit(): void {
@@ -41,6 +41,13 @@ export class PatientDetail implements OnInit {
   suspend(){
     const id = this.patient()!.id;
     this.patientService.suspend(id).subscribe({
+      next: () => this.loadPatient(id)
+    });
+  }
+
+  activate(){
+    const id = this.patient()!.id;
+    this.patientService.activate(id).subscribe({
       next: () => this.loadPatient(id)
     });
   }

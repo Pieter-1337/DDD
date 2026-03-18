@@ -54,5 +54,14 @@ namespace Scheduling.WebApi.Controllers
             var response = await _mediator.Send(new SuspendPatientCommand { Id = patientId });
             return Ok(response);
         }
+
+        [HttpPost("{patientId}/activate")]
+        [ProducesResponseType<bool>(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        public async Task<IActionResult> ActivatePatientAsync(Guid patientId)
+        {
+            var response = await _mediator.Send(new ActivatePatientCommand { Id = patientId });
+            return Ok(response);
+        }
     }
 }

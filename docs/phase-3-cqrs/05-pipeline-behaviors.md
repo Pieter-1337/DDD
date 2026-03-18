@@ -989,6 +989,12 @@ public record SuspendPatientCommand : Command<SuspendPatientCommandResponse>
     public Guid Id { get; init; }
 }
 
+// Another simple command
+public record ActivatePatientCommand : Command<ActivatePatientCommandResponse>
+{
+    public Guid Id { get; init; }
+}
+
 // Command with primary constructor
 public record CreatePatientCommand(CreatePatientRequest Patient) : Command<CreatePatientCommandResponse>;
 ```

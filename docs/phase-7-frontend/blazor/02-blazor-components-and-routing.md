@@ -335,6 +335,14 @@ else
                 Suspend Patient
             </FluentButton>
         }
+        else
+        {
+            <FluentButton Appearance="Appearance.Accent"
+                          IconStart="@(new Icons.Regular.Size20.PersonAvailable())"
+                          OnClick="ActivatePatientAsync">
+                Activate Patient
+            </FluentButton>
+        }
     </FluentStack>
 }
 
@@ -350,6 +358,12 @@ else
     private async Task SuspendPatientAsync()
     {
         await PatientApi.SuspendPatientAsync(PatientId);
+        patient = await PatientApi.GetPatientAsync(PatientId);
+    }
+
+    private async Task ActivatePatientAsync()
+    {
+        await PatientApi.ActivatePatientAsync(PatientId);
         patient = await PatientApi.GetPatientAsync(PatientId);
     }
 
@@ -677,8 +691,8 @@ After implementing these components, verify:
 - [ ] Patient Detail page loads patient by ID from route parameter
 - [ ] Patient details display in responsive grid layout
 - [ ] Status badge shows with correct appearance (Active = green, Suspended = gray)
-- [ ] "Suspend" button only shows for non-suspended patients
-- [ ] Suspend button works and updates UI
+- [ ] "Suspend" button shows for non-suspended patients, "Activate" button shows for suspended patients
+- [ ] Suspend and Activate buttons work and update UI
 - [ ] "Back" button navigates to patient list
 - [ ] Navigation menu shows patient link with icon
 - [ ] Navigation menu highlights active page

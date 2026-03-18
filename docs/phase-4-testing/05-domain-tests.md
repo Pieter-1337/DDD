@@ -14,8 +14,8 @@ Domain tests are **pure unit tests** that verify entity behavior without any dat
 | Aspect | Examples |
 |--------|----------|
 | **Factory methods** | `Patient.Create()` returns valid entity |
-| **State transitions** | `Suspend()` changes status |
-| **Business rules** | Can't suspend an already suspended patient |
+| **State transitions** | `Suspend()` changes status, `Activate()` changes status |
+| **Business rules** | Can't suspend an already suspended patient, can't activate an already active patient |
 | **Invariant protection** | Required fields validated |
 
 ---
@@ -140,6 +140,22 @@ public class PatientTests
 
         // Assert - Should still be active, no exception
         patient.Status.ShouldBe(PatientStatus.Active);
+    }
+
+    [TestMethod]
+    public void Activate_ShouldRaiseDomainEvent()
+    {
+        // Arrange
+        var patient = Patient.Create("John", "Doe", "john@test.com", new DateTime(1990, 1, 15));
+        patient.Suspend();
+        patient.ClearDomainEvents(); // Clear creation and suspension events
+
+        // Act
+        patient.Activate();
+
+        // Assert
+        patient.DomainEvents.Count.ShouldBe(1);
+        patient.DomainEvents[0].ShouldBeOfType<PatientActivatedEvent>();
     }
 
     #endregion

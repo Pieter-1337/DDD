@@ -916,7 +916,9 @@ Core/Scheduling/
     │   │   ├── CreatePatientCommand.cs
     │   │   ├── CreatePatientCommandHandler.cs
     │   │   ├── SuspendPatientCommand.cs
-    │   │   └── SuspendPatientCommandHandler.cs
+    │   │   ├── SuspendPatientCommandHandler.cs
+    │   │   ├── ActivatePatientCommand.cs
+    │   │   └── ActivatePatientCommandHandler.cs
     │   ├── Dtos/
     │   │   └── PatientDto.cs              ← Implements IEntityDto<Patient, PatientDto>
     │   ├── Queries/

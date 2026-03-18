@@ -11,6 +11,7 @@ Domain Event = "Something happened that domain experts care about"
 **Examples:**
 - `PatientCreatedEvent` - A new patient was registered
 - `PatientSuspendedEvent` - A patient's status changed to suspended
+- `PatientActivatedEvent` - A patient's status changed to active
 - `AppointmentScheduledEvent` - An appointment was booked
 - `AppointmentCancelledEvent` - An appointment was cancelled
 
@@ -103,6 +104,30 @@ public class PauseBillingHandler : INotificationHandler<PatientSuspendedEvent>
     public Task Handle(PatientSuspendedEvent evt, CancellationToken ct)
     {
         // Pause invoicing
+    }
+}
+
+public class SendActivationNoticeHandler : INotificationHandler<PatientActivatedEvent>
+{
+    public Task Handle(PatientActivatedEvent evt, CancellationToken ct)
+    {
+        // Send email notification
+    }
+}
+
+public class AuditPatientActivationHandler : INotificationHandler<PatientActivatedEvent>
+{
+    public Task Handle(PatientActivatedEvent evt, CancellationToken ct)
+    {
+        // Log audit entry
+    }
+}
+
+public class ResumeBillingHandler : INotificationHandler<PatientActivatedEvent>
+{
+    public Task Handle(PatientActivatedEvent evt, CancellationToken ct)
+    {
+        // Resume invoicing
     }
 }
 ```
@@ -230,6 +255,17 @@ public class Patient : Entity, IHasDomainEvents
         // Raise domain event
         AddDomainEvent(new PatientSuspendedEvent(Id));
     }
+
+    public void Activate()
+    {
+        if (Status == PatientStatus.Active)
+            return;
+
+        Status = PatientStatus.Active;
+
+        // Raise domain event
+        AddDomainEvent(new PatientActivatedEvent(Id));
+    }
 }
 ```
 
@@ -254,6 +290,17 @@ using BuildingBlocks.Domain;
 namespace Scheduling.Domain.Patients.Events;
 
 public record PatientSuspendedEvent(
+    Guid PatientId
+) : DomainEventBase;
+```
+
+```csharp
+// Scheduling.Domain/Patients/Events/PatientActivatedEvent.cs
+using BuildingBlocks.Domain;
+
+namespace Scheduling.Domain.Patients.Events;
+
+public record PatientActivatedEvent(
     Guid PatientId
 ) : DomainEventBase;
 ```
@@ -349,12 +396,14 @@ Core/Scheduling/
 |       +-- Events/
 |           +-- PatientCreatedEvent.cs
 |           +-- PatientSuspendedEvent.cs
+|           +-- PatientActivatedEvent.cs
 |
 +-- Scheduling.Application/
     +-- Patients/
         +-- EventHandlers/
             +-- PatientCreatedEventHandler.cs
             +-- PatientSuspendedEventHandler.cs
+            +-- PatientActivatedEventHandler.cs
 ```
 
 ---

@@ -47,6 +47,13 @@ public void Suspend()
         return; // Idempotent
     Status = PatientStatus.Suspended;
 }
+
+public void Activate()
+{
+    if (Status == PatientStatus.Active)
+        return; // Idempotent
+    Status = PatientStatus.Active;
+}
 ```
 
 ---
@@ -307,6 +314,56 @@ internal class SuspendPatientCommandValidator : UserValidator<SuspendPatientComm
 - Use `.WithErrorCode(ErrorCode.NotFound.Value).WithMessage(ErrorCode.NotFound.Message)` for entity not found errors
 - Call `ExistsAsync` on the repository (not `GetByIdAsync`)
 - No need for `NotEmpty()` check - `ExistsAsync` returns false for empty Guid
+
+### Step 5a: Create ActivatePatientCommandValidator
+
+Location: `Core/Scheduling/Scheduling.Application/Patients/Commands/ActivatePatientCommand.cs`
+
+```csharp
+using BuildingBlocks.Application.Dtos;
+using BuildingBlocks.Application.Interfaces;
+using BuildingBlocks.Application.Cqrs;
+using BuildingBlocks.Application.Validators;
+using BuildingBlocks.Enumerations;
+using FluentValidation;
+using Scheduling.Domain.Patients;
+
+namespace Scheduling.Application.Patients.Commands;
+
+public record ActivatePatientCommand : Command<ActivatePatientCommandResponse>
+{
+    public Guid Id { get; init; }
+}
+
+public class ActivatePatientCommandResponse : SuccessOrFailureDto { }
+
+#region Validators
+internal class ActivatePatientCommandValidator : UserValidator<ActivatePatientCommand>
+{
+    private readonly IUnitOfWork _uow;
+
+    public ActivatePatientCommandValidator(IUnitOfWork uow)
+    {
+        _uow = uow;
+
+        RuleFor(c => c.Id)
+            .MustAsync(BeAValidPatientAsync)
+            .WithErrorCode(ErrorCode.NotFound.Value)
+            .WithMessage(ErrorCode.NotFound.Message);
+    }
+
+    private async Task<bool> BeAValidPatientAsync(Guid id, CancellationToken ct)
+    {
+        return await _uow.RepositoryFor<Patient>().ExistsAsync(id, ct);
+    }
+}
+#endregion Validators
+```
+
+**Key points:**
+- Same pattern as `SuspendPatientCommandValidator`
+- Validates patient existence before attempting to activate
+- Uses `.WithErrorCode(ErrorCode.NotFound.Value).WithMessage(ErrorCode.NotFound.Message)` for consistency
 
 ### Step 6: Query Validation
 
@@ -990,6 +1047,7 @@ RuleFor(c => c)
 - [x] `ErrorCode` and `ErrorCodeBase<T>` created in BuildingBlocks.Enumerations
 - [x] `CreatePatientCommandValidator` uses `.WithErrorCode().WithMessage()` with ErrorCode
 - [x] `SuspendPatientCommandValidator` uses `.WithErrorCode(ErrorCode.NotFound.Value)`
+- [x] `ActivatePatientCommandValidator` uses `.WithErrorCode(ErrorCode.NotFound.Value)`
 - [x] `GetPatientQueryValidator` uses `.WithErrorCode(ErrorCode.NotFound.Value)`
 - [x] `GetAllPatientsQueryValidator` uses `.NotNull()` for SmartEnum validation
 - [x] Validators registered in DI with `AddValidatorsFromAssembly`
@@ -1011,6 +1069,8 @@ Core/Scheduling/
     |   |   +-- CreatePatientCommandHandler.cs
     |   |   +-- SuspendPatientCommand.cs      <- Command + Response + Validator
     |   |   +-- SuspendPatientCommandHandler.cs
+    |   |   +-- ActivatePatientCommand.cs     <- Command + Response + Validator
+    |   |   +-- ActivatePatientCommandHandler.cs
     |   +-- Queries/
     |   |   +-- GetPatientQuery.cs            <- Query + Validator
     |   |   +-- GetPatientQueryHandler.cs

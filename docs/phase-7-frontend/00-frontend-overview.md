@@ -8,7 +8,7 @@ The UI provides:
 - List all patients with optional status filtering
 - Create new patients with validation
 - View patient details including billing profile
-- Suspend patients
+- Suspend and activate patients
 
 ### Pages and Endpoints
 
@@ -18,6 +18,7 @@ The UI provides:
 | **Create Patient** | `POST /api/patients` | Form to create new patient with validation |
 | **Patient Detail** | `GET /api/patients/{id}` | View patient details + billing profile |
 | **Suspend Patient** | `POST /api/patients/{id}/suspend` | Action button on detail page |
+| **Activate Patient** | `POST /api/patients/{id}/activate` | Action button on detail page |
 | **Billing Profile** | `GET /api/billingprofiles/{patientId}` (**prerequisite**) | Shown on patient detail page |
 
 ---
@@ -72,6 +73,7 @@ Browser
 | `GET` | `/api/patients/{patientId}` | - | `PatientDto` | Get patient by ID |
 | `POST` | `/api/patients` | `CreatePatientRequest` | `CreatePatientCommandResponse` | Create new patient |
 | `POST` | `/api/patients/{patientId}/suspend` | - | `bool` | Suspend patient |
+| `POST` | `/api/patients/{patientId}/activate` | - | `bool` | Activate patient |
 
 ### Billing API (`Billing.WebApi`)
 
@@ -368,6 +370,7 @@ Before starting frontend development, verify:
 - [ ] `GET /api/patients/{id}` returns patient details
 - [ ] `POST /api/patients` creates patient
 - [ ] `POST /api/patients/{id}/suspend` suspends patient
+- [ ] `POST /api/patients/{id}/activate` activates patient
 - [ ] **PREREQUISITE:** `GET /api/billingprofiles/{patientId}` implemented (or plan to skip billing profile display)
 
 ### Aspire Dashboard

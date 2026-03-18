@@ -349,7 +349,8 @@ Patients/
 ├── PatientStatus.cs
 └── Events/
     ├── PatientCreatedEvent.cs
-    └── PatientSuspendedEvent.cs
+    ├── PatientSuspendedEvent.cs
+    └── PatientActivatedEvent.cs
 ```
 
 **Why organize by aggregate?** All Patient-related code lives together. If Patient ever becomes its own microservice, it's easy to extract.

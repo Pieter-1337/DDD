@@ -101,10 +101,25 @@ public void Suspend()
     AddDomainEvent(new PatientSuspendedEvent(Id));
 }
 
+public void Activate()
+{
+    Status = PatientStatus.Active;
+    AddDomainEvent(new PatientActivatedEvent(Id));
+}
+
 // Handler reacts (in same process)
 public class AuditPatientSuspensionHandler : INotificationHandler<PatientSuspendedEvent>
 {
     public Task Handle(PatientSuspendedEvent evt, CancellationToken ct)
+    {
+        // Log audit entry
+        return Task.CompletedTask;
+    }
+}
+
+public class AuditPatientActivationHandler : INotificationHandler<PatientActivatedEvent>
+{
+    public Task Handle(PatientActivatedEvent evt, CancellationToken ct)
     {
         // Log audit entry
         return Task.CompletedTask;
@@ -130,6 +145,12 @@ _uow.QueueIntegrationEvent(new PatientSuspendedIntegrationEvent
     SuspendedAt = DateTime.UtcNow
 });
 
+_uow.QueueIntegrationEvent(new PatientActivatedIntegrationEvent
+{
+    PatientId = patient.Id,
+    ActivatedAt = DateTime.UtcNow
+});
+
 // Consumed in another bounded context
 public class PatientSuspendedIntegrationEventHandler
     : IntegrationEventHandler<PatientSuspendedIntegrationEvent>
@@ -142,6 +163,21 @@ public class PatientSuspendedIntegrationEventHandler
         CancellationToken cancellationToken)
     {
         // Billing: pause invoicing (logging is automatic)
+        return Task.CompletedTask;
+    }
+}
+
+public class PatientActivatedIntegrationEventHandler
+    : IntegrationEventHandler<PatientActivatedIntegrationEvent>
+{
+    public PatientActivatedIntegrationEventHandler(
+        ILogger<PatientActivatedIntegrationEventHandler> logger) : base(logger) { }
+
+    protected override Task HandleAsync(
+        PatientActivatedIntegrationEvent message,
+        CancellationToken cancellationToken)
+    {
+        // Billing: resume invoicing (logging is automatic)
         return Task.CompletedTask;
     }
 }

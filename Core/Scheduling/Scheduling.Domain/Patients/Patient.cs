@@ -65,6 +65,8 @@ public class Patient : Entity
             return;
 
         Status = PatientStatus.Active;
+
+        AddDomainEvent(new PatientActivatedEvent(Id));
     }
 
     public void Deactivate()

@@ -101,6 +101,7 @@
 - [x] Create Command/Query folder structure
 - [x] Implement CreatePatientCommand and handler
 - [x] Implement SuspendPatientCommand and handler
+- [x] Implement ActivatePatientCommand and handler
 - [x] Implement GetPatientByIdQuery and handler
 - [x] Implement GetAllPatientsQuery and handler
 - [x] Add PatientDto
@@ -186,7 +187,7 @@ This allows using `nameof(GetPatientAsync)` in `CreatedAtAction` calls.
 - [x] Create `SchedulingValidatorTestBase` for Scheduling validator tests
 - [x] Create `SchedulingDbTestBase` for Scheduling integration tests
 - [x] Implement transaction-based isolation
-- [x] Write validator tests (CreatePatientCommand, GetPatientQuery, GetAllPatientsQuery, SuspendPatientCommand)
+- [x] Write validator tests (CreatePatientCommand, GetPatientQuery, GetAllPatientsQuery, SuspendPatientCommand, ActivatePatientCommand)
 - [x] Write handler tests (CreatePatientCommand, GetPatientQuery, GetAllPatientsQuery)
 - [x] Write domain tests (Patient entity behavior)
 - [x] Write Billing bounded context tests (validators, handlers, domain, event handlers)
@@ -356,7 +357,7 @@ This allows using `nameof(GetPatientAsync)` in `CreatedAtAction` calls.
 - [x] Documentation created (11 documents: 1 overview + 5 Blazor + 5 Angular)
 - [ ] Blazor Server project setup with FluentUI and Aspire
 - [ ] Angular project setup with Angular Material
-- [ ] Patient management UI (list, create, detail, suspend)
+- [ ] Patient management UI (list, create, detail, suspend, activate)
 - [ ] API integration end-to-end
 
 ### Key Decisions Made

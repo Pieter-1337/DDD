@@ -72,7 +72,8 @@ Core/Scheduling/Scheduling.Domain.Tests/
 │       ├── CreatePatientCommandValidatorTests.cs
 │       ├── GetPatientQueryValidatorTests.cs
 │       ├── GetAllPatientsQueryValidatorTests.cs
-│       └── SuspendPatientCommandValidatorTests.cs
+│       ├── SuspendPatientCommandValidatorTests.cs
+│       └── ActivatePatientCommandValidatorTests.cs
 └── DomainTests/
     └── Patients/
         └── PatientTests.cs
@@ -93,7 +94,7 @@ Core/Scheduling/Scheduling.Domain.Tests/
 ```
 What are you testing?
 │
-├── Domain entity behavior (Create, Suspend, etc.)
+├── Domain entity behavior (Create, Suspend, Activate, etc.)
 │   └── No base class needed - pure unit test
 │
 ├── Validator rules (required fields, format, existence)
@@ -118,6 +119,7 @@ public async Task MethodName_Should_ExpectedBehavior_When_Condition()
 Examples:
 - `Create_ShouldCreatePatientWithCorrectValues()`
 - `Suspend_ShouldChangeStatusToSuspended()`
+- `Activate_ShouldChangeStatusToActive()`
 - `Invalid_When_PatientIsNull()`
 - `Handle_Should_CreatePatient_ForValidRequest()`
 

@@ -67,6 +67,12 @@ public class PatientApiService
         var response = await _httpClient.PostAsync($"/api/patients/{patientId}/suspend", null);
         response.EnsureSuccessStatusCode();
     }
+
+    public async Task ActivatePatientAsync(Guid patientId)
+    {
+        var response = await _httpClient.PostAsync($"/api/patients/{patientId}/activate", null);
+        response.EnsureSuccessStatusCode();
+    }
 }
 ```
 
@@ -323,7 +329,7 @@ Use this checklist to verify your API consumption implementation:
 - [ ] `GetAllPatientsAsync` works with and without status filter parameter
 - [ ] `GetPatientAsync` returns patient by ID or null if not found
 - [ ] `CreatePatientAsync` posts data and returns `CreatePatientResponse`
-- [ ] `SuspendPatientAsync` calls suspend endpoint and handles success
+- [ ] `SuspendPatientAsync` and `ActivatePatientAsync` call their endpoints and handle success
 - [ ] Error handling catches `HttpRequestException` and displays user-friendly messages
 - [ ] DTOs match backend API response shapes (run API and inspect JSON)
 - [ ] FluentUI `MessageBar` displays errors with appropriate intent
