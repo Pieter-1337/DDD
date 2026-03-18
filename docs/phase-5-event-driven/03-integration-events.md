@@ -292,6 +292,9 @@ public class PatientCreatedEventHandler : INotificationHandler<PatientCreatedEve
 | TransactionBehavior.CloseTransactionAsync()      |
 |   +-- CommitAsync()                              |
 |   +-- PublishAndClearIntegrationEventsAsync()    |
+|           +-- try-catch per event               |
+|           +-- Log error if bus unavailable      |
+|           +-- Continue with remaining events     |
 +---------+----------------------------------------+
          |
          v
@@ -307,7 +310,7 @@ public class PatientCreatedEventHandler : INotificationHandler<PatientCreatedEve
         Consumer  Consumer  Consumer
 ```
 
-**Note:** If the transaction rolls back (due to an exception), queued integration events are discarded and nothing is published to RabbitMQ.
+**Note:** If the transaction rolls back (due to an exception), queued integration events are discarded and nothing is published to RabbitMQ. If the message bus is unavailable when publishing, the error is logged but does not affect the command response.
 
 ### Automatic Logging
 
@@ -316,6 +319,13 @@ The `EfCoreUnitOfWork` automatically logs every integration event when published
 ```
 info: BuildingBlocks.Infrastructure.EfCore.EfCoreUnitOfWork[0]
       Publishing integration event PatientCreatedIntegrationEvent with EventId 2046b276-be9f-4945-b3ee-315053a0e969
+```
+
+If the message bus is unavailable, publish failures are logged but do not block the command response:
+
+```
+err: BuildingBlocks.Infrastructure.EfCore.EfCoreUnitOfWork[0]
+     Failed to publish integration event PatientCreatedIntegrationEvent with EventId 2046b276-be9f-4945-b3ee-315053a0e969. The database transaction was already committed. Payload: {"PatientId":"7c9e6679-7425-40de-944b-e07fc1f90ae7","Email":"john.doe@example.com","FullName":"John Doe","DateOfBirth":"1985-06-15T00:00:00","EventId":"2046b276-be9f-4945-b3ee-315053a0e969","OccurredOn":"2026-03-18T10:30:00Z"}
 ```
 
 This provides visibility into all integration events leaving your bounded context without adding logging to each handler.
@@ -736,6 +746,7 @@ public class AppointmentScheduledEventHandler : INotificationHandler<Appointment
 | Queueing in command handler | Mixes concerns, harder to maintain | Use domain event handlers to queue integration events |
 | Publishing in non-transactional flow | Events may publish before data is committed | Use Command<T> base type to ensure TransactionBehavior wraps the handler |
 | Missing domain event handler | Other BCs don't get notified | Create domain event handler that queues integration event |
+| Bus unavailable blocks response | Command flow hangs waiting for RabbitMQ | PublishEventAsync catches exceptions and logs errors without blocking |
 
 ---
 

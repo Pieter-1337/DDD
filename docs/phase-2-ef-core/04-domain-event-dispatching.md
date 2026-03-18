@@ -73,6 +73,7 @@ SaveChangesAsync() (no transaction)
 | Rollback discards queued events | Prevents publishing events for operations that failed |
 | No transaction = immediate publish | Maintains backwards compatibility for non-command flows |
 | Automatic logging on publish | Every integration event is logged with EventType and EventId for observability |
+| Message bus failures are resilient | Individual event publish failures are caught and logged; command still succeeds since DB transaction is already committed |
 
 ---
 
@@ -92,6 +93,8 @@ using BuildingBlocks.Domain.Events;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace BuildingBlocks.Infrastructure.EfCore;
 
@@ -100,14 +103,21 @@ public class EfCoreUnitOfWork<TContext> : IUnitOfWork where TContext : DbContext
     private readonly TContext _context;
     private readonly IEventBus? _eventBus;
     private readonly IMediator? _mediator;
+    private readonly ILogger<EfCoreUnitOfWork<TContext>> _logger;
     private readonly List<IIntegrationEvent> _queuedIntegrationEvents = [];
     private IDbContextTransaction? _transaction;
+    private int _transactionDepth; // Track nested transaction depth
 
-    public EfCoreUnitOfWork(TContext context, IEventBus? eventBus = null, IMediator? mediator = null)
+    public EfCoreUnitOfWork(
+        TContext context,
+        IEventBus? eventBus = null,
+        IMediator? mediator = null,
+        ILogger<EfCoreUnitOfWork<TContext>>? logger = null)
     {
         _context = context;
         _eventBus = eventBus;
         _mediator = mediator;
+        _logger = logger ?? NullLogger<EfCoreUnitOfWork<TContext>>.Instance;
     }
 
     public void QueueIntegrationEvent(IIntegrationEvent integrationEvent)
@@ -135,7 +145,10 @@ public class EfCoreUnitOfWork<TContext> : IUnitOfWork where TContext : DbContext
 
     private async Task DispatchDomainEventsAsync(CancellationToken cancellationToken)
     {
-        if (_mediator is null) return;
+        if (_mediator is null)
+        {
+            return;
+        }
 
         // Find all entities with domain events
         var entitiesWithEvents = _context.ChangeTracker
@@ -164,19 +177,67 @@ public class EfCoreUnitOfWork<TContext> : IUnitOfWork where TContext : DbContext
 
     private async Task PublishAndClearIntegrationEventsAsync(CancellationToken cancellationToken)
     {
-        if (_eventBus is null || _queuedIntegrationEvents.Count == 0) return;
+        if (_eventBus is null || _queuedIntegrationEvents.Count == 0)
+        {
+            return;
+        }
 
         var eventsToPublish = _queuedIntegrationEvents.ToList();
         _queuedIntegrationEvents.Clear();
 
         foreach (var integrationEvent in eventsToPublish)
         {
-            await _eventBus.PublishAsync(integrationEvent, cancellationToken);
+            await PublishEventAsync(integrationEvent, cancellationToken);
+        }
+    }
+
+    private async Task PublishEventAsync(IIntegrationEvent integrationEvent, CancellationToken cancellationToken)
+    {
+        var eventType = integrationEvent.GetType().Name;
+
+        try
+        {
+            _logger.LogInformation(
+                "Publishing integration event {EventType} with EventId {EventId}",
+                eventType,
+                integrationEvent.EventId);
+
+            // Use reflection to call the generic PublishAsync method with the correct type
+            var publishMethod = typeof(IEventBus)
+                .GetMethod(nameof(IEventBus.PublishAsync))!
+                .MakeGenericMethod(integrationEvent.GetType());
+
+            var task = (Task)publishMethod.Invoke(_eventBus, [integrationEvent, cancellationToken])!;
+            await task;
+
+            _logger.LogDebug(
+                "Successfully published integration event {EventType} with EventId {EventId}",
+                eventType,
+                integrationEvent.EventId);
+        }
+        catch (Exception ex)
+        {
+            var payload = System.Text.Json.JsonSerializer.Serialize(integrationEvent, integrationEvent.GetType());
+
+            _logger.LogError(ex,
+                "Failed to publish integration event {EventType} with EventId {EventId}. " +
+                "The database transaction was already committed. Payload: {Payload}",
+                eventType,
+                integrationEvent.EventId,
+                payload);
         }
     }
 
     public async Task BeginTransactionAsync(CancellationToken cancellationToken = default)
     {
+        _transactionDepth++;
+
+        // Don't start a new transaction if one is already active
+        if (_transactionDepth > 1)
+        {
+            return; // Already in a transaction, reuse it
+        }
+
         _transaction = await _context.Database.BeginTransactionAsync(cancellationToken);
     }
 
@@ -184,21 +245,36 @@ public class EfCoreUnitOfWork<TContext> : IUnitOfWork where TContext : DbContext
     {
         if (_transaction is null) return;
 
-        if (exception is not null)
+        _transactionDepth--;
+
+        // Still in nested calls, don't commit/rollback yet
+        if (_transactionDepth > 0)
         {
-            await _transaction.RollbackAsync(cancellationToken);
-            // Discard queued integration events on rollback
-            _queuedIntegrationEvents.Clear();
-        }
-        else
-        {
-            await _transaction.CommitAsync(cancellationToken);
-            // Publish integration events AFTER successful commit
-            await PublishAndClearIntegrationEventsAsync(cancellationToken);
+            return;
         }
 
-        await _transaction.DisposeAsync();
-        _transaction = null;
+        try
+        {
+            // Only commit/rollback when depth reaches 0 (outermost call)
+            if (exception is not null)
+            {
+                await _transaction.RollbackAsync(cancellationToken);
+                // Discard queued integration events on rollback
+                _queuedIntegrationEvents.Clear();
+            }
+            else
+            {
+                await _transaction.CommitAsync(cancellationToken);
+                // Publish integration events AFTER successful commit
+                await PublishAndClearIntegrationEventsAsync(cancellationToken);
+            }
+        }
+        finally
+        {
+            await _transaction.DisposeAsync();
+            _transaction = null;
+            _transactionDepth = 0;
+        }
     }
 
     public IRepository<T> RepositoryFor<T>() where T : class, IEntityBase
@@ -215,6 +291,7 @@ public class EfCoreUnitOfWork<TContext> : IUnitOfWork where TContext : DbContext
 - Integration events are published AFTER `CommitAsync()` in `CloseTransactionAsync()`
 - On rollback, queued integration events are discarded (never published)
 - Without a transaction, integration events publish immediately in `SaveChangesAsync()`
+- **Resilience:** If the message bus (RabbitMQ) is unavailable, each integration event publish is wrapped in a try-catch. The failure is logged but does not block the command flow - the database transaction has already been committed at that point.
 
 ---
 
@@ -231,45 +308,55 @@ private int _transactionDepth;
 
 public async Task BeginTransactionAsync(CancellationToken cancellationToken = default)
 {
-    if (_transaction is not null)
+    _transactionDepth++;
+
+    // Don't start a new transaction if one is already active
+    if (_transactionDepth > 1)
     {
-        // Transaction already exists - reuse it, increment depth
-        _transactionDepth++;
-        return;
+        return; // Already in a transaction, reuse it
     }
 
-    // Start new transaction
     _transaction = await _context.Database.BeginTransactionAsync(cancellationToken);
-    _transactionDepth = 1;
 }
 
 public async Task CloseTransactionAsync(Exception? exception = null, CancellationToken cancellationToken = default)
 {
     if (_transaction is null) return;
 
-    // Decrement depth - only commit/rollback when we reach 0 (outermost caller)
     _transactionDepth--;
-    if (_transactionDepth > 0) return;
 
-    if (exception is not null)
+    // Still in nested calls, don't commit/rollback yet
+    if (_transactionDepth > 0)
     {
-        await _transaction.RollbackAsync(cancellationToken);
-        _queuedIntegrationEvents.Clear();
-    }
-    else
-    {
-        await _transaction.CommitAsync(cancellationToken);
-        await PublishAndClearIntegrationEventsAsync(cancellationToken);
+        return;
     }
 
-    await _transaction.DisposeAsync();
-    _transaction = null;
+    try
+    {
+        // Only commit/rollback when depth reaches 0 (outermost call)
+        if (exception is not null)
+        {
+            await _transaction.RollbackAsync(cancellationToken);
+            _queuedIntegrationEvents.Clear();
+        }
+        else
+        {
+            await _transaction.CommitAsync(cancellationToken);
+            await PublishAndClearIntegrationEventsAsync(cancellationToken);
+        }
+    }
+    finally
+    {
+        await _transaction.DisposeAsync();
+        _transaction = null;
+        _transactionDepth = 0;
+    }
 }
 ```
 
 **Why a depth counter instead of a boolean flag?**
 
-The original boolean `_ownsTransaction` approach had a bug: when a nested command called `BeginTransactionAsync()`, it would set `_ownsTransaction = false`, overwriting the outer command's ownership. The depth counter fixes this by incrementing/decrementing on each begin/close call, ensuring only the outermost caller (when depth reaches 0) commits or rolls back.
+The depth counter approach handles nested command calls correctly by tracking how many levels deep we are. Each `BeginTransactionAsync()` increments the counter, and each `CloseTransactionAsync()` decrements it. Only when the counter reaches 0 (outermost caller) does the actual commit or rollback occur. This ensures the transaction lifetime is correctly managed regardless of nesting depth.
 
 ### Key Behaviors
 

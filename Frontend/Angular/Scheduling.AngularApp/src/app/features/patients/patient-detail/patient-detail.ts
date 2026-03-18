@@ -1,4 +1,4 @@
-import { Component, computed, inject, OnInit, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, OnInit, signal } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
 import { MatProgressSpinnerModule } from "@angular/material/progress-spinner";
 import { DatePipe } from '@angular/common';
@@ -12,6 +12,7 @@ import { MatButtonModule } from '@angular/material/button';
   imports: [MatProgressSpinnerModule, DatePipe, MatCardModule, MatButtonModule],
   templateUrl: './patient-detail.html',
   styleUrl: './patient-detail.scss',
+  changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class PatientDetail implements OnInit {
   private patientService = inject(PatientApi);

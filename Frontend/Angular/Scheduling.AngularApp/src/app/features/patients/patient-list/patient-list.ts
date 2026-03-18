@@ -1,4 +1,4 @@
-import { Component, inject, OnInit, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, inject, OnInit, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { MatFormFieldModule } from '@angular/material/form-field';
@@ -16,6 +16,7 @@ import { PatientApi } from '@core/services/patient-api';
   imports: [MatTableModule, MatButtonModule, MatSelectModule, MatFormFieldModule, MatProgressSpinnerModule, FormsModule, KeyValuePipe],
   templateUrl: './patient-list.html',
   styleUrl: './patient-list.scss',
+  changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class PatientList implements OnInit {
   private patientService = inject(PatientApi)

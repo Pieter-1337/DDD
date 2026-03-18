@@ -88,6 +88,7 @@ TransactionBehavior.Handle()
 - If a domain event handler throws, the entire transaction rolls back
 - Integration events are published AFTER the transaction commits
 - On rollback, queued integration events are discarded (never published)
+- If the message bus is unavailable, publish failures are logged but do not block the command flow
 
 ### Domain Events (Internal)
 

@@ -426,13 +426,14 @@ Angular's `HttpClient` is the standard way to make HTTP requests. Configure it a
 **File: `src/app/app.config.ts`**
 
 ```typescript
-import { ApplicationConfig, provideBrowserGlobalErrorListeners } from '@angular/core';
+import { ApplicationConfig, provideBrowserGlobalErrorListeners, provideZonelessChangeDetection } from '@angular/core';
 import { provideRouter } from '@angular/router';
 import { provideHttpClient } from '@angular/common/http';
 import { routes } from './app.routes';
 
 export const appConfig: ApplicationConfig = {
   providers: [
+    provideZonelessChangeDetection(),
     provideBrowserGlobalErrorListeners(),
     provideRouter(routes),
     provideHttpClient(),
@@ -446,6 +447,7 @@ export const appConfig: ApplicationConfig = {
 
 | Provider | Purpose |
 |----------|---------|
+| `provideZonelessChangeDetection` | Enables signal-based change detection without zone.js |
 | `provideBrowserGlobalErrorListeners` | Registers global error and unhandled rejection listeners |
 | `provideRouter` | Configures Angular Router with defined routes |
 | `provideHttpClient` | Enables `HttpClient` for dependency injection |
@@ -732,6 +734,7 @@ Before proceeding to the next document, verify:
 ### HttpClient Configuration
 
 - [x] `provideHttpClient()` added to `app.config.ts`
+- [x] `provideZonelessChangeDetection()` added to `app.config.ts`
 - [x] No console errors on page load
 
 ### Backend Availability
@@ -805,7 +808,7 @@ Now that the Angular project is set up, the next document will cover:
 | File | Purpose |
 |------|---------|
 | `angular.json` | Angular CLI build and serve configuration |
-| `src/app/app.config.ts` | Application-wide DI providers |
+| `src/app/app.config.ts` | Application-wide DI providers (zoneless change detection, router, HttpClient) |
 | `src/environments/environment.ts` | Environment-specific configuration |
 
 ### Blazor vs Angular Setup Comparison

@@ -111,23 +111,37 @@ public class EfCoreUnitOfWork<TContext> : IUnitOfWork where TContext : DbContext
     {
         var eventType = integrationEvent.GetType().Name;
 
-        _logger.LogInformation(
-            "Publishing integration event {EventType} with EventId {EventId}",
-            eventType,
-            integrationEvent.EventId);
+        try
+        {
+            _logger.LogInformation(
+                "Publishing integration event {EventType} with EventId {EventId}",
+                eventType,
+                integrationEvent.EventId);
 
-        // Use reflection to call the generic PublishAsync method with the correct type
-        var publishMethod = typeof(IEventBus)
-            .GetMethod(nameof(IEventBus.PublishAsync))!
-            .MakeGenericMethod(integrationEvent.GetType());
+            // Use reflection to call the generic PublishAsync method with the correct type
+            var publishMethod = typeof(IEventBus)
+                .GetMethod(nameof(IEventBus.PublishAsync))!
+                .MakeGenericMethod(integrationEvent.GetType());
 
-        var task = (Task)publishMethod.Invoke(_eventBus, [integrationEvent, cancellationToken])!;
-        await task;
+            var task = (Task)publishMethod.Invoke(_eventBus, [integrationEvent, cancellationToken])!;
+            await task;
 
-        _logger.LogDebug(
-            "Successfully published integration event {EventType} with EventId {EventId}",
-            eventType,
-            integrationEvent.EventId);
+            _logger.LogDebug(
+                "Successfully published integration event {EventType} with EventId {EventId}",
+                eventType,
+                integrationEvent.EventId);
+        }
+        catch (Exception ex)
+        {
+            var payload = System.Text.Json.JsonSerializer.Serialize(integrationEvent, integrationEvent.GetType());
+
+            _logger.LogError(ex,
+                "Failed to publish integration event {EventType} with EventId {EventId}. " +
+                "The database transaction was already committed. Payload: {Payload}",
+                eventType,
+                integrationEvent.EventId,
+                payload);
+        }
     }
 
     public async Task BeginTransactionAsync(CancellationToken cancellationToken = default)
