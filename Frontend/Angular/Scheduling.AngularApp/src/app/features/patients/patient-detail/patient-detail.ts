@@ -19,7 +19,7 @@ export class PatientDetail implements OnInit {
   router = inject(Router);
 
   patient = signal<Patient | null>(null);
-  isSuspended = computed(() => this.patient()?.status == 'Suspended')
+  isSuspended = computed(() => this.patient()!.status === 'Suspended')
   isLoading = signal<boolean>(false);
 
     ngOnInit(): void {

@@ -377,7 +377,7 @@ export class PatientDetail implements OnInit {
   router = inject(Router);
 
   patient = signal<Patient | null>(null);
-  isSuspended = computed(() => this.patient()?.status !== 'Suspended');
+  isSuspended = computed(() => this.patient()!.status === 'Suspended');
   isLoading = signal(true);
 
   ngOnInit() {
@@ -426,8 +426,8 @@ export class PatientDetail implements OnInit {
       <p><strong>Date of Birth:</strong> {{ p.dateOfBirth | date }}</p>
     </mat-card-content>
     <mat-card-actions>
-      <button mat-flat-button color="warn" (click)="isSuspended() ? suspend() : activate()">
-        {{ isSuspended() ? 'Suspend' : 'Activate' }}
+      <button mat-flat-button color="warn" (click)="isSuspended() ? active() : suspend()">
+        {{ isSuspended() ? 'Activate' : 'Suspend' }}
       </button>
       <button mat-button (click)="router.navigate(['/patients'])">Back to List</button>
     </mat-card-actions>
