@@ -100,7 +100,18 @@
       "Bash(dotnet user-secrets set:*)",
       "Bash(find:*)",
       "Bash(grep:*)",
-      "Bash(npm install:*)"
+      "Bash(npm install:*)",
+      "Bash(gh auth:*)",
+      "Bash(\"/c/Program Files/GitHub CLI/gh.exe\" auth status:*)",
+      "Bash(where.exe:*)",
+      "Bash(cmd //c \"where gh\")",
+      "Bash(git -C C:/projects/DDD/DDD config user.name)",
+      "Bash(git -C C:/projects/DDD/DDD remote get-url origin)",
+      "Bash(git init:*)",
+      "Bash(powershell.exe -Command \"Get-Item ''C:\\\\Users\\\\piete\\\\.claude\\\\CLAUDE.md'' | Select-Object LinkType, Target | Format-List\")",
+      "Bash(powershell.exe -Command \"Get-Item ''C:\\\\Users\\\\piete\\\\.claude\\\\agents'' | Select-Object LinkType, Target | Format-List\")",
+      "Bash(gh issue:*)",
+      "Bash(powershell.exe -Command \"Get-Command gh -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Source\")"
     ]
   }
 }
