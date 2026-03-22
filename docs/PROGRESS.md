@@ -380,7 +380,6 @@ This allows using `nameof(GetPatientAsync)` in `CreatedAtAction` calls.
 - `phase-7-frontend/angular/01-angular-project-setup.md` - Angular CLI + Material
 - `phase-7-frontend/angular/02-angular-components-and-routing.md` - Standalone components, Router
 - `phase-7-frontend/angular/03-angular-consuming-apis.md` - HttpClient, RxJS, proxy config
-- `phase-7-frontend/angular/04-angular-state-management.md` - Signals, MatSnackBar
 - `phase-7-frontend/angular/05-angular-forms-and-validation.md` - Reactive Forms, validation
 
 ---

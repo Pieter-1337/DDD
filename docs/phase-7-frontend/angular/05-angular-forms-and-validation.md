@@ -552,5 +552,5 @@ After implementing forms and validation, verify the following:
 
 ## Navigation
 
-- **Previous**: [04-angular-state-management.md](./04-angular-state-management.md)
+- **Previous**: [03-angular-components-and-routing.md](./03-angular-components-and-routing.md)
 - **Back to overview**: [../00-frontend-overview.md](../00-frontend-overview.md)

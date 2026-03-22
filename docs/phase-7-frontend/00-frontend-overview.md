@@ -235,7 +235,6 @@ Both tracks build identical functionality. Choose one or both.
 | **01** | Project Setup | [blazor/01-blazor-project-setup.md](./blazor/01-blazor-project-setup.md) | [angular/01-angular-project-setup.md](./angular/01-angular-project-setup.md) |
 | **02** | Components & Routing | [blazor/02-blazor-components-and-routing.md](./blazor/02-blazor-components-and-routing.md) | [angular/02-angular-components-and-routing.md](./angular/02-angular-components-and-routing.md) |
 | **03** | Consuming APIs | [blazor/03-blazor-consuming-apis.md](./blazor/03-blazor-consuming-apis.md) | [angular/03-angular-consuming-apis.md](./angular/03-angular-consuming-apis.md) |
-| **04** | State Management | [blazor/04-blazor-state-management.md](./blazor/04-blazor-state-management.md) | [angular/04-angular-state-management.md](./angular/04-angular-state-management.md) |
 | **05** | Forms & Validation | [blazor/05-blazor-forms-and-validation.md](./blazor/05-blazor-forms-and-validation.md) | [angular/05-angular-forms-and-validation.md](./angular/05-angular-forms-and-validation.md) |
 
 ---

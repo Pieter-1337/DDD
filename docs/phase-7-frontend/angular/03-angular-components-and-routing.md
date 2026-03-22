@@ -653,4 +653,4 @@ After implementing the components, verify:
 ## Navigation
 
 - **Previous:** [02-angular-consuming-apis.md](./02-angular-consuming-apis.md)
-- **Next:** [04-angular-state-management.md](./04-angular-state-management.md)
+- **Next:** [05-angular-forms-and-validation.md](./05-angular-forms-and-validation.md)
