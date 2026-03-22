@@ -523,7 +523,7 @@ export class CreatePatient {
     dateOfBirth: [null as Date | null, Validators.required],
   });
 
-  submit() {
+  submit(): void {
     if (this.form.invalid) {
       this.form.markAllAsTouched();
       return;
