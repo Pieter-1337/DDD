@@ -153,38 +153,61 @@ export const routes: Routes = [
 
 **src/app/app.config.ts**:
 ```typescript
-import { ApplicationConfig } from '@angular/core';
+import { ApplicationConfig, provideBrowserGlobalErrorListeners, provideZoneChangeDetection, provideZonelessChangeDetection } from '@angular/core';
 import { provideRouter } from '@angular/router';
 import { routes } from './app.routes';
+import { provideHttpClient, withInterceptorsFromDi } from '@angular/common/http';
 
 export const appConfig: ApplicationConfig = {
   providers: [
+    provideZonelessChangeDetection(),
+    provideBrowserGlobalErrorListeners(),
     provideRouter(routes),
-    // Other providers...
-  ],
+    provideHttpClient(withInterceptorsFromDi()),
+  ]
 };
 ```
 
 **src/app/app.ts**:
 ```typescript
-import { Component } from '@angular/core';
+import { Component, signal } from '@angular/core';
 import { RouterOutlet } from '@angular/router';
+import { MatToolbarModule } from '@angular/material/toolbar';
+import { MatIconModule } from '@angular/material/icon';
 
 @Component({
   selector: 'app-root',
-  standalone: true,
-  imports: [RouterOutlet],
+  imports: [RouterOutlet, MatToolbarModule, MatIconModule],
   templateUrl: './app.html',
+  styleUrl: './app.scss'
 })
-export class App {}
+export class App {
+  protected readonly title = signal('Scheduling.AngularApp');
+}
 ```
 
-**app.html**:
+**src/app/app.html**:
 ```html
-<nav>
-  <a routerLink="/patients">Patients</a>
-</nav>
-<router-outlet></router-outlet>
+<mat-toolbar color="primary">
+  <mat-icon>local_hospital</mat-icon>
+  <span class="app-title">{{ title() }}</span>
+</mat-toolbar>
+
+<main class="content">
+  <router-outlet></router-outlet>
+</main>
+```
+
+**src/app/app.scss**:
+```scss
+.app-title {
+  margin-left: 8px;
+  font-size: 1.1rem;
+}
+
+.content {
+  padding: 24px;
+}
 ```
 
 ### Route Configuration Options
@@ -215,11 +238,11 @@ This scaffolds each component's `.ts`, `.html`, and `.scss` files in the correct
 
 ### Patient List Component
 
-The main landing page. It fetches all patients from the Scheduling API on init, displays them in a Material data table, and provides a status dropdown to filter by Active/Suspended. The `loadPatients()` method re-fires whenever the filter changes. A "Create Patient" button navigates to the create form.
+The main landing page. It fetches all patients from the Scheduling API on init, displays them in a Material data table, and provides a status dropdown to filter by Active/Suspended. The `loadPatients()` method re-fires whenever the filter changes. A "Create patient" button navigates to the create form. The component uses `OnPush` change detection strategy for optimal performance with signals.
 
 **`src/app/features/patients/patient-list/patient-list.ts`**:
 ```typescript
-import { Component, inject, OnInit, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, inject, OnInit, signal } from '@angular/core';
 import { Router } from '@angular/router';
 import { KeyValuePipe } from '@angular/common';
 import { MatTableModule } from '@angular/material/table';
@@ -234,24 +257,17 @@ import { Patient } from '@core/models/patient.model';
 @Component({
   selector: 'app-patient-list',
   standalone: true,
-  imports: [
-    MatTableModule,
-    MatButtonModule,
-    MatSelectModule,
-    MatFormFieldModule,
-    MatProgressSpinnerModule,
-    FormsModule,
-    KeyValuePipe,
-  ],
+  imports: [MatTableModule, MatButtonModule, MatSelectModule, MatFormFieldModule, MatProgressSpinnerModule, FormsModule, KeyValuePipe],
   templateUrl: './patient-list.html',
   styleUrl: './patient-list.scss',
+  changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class PatientList implements OnInit {
   private patientService = inject(PatientApi);
   router = inject(Router);
 
   patients = signal<Patient[]>([]);
-  isLoading = signal(true);
+  isLoading = signal<boolean>(true);
   selectedStatus = '';
   displayedColumns = ['firstName', 'lastName', 'email', 'status', 'actions'];
 
@@ -285,20 +301,20 @@ export class PatientList implements OnInit {
 <div class="toolbar">
   <mat-form-field>
     <mat-label>Status</mat-label>
-    <mat-select [(ngModel)]="selectedStatus" (selectionChange)="loadPatients()">
+    <mat-select [(value)]="selectedStatus" (selectionChange)="loadPatients()">
       @for (option of statusOptions | keyvalue; track option.key) {
         <mat-option [value]="option.key">{{ option.value }}</mat-option>
       }
     </mat-select>
   </mat-form-field>
 
-  <button mat-flat-button color="primary" (click)="router.navigate(['/patients/create'])">
-    Create Patient
+  <button mat-flat-button (click)="router.navigate(['/patients/create'])">
+    Create patient
   </button>
 </div>
 
 @if (isLoading()) {
-  <mat-spinner />
+  <div class="spinner-wrapper"><mat-spinner diameter="40" /></div>
 } @else {
   <table mat-table [dataSource]="patients()">
     <ng-container matColumnDef="firstName">
@@ -318,13 +334,17 @@ export class PatientList implements OnInit {
 
     <ng-container matColumnDef="status">
       <th mat-header-cell *matHeaderCellDef>Status</th>
-      <td mat-cell *matCellDef="let patient">{{ patient.status }}</td>
+      <td mat-cell *matCellDef="let patient">
+        <span class="status-badge" [class]="'status-' + patient.status.toLowerCase()">
+          {{ patient.status }}
+        </span>
+      </td>
     </ng-container>
 
     <ng-container matColumnDef="actions">
       <th mat-header-cell *matHeaderCellDef>Actions</th>
       <td mat-cell *matCellDef="let patient">
-        <button mat-button (click)="router.navigate(['/patients', patient.id])">View</button>
+        <button mat-button color="primary" (click)="router.navigate(['/patients', patient.id])">View</button>
       </td>
     </ng-container>
 
@@ -338,19 +358,46 @@ export class PatientList implements OnInit {
 ```scss
 .toolbar {
   display: flex;
-  justify-content: space-between;
   align-items: center;
-  margin-bottom: 1rem;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+
+.spinner-wrapper {
+  display: flex;
+  justify-content: center;
+  padding: 48px 0;
+}
+
+table {
+  width: 100%;
+}
+
+.status-badge {
+  padding: 4px 12px;
+  border-radius: 16px;
+  font-size: 0.8rem;
+  font-weight: 500;
+}
+
+.status-active {
+  background-color: #e8f5e9;
+  color: #2e7d32;
+}
+
+.status-suspended {
+  background-color: #fff3e0;
+  color: #e65100;
 }
 ```
 
 ### Patient Detail Component
 
-A read-only detail view for a single patient. It reads the `:id` route parameter via `ActivatedRoute`, fetches that patient from the API, and displays their info in a Material card. A toggle button supports both suspending and activating patients, using a `computed` signal to derive the current status and determine the appropriate action. A "Back to List" button navigates back.
+A read-only detail view for a single patient. It reads the `:id` route parameter via `ActivatedRoute`, fetches that patient from the API, and displays their info in a Material card. A toggle button supports both suspending and activating patients, using a `computed` signal to derive the current status and determine the appropriate action. A "Back to list" button navigates back. The component uses `OnPush` change detection strategy for optimal performance with signals.
 
 **`src/app/features/patients/patient-detail/patient-detail.ts`**:
 ```typescript
-import { Component, computed, inject, OnInit, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, OnInit, signal } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
 import { DatePipe } from '@angular/common';
 import { MatCardModule } from '@angular/material/card';
@@ -361,15 +408,10 @@ import { Patient } from '@core/models/patient.model';
 
 @Component({
   selector: 'app-patient-detail',
-  standalone: true,
-  imports: [
-    DatePipe,
-    MatCardModule,
-    MatButtonModule,
-    MatProgressSpinnerModule,
-  ],
+  imports: [MatProgressSpinnerModule, DatePipe, MatCardModule, MatButtonModule],
   templateUrl: './patient-detail.html',
   styleUrl: './patient-detail.scss',
+  changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class PatientDetail implements OnInit {
   private patientService = inject(PatientApi);
@@ -378,9 +420,9 @@ export class PatientDetail implements OnInit {
 
   patient = signal<Patient | null>(null);
   isSuspended = computed(() => this.patient()!.status === 'Suspended');
-  isLoading = signal(true);
+  isLoading = signal<boolean>(false);
 
-  ngOnInit() {
+  ngOnInit(): void {
     const id = this.route.snapshot.paramMap.get('id')!;
     this.loadPatient(id);
   }
@@ -417,19 +459,19 @@ export class PatientDetail implements OnInit {
 @if (isLoading()) {
   <mat-spinner />
 } @else if (patient(); as p) {
-  <h1>{{ p.firstName }} {{ p.lastName }}</h1>
+  <h1>{{p.firstName}} {{p.lastName}}</h1>
 
   <mat-card>
     <mat-card-content>
-      <p><strong>Email:</strong> {{ p.email }}</p>
-      <p><strong>Status:</strong> {{ p.status }}</p>
-      <p><strong>Date of Birth:</strong> {{ p.dateOfBirth | date }}</p>
+      <p><strong>Email:</strong> {{p.email}}</p>
+      <p><strong>Status:</strong> {{p.status}}</p>
+      <p><strong>Date of birth</strong> {{p.dateOfBirth | date}}</p>
     </mat-card-content>
     <mat-card-actions>
-      <button mat-flat-button color="warn" (click)="isSuspended() ? active() : suspend()">
+      <button mat-flat-button color="warn" (click)="isSuspended() ? activate() : suspend()">
         {{ isSuspended() ? 'Activate' : 'Suspend' }}
       </button>
-      <button mat-button (click)="router.navigate(['/patients'])">Back to List</button>
+      <button mat-button (click)="router.navigate(['/patients'])">Back to list</button>
     </mat-card-actions>
   </mat-card>
 }
@@ -441,7 +483,7 @@ A reactive form for creating a new patient. Uses `FormBuilder` to define the for
 
 **`src/app/features/patients/create-patient/create-patient.ts`**:
 ```typescript
-import { Component, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
 import { Router } from '@angular/router';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { MatFormFieldModule } from '@angular/material/form-field';
@@ -450,6 +492,7 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatDatepickerModule } from '@angular/material/datepicker';
 import { MatNativeDateModule } from '@angular/material/core';
 import { PatientApi } from '@core/services/patient-api';
+import { CreatePatientRequest } from '@core/models/patient.model';
 
 @Component({
   selector: 'app-create-patient',
@@ -464,6 +507,7 @@ import { PatientApi } from '@core/services/patient-api';
   ],
   templateUrl: './create-patient.html',
   styleUrl: './create-patient.scss',
+  changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class CreatePatient {
   private patientService = inject(PatientApi);
@@ -476,7 +520,7 @@ export class CreatePatient {
     firstName: ['', Validators.required],
     lastName: ['', Validators.required],
     email: ['', [Validators.required, Validators.email]],
-    dateOfBirth: ['', Validators.required],
+    dateOfBirth: [null as Date | null, Validators.required],
   });
 
   submit() {
@@ -485,8 +529,18 @@ export class CreatePatient {
       return;
     }
 
+    const rawValue = this.form.getRawValue();
+    const dob = rawValue.dateOfBirth!;
+
+    const request: CreatePatientRequest = {
+      firstName: rawValue.firstName!,
+      lastName: rawValue.lastName!,
+      email: rawValue.email!,
+      dateOfBirth: dob.toISOString().split('T')[0],
+    };
+
     this.isSubmitting.set(true);
-    this.patientService.create(this.form.value).subscribe({
+    this.patientService.create(request).subscribe({
       next: () => this.router.navigate(['/patients']),
       error: () => this.isSubmitting.set(false),
     });
@@ -502,31 +556,25 @@ export class CreatePatient {
   <mat-form-field>
     <mat-label>First Name</mat-label>
     <input matInput formControlName="firstName" required />
-    @if (form.controls.firstName.invalid && form.controls.firstName.touched) {
-      <mat-error>First name is required</mat-error>
-    }
+    <mat-error>First name is required</mat-error>
   </mat-form-field>
 
   <mat-form-field>
     <mat-label>Last Name</mat-label>
     <input matInput formControlName="lastName" required />
-    @if (form.controls.lastName.invalid && form.controls.lastName.touched) {
-      <mat-error>Last name is required</mat-error>
-    }
+    <mat-error>Last name is required</mat-error>
   </mat-form-field>
 
   <mat-form-field>
     <mat-label>Email</mat-label>
     <input matInput type="email" formControlName="email" required />
-    @if (form.controls.email.invalid && form.controls.email.touched) {
-      <mat-error>Valid email is required</mat-error>
-    }
+    <mat-error>Valid email is required</mat-error>
   </mat-form-field>
 
   <mat-form-field>
     <mat-label>Date of Birth</mat-label>
     <input matInput [matDatepicker]="picker" formControlName="dateOfBirth" required />
-    <mat-datepicker-toggle matSuffix [for]="picker"></mat-datepicker-toggle>
+    <mat-datepicker-toggle matIconSuffix [for]="picker"></mat-datepicker-toggle>
     <mat-datepicker #picker></mat-datepicker>
   </mat-form-field>
 

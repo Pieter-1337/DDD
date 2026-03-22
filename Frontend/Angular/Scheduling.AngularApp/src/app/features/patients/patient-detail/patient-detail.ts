@@ -9,6 +9,7 @@ import { MatButtonModule } from '@angular/material/button';
 
 @Component({
   selector: 'app-patient-detail',
+  standalone: true,
   imports: [MatProgressSpinnerModule, DatePipe, MatCardModule, MatButtonModule],
   templateUrl: './patient-detail.html',
   styleUrl: './patient-detail.scss',

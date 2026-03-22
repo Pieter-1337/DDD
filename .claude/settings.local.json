@@ -111,7 +111,8 @@
       "Bash(powershell.exe -Command \"Get-Item ''C:\\\\Users\\\\piete\\\\.claude\\\\CLAUDE.md'' | Select-Object LinkType, Target | Format-List\")",
       "Bash(powershell.exe -Command \"Get-Item ''C:\\\\Users\\\\piete\\\\.claude\\\\agents'' | Select-Object LinkType, Target | Format-List\")",
       "Bash(gh issue:*)",
-      "Bash(powershell.exe -Command \"Get-Command gh -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Source\")"
+      "Bash(powershell.exe -Command \"Get-Command gh -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Source\")",
+      "WebFetch(domain:angular.dev)"
     ]
   }
 }
