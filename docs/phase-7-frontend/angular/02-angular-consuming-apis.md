@@ -82,6 +82,7 @@ export interface CreatePatientRequest {
   lastName: string;
   email: string;
   dateOfBirth: string;  // yyyy-MM-dd format
+  status: string;
 }
 
 /**

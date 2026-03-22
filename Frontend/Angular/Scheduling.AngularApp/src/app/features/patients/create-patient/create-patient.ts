@@ -6,11 +6,12 @@ import { CreatePatientRequest } from '@core/models/patient.model';
 import { MatFormField, MatLabel, MatError, MatFormFieldModule } from "@angular/material/form-field";
 import { MatDatepickerModule } from '@angular/material/datepicker';
 import { MatNativeDateModule } from '@angular/material/core';
+import { MatInputModule } from '@angular/material/input';
 
 @Component({
   selector: 'app-create-patient',
   standalone: true,
-  imports: [MatFormField, MatLabel, MatError, ReactiveFormsModule, MatDatepickerModule, MatNativeDateModule],
+  imports: [MatFormField, MatLabel, MatError, ReactiveFormsModule, MatDatepickerModule, MatNativeDateModule, MatInputModule],
   templateUrl: './create-patient.html',
   styleUrl: './create-patient.scss',
   changeDetection: ChangeDetectionStrategy.OnPush
@@ -25,7 +26,7 @@ export class CreatePatient {
   form = this.fb.group({
     firstName: ['', Validators.required],
     lastName: ['', Validators.required],
-    email: ['', Validators.required, Validators.email],
+    email: ['', [Validators.required, Validators.email]],
     dateOfBirth: [null as Date | null, Validators.required]
   });
 
@@ -42,7 +43,8 @@ export class CreatePatient {
       firstName: rawValue.firstName!,
       lastName: rawValue.lastName!,
       email: rawValue.email!,
-      dateOfBirth: dob.toISOString().split('T')[0]
+      dateOfBirth: dob.toISOString().split('T')[0],
+      status: 'Active'
     };
 
     this.isSubmitting.set(true);

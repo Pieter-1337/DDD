@@ -484,27 +484,19 @@ A reactive form for creating a new patient. Uses `FormBuilder` to define the for
 **`src/app/features/patients/create-patient/create-patient.ts`**:
 ```typescript
 import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
-import { Router } from '@angular/router';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
-import { MatFormFieldModule } from '@angular/material/form-field';
-import { MatInputModule } from '@angular/material/input';
-import { MatButtonModule } from '@angular/material/button';
-import { MatDatepickerModule } from '@angular/material/datepicker';
-import { MatNativeDateModule } from '@angular/material/core';
+import { Router } from '@angular/router';
 import { PatientApi } from '@core/services/patient-api';
 import { CreatePatientRequest } from '@core/models/patient.model';
+import { MatFormField, MatLabel, MatError, MatFormFieldModule } from "@angular/material/form-field";
+import { MatDatepickerModule } from '@angular/material/datepicker';
+import { MatNativeDateModule } from '@angular/material/core';
+import { MatInputModule } from '@angular/material/input';
 
 @Component({
   selector: 'app-create-patient',
   standalone: true,
-  imports: [
-    ReactiveFormsModule,
-    MatFormFieldModule,
-    MatInputModule,
-    MatButtonModule,
-    MatDatepickerModule,
-    MatNativeDateModule,
-  ],
+  imports: [MatFormField, MatLabel, MatError, ReactiveFormsModule, MatDatepickerModule, MatNativeDateModule, MatInputModule],
   templateUrl: './create-patient.html',
   styleUrl: './create-patient.scss',
   changeDetection: ChangeDetectionStrategy.OnPush
@@ -520,11 +512,11 @@ export class CreatePatient {
     firstName: ['', Validators.required],
     lastName: ['', Validators.required],
     email: ['', [Validators.required, Validators.email]],
-    dateOfBirth: [null as Date | null, Validators.required],
+    dateOfBirth: [null as Date | null, Validators.required]
   });
 
   submit(): void {
-    if (this.form.invalid) {
+    if (this.form.invalid){
       this.form.markAllAsTouched();
       return;
     }
@@ -537,6 +529,7 @@ export class CreatePatient {
       lastName: rawValue.lastName!,
       email: rawValue.email!,
       dateOfBirth: dob.toISOString().split('T')[0],
+      status: 'Active'
     };
 
     this.isSubmitting.set(true);

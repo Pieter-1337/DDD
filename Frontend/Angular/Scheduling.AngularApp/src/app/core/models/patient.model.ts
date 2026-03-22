@@ -17,7 +17,8 @@ export interface CreatePatientRequest {
   firstName: string;
   lastName: string;
   email: string;
-  dateOfBirth: string;  // yyyy-MM-dd format
+  dateOfBirth: string;  // yyyy-MM-dd format,
+  status: string
 }
 
 /**
