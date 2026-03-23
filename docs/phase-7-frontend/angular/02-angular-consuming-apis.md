@@ -454,6 +454,8 @@ export class NotificationService {
 
 Components inject `NotificationService` and call `success()` or `error()` — no repeated config.
 
+> **Production note:** For this learning project we call `NotificationService` manually in each HTTP callback. In a production app you would typically move this logic into an `HttpInterceptor` that catches error responses globally, maps status codes to user-friendly messages, and shows the notification automatically — keeping components free of error-handling boilerplate.
+
 ### Displaying Errors in Component
 
 ```typescript
