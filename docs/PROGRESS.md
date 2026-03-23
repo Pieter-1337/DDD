@@ -11,8 +11,8 @@
 | Phase 5: Event-Driven Architecture | Complete | 2026-01-23 | 2026-02-13 |
 | Phase 6: Integration | Complete | 2026-03-09 | 2026-03-16 |
 | Phase 7: Frontend (Blazor + Angular) | In Progress | 2026-03-12 | - |
-| Phase 8: API Gateway & BFF | Not Started | - | - |
-| Phase 9: Authentication & Authorization | Not Started | - | - |
+| Phase 8: Authentication & Authorization | Not Started | - | - |
+| Phase 9: API Gateway & BFF (optional) | Not Started | - | - |
 
 ---
 
@@ -363,7 +363,7 @@ This allows using `nameof(GetPatientAsync)` in `CreatedAtAction` calls.
 
 ### Key Decisions Made
 
-1. **Two-track approach** - Blazor Server and Angular, same topics mirrored. Building both enables BFF pattern in Phase 8
+1. **Two-track approach** - Blazor Server and Angular, same topics mirrored. Building both enables BFF pattern in Phase 9
 2. **FluentUI for Blazor** - Microsoft's component library for Blazor Server
 3. **Angular Material for Angular** - Google's component library for Angular
 4. **Typed HttpClient** - Blazor uses typed HttpClient with Aspire service discovery
@@ -385,42 +385,40 @@ This allows using `nameof(GetPatientAsync)` in `CreatedAtAction` calls.
 
 ---
 
-## Phase 8: API Gateway & BFF
+## Phase 8: Authentication & Authorization
 
 *Not started*
 
 ### Planned Topics
 
-- API Gateway with YARP (optional - single entry point for multiple APIs)
-- BFF pattern (optional - frontend-specific backend)
-
-### Docs Available
-
-- `phase-8-api-gateway-bff/01-api-gateway.md` - YARP API Gateway (optional)
-- `phase-8-api-gateway-bff/02-bff-pattern.md` - BFF pattern (optional)
-
----
-
-## Phase 9: Authentication & Authorization
-
-*Not started*
-
-### Planned Topics
-
-- Cookie-based authentication (all frontends — no tokens in the browser)
-- Token mediating backend pattern (BFF handles OAuth flow server-side)
+- Cookie-based authentication (no tokens in the browser)
 - ASP.NET Core Identity integration
 - Authorization policies and requirements
 - Role-based vs claims-based authorization
 - Securing pages and components
 - AuthenticationStateProvider
 - User context in domain layer
-- API Gateway authentication setup (referenced from Phase 8 gateway doc)
-- BFF authentication setup (referenced from Phase 8 BFF doc)
-- Backend API internal auth (managed identity, private VNet trust)
 - DefaultAzureCredential for local development
-- Multi-tenant considerations (optional)
 
 ### Docs Available
 
-- `phase-9-auth/` - (to be created)
+- `phase-8-auth/` - (to be created)
+
+---
+
+## Phase 9: API Gateway & BFF (optional)
+
+*Not started*
+
+### Planned Topics
+
+- API Gateway with YARP (single entry point for multiple APIs)
+- BFF pattern (frontend-specific backend)
+- Token mediating backend pattern
+- Gateway/BFF authentication setup
+- Backend API internal auth (managed identity, private VNet trust)
+
+### Docs Available
+
+- `phase-9-api-gateway-bff/01-api-gateway-optional.md` - YARP API Gateway (optional)
+- `phase-9-api-gateway-bff/02-bff-pattern-optional.md` - BFF pattern (optional)

@@ -157,10 +157,10 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "angular", "angular", "{C3D4
 		docs\phase-7-frontend\angular\04-angular-forms-and-validation.md = docs\phase-7-frontend\angular\04-angular-forms-and-validation.md
 	EndProjectSection
 EndProject
-Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "phase-8-api-gateway-bff", "phase-8-api-gateway-bff", "{D4E5F6A7-C8D9-4E0F-1A2B-3C4D5E6F7A8B}"
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "phase-9-api-gateway-bff", "phase-9-api-gateway-bff", "{D4E5F6A7-C8D9-4E0F-1A2B-3C4D5E6F7A8B}"
 	ProjectSection(SolutionItems) = preProject
-		docs\phase-8-api-gateway-bff\01-api-gateway.md = docs\phase-8-api-gateway-bff\01-api-gateway.md
-		docs\phase-8-api-gateway-bff\02-bff-pattern.md = docs\phase-8-api-gateway-bff\02-bff-pattern.md
+		docs\phase-9-api-gateway-bff\01-api-gateway-optional.md = docs\phase-9-api-gateway-bff\01-api-gateway-optional.md
+		docs\phase-9-api-gateway-bff\02-bff-pattern-optional.md = docs\phase-9-api-gateway-bff\02-bff-pattern-optional.md
 	EndProjectSection
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "05. Frontend", "05. Frontend", "{FDD91869-920E-468E-8564-77C5B4102542}"

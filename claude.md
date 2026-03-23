@@ -215,7 +215,8 @@ RabbitMQ is managed by .NET Aspire for local development. The `docker-compose.ym
 1. Implement Angular components and routing (Phase 7, doc 02)
 2. Build Blazor Server frontend with FluentUI (Phase 7)
 3. API integration for both frontends
-4. Explore API Gateway with YARP (Phase 8, optional)
+4. Authentication & Authorization (Phase 8)
+5. API Gateway with YARP & BFF pattern (Phase 9, optional)
 
 ## Notes for Claude Code
 - When suggesting code, follow the DDD tactical patterns strictly

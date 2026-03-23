@@ -439,7 +439,7 @@ app.Run();
 
 The gateway centralizes authentication — all requests are validated here before routing to backend APIs. Authorization policies can be applied per route in the YARP configuration (e.g., read-only vs full access).
 
-> **Implementation:** See [Phase 9: Authentication & Authorization](../phase-9-auth/) for the full auth setup including gateway authentication, authorization policies, and YARP route-level policy configuration.
+> **Implementation:** See [Phase 8: Authentication & Authorization](../phase-8-auth/) for the full auth setup including gateway authentication, authorization policies, and YARP route-level policy configuration.
 
 ### Request/Response Logging
 

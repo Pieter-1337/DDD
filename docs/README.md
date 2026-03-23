@@ -17,8 +17,8 @@ docs/
 +-- phase-5-event-driven/        # Event-driven architecture
 +-- phase-6-integration/         # Complete system integration
 +-- phase-7-frontend/            # Frontend (Blazor + Angular)
-+-- phase-8-api-gateway-bff/     # API Gateway (YARP) & BFF pattern (optional)
-+-- phase-9-auth/                # Authentication & Authorization (planned)
++-- phase-8-auth/                # Authentication & Authorization (planned)
++-- phase-9-api-gateway-bff/     # API Gateway (YARP) & BFF pattern (optional)
 ```
 
 ## How to Use
@@ -31,15 +31,13 @@ Each phase directory contains:
 
 ## Current Phase
 
-**Phase 6: Integration** - In Progress
+**Phase 7: Frontend** - In Progress
 
-Building a cohesive system integrating all DDD concepts:
-- Multiple bounded contexts (Scheduling, Billing)
-- .NET Aspire orchestration for service discovery and observability
-- Event-driven cross-context communication via MassTransit/RabbitMQ
-- CQRS pattern in each service
-- Integration events for bounded context coordination
-- Health checks and observability dashboard
+Building user interfaces for the DDD learning project:
+- Blazor Server with FluentUI components
+- Angular SPA with Angular Material
+- Patient management UI (list, create, detail, suspend, activate)
+- API integration for both frontends
 
 ### Event Architecture (Established in Phase 5)
 

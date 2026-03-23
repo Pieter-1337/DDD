@@ -2,7 +2,7 @@
 
 ## What We're Building
 
-This phase adds user interfaces to the DDD learning project. Both the **Blazor** and **Angular** tracks build the same patient management UI with identical functionality. Choose either track — or build both to compare frameworks and to enable the BFF pattern exploration in Phase 8.
+This phase adds user interfaces to the DDD learning project. Both the **Blazor** and **Angular** tracks build the same patient management UI with identical functionality. Choose either track — or build both to compare frameworks and to enable the BFF pattern exploration in Phase 9.
 
 The UI provides:
 - List all patients with optional status filtering
@@ -276,9 +276,9 @@ Both tracks build identical functionality. Choose one or both.
 
 ---
 
-## Relationship to BFF Pattern (Phase 8)
+## Relationship to BFF Pattern (Phase 9)
 
-Phase 8 documents the **Backend for Frontend (BFF)** pattern as an optional enhancement. BFFs are useful when:
+Phase 9 documents the **Backend for Frontend (BFF)** pattern as an optional enhancement. BFFs are useful when:
 - Multiple frontend applications with different data needs
 - Frontend teams own their backend aggregation logic
 - Different authentication strategies per frontend
@@ -297,14 +297,14 @@ Frontend (Blazor or Angular)
 Backend APIs (Scheduling, Billing)  <-- Direct consumption
 ```
 
-> **Note:** Blazor Server is inherently a BFF — it runs server-side, makes API calls server-to-server, and communicates with the browser via SignalR. It can aggregate data from multiple backend APIs without needing a separate BFF service. The BFF pattern in Phase 8 is primarily relevant for the Angular SPA track.
+> **Note:** Blazor Server is inherently a BFF — it runs server-side, makes API calls server-to-server, and communicates with the browser via SignalR. It can aggregate data from multiple backend APIs without needing a separate BFF service. The BFF pattern in Phase 9 is primarily relevant for the Angular SPA track.
 
 **When to add a BFF:**
 - You build both Blazor and Angular frontends with different needs
 - You need custom aggregation endpoints per frontend
 - You need different authentication strategies
 
-See [phase-8-api-gateway-bff/02-bff-pattern.md](../phase-8-api-gateway-bff/02-bff-pattern.md) for BFF implementation details.
+See [phase-9-api-gateway-bff/02-bff-pattern-optional.md](../phase-9-api-gateway-bff/02-bff-pattern-optional.md) for BFF implementation details.
 
 ---
 
@@ -416,7 +416,7 @@ Start with [angular/01-angular-project-setup.md](./angular/01-angular-project-se
 
 ### Why build both?
 
-Building both frontends against the same backend APIs unlocks learning opportunities in Phase 8 (BFF pattern). Two frontends with different rendering models (server-side vs client-side SPA) are the natural trigger for introducing separate Backend for Frontend services, each tailored to their frontend's needs.
+Building both frontends against the same backend APIs unlocks learning opportunities in Phase 9 (BFF pattern). Two frontends with different rendering models (server-side vs client-side SPA) are the natural trigger for introducing separate Backend for Frontend services, each tailored to their frontend's needs.
 
 ---
 
