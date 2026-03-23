@@ -275,6 +275,7 @@ export class PatientList implements OnInit {
     '': 'All',
     'Active': 'Active',
     'Suspended': 'Suspended',
+    'Deleted': 'Deleted',
   };
 
   ngOnInit() {
@@ -389,26 +390,34 @@ table {
   background-color: #fff3e0;
   color: #e65100;
 }
+
+.status-deleted {
+  background-color: #ffebee;
+  color: #c62828;
+}
 ```
 
 ### Patient Detail Component
 
-A read-only detail view for a single patient. It reads the `:id` route parameter via `ActivatedRoute`, fetches that patient from the API, and displays their info in a Material card. A toggle button supports both suspending and activating patients, using a `computed` signal to derive the current status and determine the appropriate action. A "Back to list" button navigates back. The component uses `OnPush` change detection strategy for optimal performance with signals.
+A read-only detail view for a single patient. It reads the `:id` route parameter via `ActivatedRoute`, fetches that patient from the API, and displays their info in a Material card. A toggle button supports both suspending and activating patients, using a `computed` signal to derive the current status and determine the appropriate action. A delete button with a bin icon is placed in the header next to the patient name for soft-deleting a patient — on success, a snackbar is shown and the user is redirected to the list. A "Back to list" button navigates back. The component uses `OnPush` change detection strategy for optimal performance with signals.
 
 **`src/app/features/patients/patient-detail/patient-detail.ts`**:
 ```typescript
 import { ChangeDetectionStrategy, Component, computed, inject, OnInit, signal } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
+import { MatProgressSpinnerModule } from "@angular/material/progress-spinner";
 import { DatePipe } from '@angular/common';
 import { MatCardModule } from '@angular/material/card';
-import { MatButtonModule } from '@angular/material/button';
-import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
-import { PatientApi } from '@core/services/patient-api';
 import { Patient } from '@core/models/patient.model';
+import { PatientApi } from '@core/services/patient-api';
+import { MatButtonModule } from '@angular/material/button';
+import { MatIconModule } from '@angular/material/icon';
+import { MatSnackBar } from '@angular/material/snack-bar';
 
 @Component({
   selector: 'app-patient-detail',
-  imports: [MatProgressSpinnerModule, DatePipe, MatCardModule, MatButtonModule],
+  standalone: true,
+  imports: [MatProgressSpinnerModule, DatePipe, MatCardModule, MatButtonModule, MatIconModule],
   templateUrl: './patient-detail.html',
   styleUrl: './patient-detail.scss',
   changeDetection: ChangeDetectionStrategy.OnPush
@@ -417,38 +426,57 @@ export class PatientDetail implements OnInit {
   private patientService = inject(PatientApi);
   private route = inject(ActivatedRoute);
   router = inject(Router);
+  private snackbar = inject(MatSnackBar);
 
   patient = signal<Patient | null>(null);
   isSuspended = computed(() => this.patient()!.status === 'Suspended');
+  isDeleted = computed(() => this.patient()!.status === 'Deleted');
   isLoading = signal<boolean>(false);
 
-  ngOnInit(): void {
+    ngOnInit(): void {
     const id = this.route.snapshot.paramMap.get('id')!;
     this.loadPatient(id);
   }
 
-  private loadPatient(id: string): void {
+  private loadPatient(id: string): void{
     this.isLoading.set(true);
     this.patientService.getById(id).subscribe({
       next: (patient) => {
-        this.patient.set(patient);
+        this.patient.set(patient)
         this.isLoading.set(false);
       },
-      error: () => this.isLoading.set(false),
-    });
+      error: () => this.isLoading.set(false)
+    })
   }
 
-  suspend() {
+  suspend(){
     const id = this.patient()!.id;
     this.patientService.suspend(id).subscribe({
-      next: () => this.loadPatient(id),
+      next: () => this.loadPatient(id)
     });
   }
 
-  activate() {
+  activate(){
     const id = this.patient()!.id;
     this.patientService.activate(id).subscribe({
-      next: () => this.loadPatient(id),
+      next: () => this.loadPatient(id)
+    });
+  }
+
+  delete(){
+    const id = this.patient()!.id;
+    this.patientService.delete(id).subscribe({
+      next: (response) => {
+        if(response.success){
+          this.snackbar.open(response.message, 'Close', { duration: 3000, panelClass: 'snackbar-success' });
+          this.router.navigate(['/patients']);
+        } else {
+          this.snackbar.open(response.message, 'Close', { duration: 5000, panelClass: 'snackbar-error' });
+        }
+      },
+      error: (err) => {
+        console.log("Failed to delete patient", err);
+      }
     });
   }
 }
@@ -456,24 +484,40 @@ export class PatientDetail implements OnInit {
 
 **`src/app/features/patients/patient-detail/patient-detail.html`**:
 ```html
-@if (isLoading()) {
+@if(isLoading()){
   <mat-spinner />
-} @else if (patient(); as p) {
-  <h1>{{p.firstName}} {{p.lastName}}</h1>
+} @else if(patient(); as p) {
+  <div class="detail-header">
+    <h1>{{p.firstName}} {{p.lastName}}</h1>
+    @if(!isDeleted()){
+      <button mat-icon-button color="warn" (click)="delete()" aria-label="Delete patient">
+        <mat-icon>delete</mat-icon>
+      </button>
+    }
+  </div>
 
   <mat-card>
     <mat-card-content>
-      <p><strong>Email:</strong> {{p.email}}</p>
+      <p><strong>Email:</strong> {{ p.email }}</p>
       <p><strong>Status:</strong> {{p.status}}</p>
       <p><strong>Date of birth</strong> {{p.dateOfBirth | date}}</p>
     </mat-card-content>
     <mat-card-actions>
-      <button mat-flat-button color="warn" (click)="isSuspended() ? activate() : suspend()">
-        {{ isSuspended() ? 'Activate' : 'Suspend' }}
-      </button>
+      @if(!isDeleted()){
+        <button mat-flat-button color="warn" (click)="isSuspended() ? activate() : suspend()">{{isSuspended() ? 'Activate' : 'Suspend'}}</button>
+      }
       <button mat-button (click)="router.navigate(['/patients'])">Back to list</button>
     </mat-card-actions>
   </mat-card>
+}
+```
+
+**`src/app/features/patients/patient-detail/patient-detail.scss`**:
+```scss
+.detail-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
 }
 ```
 
@@ -487,16 +531,18 @@ import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/cor
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { Router } from '@angular/router';
 import { PatientApi } from '@core/services/patient-api';
-import { CreatePatientRequest } from '@core/models/patient.model';
+import { CreatePatientRequest, CreatePatientResponse } from '@core/models/patient.model';
 import { MatFormField, MatLabel, MatError, MatFormFieldModule } from "@angular/material/form-field";
 import { MatDatepickerModule } from '@angular/material/datepicker';
 import { MatNativeDateModule } from '@angular/material/core';
 import { MatInputModule } from '@angular/material/input';
+import { HttpErrorResponse } from '@angular/common/http';
+import { MatSnackBar } from '@angular/material/snack-bar';
 
 @Component({
   selector: 'app-create-patient',
   standalone: true,
-  imports: [MatFormField, MatLabel, MatError, ReactiveFormsModule, MatDatepickerModule, MatNativeDateModule, MatInputModule],
+  imports: [MatFormField, MatLabel, MatError, ReactiveFormsModule, MatDatepickerModule, MatNativeDateModule, MatInputModule, MatButtonModule],
   templateUrl: './create-patient.html',
   styleUrl: './create-patient.scss',
   changeDetection: ChangeDetectionStrategy.OnPush
@@ -504,15 +550,17 @@ import { MatInputModule } from '@angular/material/input';
 export class CreatePatient {
   private patientService = inject(PatientApi);
   private fb = inject(FormBuilder);
+  private snackbar = inject(MatSnackBar)
   router = inject(Router);
 
   isSubmitting = signal(false);
 
-  form = this.fb.group({
+  form = this.fb.nonNullable.group({
     firstName: ['', Validators.required],
     lastName: ['', Validators.required],
     email: ['', [Validators.required, Validators.email]],
-    dateOfBirth: [null as Date | null, Validators.required]
+    dateOfBirth: [null as Date | null, Validators.required],
+    status: ['Active']
   });
 
   submit(): void {
@@ -525,17 +573,28 @@ export class CreatePatient {
     const dob = rawValue.dateOfBirth!;
 
     const request: CreatePatientRequest = {
-      firstName: rawValue.firstName!,
-      lastName: rawValue.lastName!,
-      email: rawValue.email!,
+      firstName: rawValue.firstName,
+      lastName: rawValue.lastName,
+      email: rawValue.email,
       dateOfBirth: dob.toISOString().split('T')[0],
-      status: 'Active'
+      status: rawValue.status
     };
 
     this.isSubmitting.set(true);
     this.patientService.create(request).subscribe({
-      next: () => this.router.navigate(['/patients']),
-      error: () => this.isSubmitting.set(false),
+      next: (response: CreatePatientResponse) => {
+        if(response.success){
+          this.snackbar.open(response.message, 'Close', { duration: 3000, panelClass: 'snackbar-success' });
+          this.router.navigate(['/patients']);
+        } else {
+          this.snackbar.open(response.message, 'Close', { duration: 5000, panelClass: 'snackbar-error' });
+          this.isSubmitting.set(false);
+        }
+      },
+      error: (err: HttpErrorResponse) => {
+        console.log("Failed to create patient", err)
+        this.isSubmitting.set(false);
+      }
     });
   }
 }
@@ -597,6 +656,20 @@ form {
 }
 ```
 
+**Snackbar styles** — add to `src/styles.scss` (global, since snackbar renders outside component scope):
+
+```scss
+.snackbar-success {
+  --mdc-snackbar-container-color: #4caf50;
+  --mat-snack-bar-button-color: #ffffff;
+}
+
+.snackbar-error {
+  --mdc-snackbar-container-color: #f44336;
+  --mat-snack-bar-button-color: #ffffff;
+}
+```
+
 ---
 
 ## Angular vs Blazor Component Comparison
@@ -641,6 +714,8 @@ After implementing the components, verify:
 - [ ] Create Patient form validates required fields
 - [ ] Form submission creates patient and redirects to list
 - [ ] Patient Detail component loads by route parameter (`/patients/:id`)
+- [ ] Delete button (bin icon) appears next to patient name in detail view
+- [ ] Delete button soft-deletes patient and redirects to list with snackbar
 - [ ] Suspend/Activate button toggles based on patient status
 - [ ] Suspend and Activate buttons update patient status
 - [ ] Back to List button navigates to patient list

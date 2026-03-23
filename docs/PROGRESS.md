@@ -102,6 +102,7 @@
 - [x] Implement CreatePatientCommand and handler
 - [x] Implement SuspendPatientCommand and handler
 - [x] Implement ActivatePatientCommand and handler
+- [x] Implement DeletePatientCommand and handler
 - [x] Implement GetPatientByIdQuery and handler
 - [x] Implement GetAllPatientsQuery and handler
 - [x] Add PatientDto
@@ -187,7 +188,7 @@ This allows using `nameof(GetPatientAsync)` in `CreatedAtAction` calls.
 - [x] Create `SchedulingValidatorTestBase` for Scheduling validator tests
 - [x] Create `SchedulingDbTestBase` for Scheduling integration tests
 - [x] Implement transaction-based isolation
-- [x] Write validator tests (CreatePatientCommand, GetPatientQuery, GetAllPatientsQuery, SuspendPatientCommand, ActivatePatientCommand)
+- [x] Write validator tests (CreatePatientCommand, GetPatientQuery, GetAllPatientsQuery, SuspendPatientCommand, ActivatePatientCommand, DeletePatientCommand)
 - [x] Write handler tests (CreatePatientCommand, GetPatientQuery, GetAllPatientsQuery)
 - [x] Write domain tests (Patient entity behavior)
 - [x] Write Billing bounded context tests (validators, handlers, domain, event handlers)

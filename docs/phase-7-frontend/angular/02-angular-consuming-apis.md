@@ -198,6 +198,15 @@ export class PatientApi {
   activate(id: string): Observable<SuccessOrFailureResponse> {
     return this.http.post<SuccessOrFailureResponse>(`${this.baseUrl}/${id}/activate`, null);
   }
+
+  /**
+   * Delete a patient (soft delete)
+   * @param id Patient ID
+   * @returns Observable of success/failure response
+   */
+  delete(id: string): Observable<SuccessOrFailureResponse> {
+    return this.http.delete<SuccessOrFailureResponse>(`${this.baseUrl}/${id}`);
+  }
 }
 ```
 

@@ -365,6 +365,56 @@ internal class ActivatePatientCommandValidator : UserValidator<ActivatePatientCo
 - Validates patient existence before attempting to activate
 - Uses `.WithErrorCode(ErrorCode.NotFound.Value).WithMessage(ErrorCode.NotFound.Message)` for consistency
 
+### Step 5b: Create DeletePatientCommandValidator
+
+Location: `Core/Scheduling/Scheduling.Application/Patients/Commands/DeletePatientCommand.cs`
+
+```csharp
+using BuildingBlocks.Application.Dtos;
+using BuildingBlocks.Application.Interfaces;
+using BuildingBlocks.Application.Cqrs;
+using BuildingBlocks.Application.Validators;
+using BuildingBlocks.Enumerations;
+using FluentValidation;
+using Scheduling.Domain.Patients;
+
+namespace Scheduling.Application.Patients.Commands;
+
+public record DeletePatientCommand : Command<DeletePatientCommandResponse>
+{
+    public Guid Id { get; init; }
+}
+
+public class DeletePatientCommandResponse : SuccessOrFailureDto { }
+
+#region Validators
+internal class DeletePatientCommandValidator : UserValidator<DeletePatientCommand>
+{
+    private readonly IUnitOfWork _uow;
+
+    public DeletePatientCommandValidator(IUnitOfWork uow)
+    {
+        _uow = uow;
+
+        RuleFor(c => c.Id)
+            .MustAsync(BeAValidPatientAsync)
+            .WithErrorCode(ErrorCode.NotFound.Value)
+            .WithMessage(ErrorCode.NotFound.Message);
+    }
+
+    private async Task<bool> BeAValidPatientAsync(Guid id, CancellationToken ct)
+    {
+        return await _uow.RepositoryFor<Patient>().ExistsAsync(id, ct);
+    }
+}
+#endregion Validators
+```
+
+**Key points:**
+- Same pattern as `SuspendPatientCommandValidator` and `ActivatePatientCommandValidator`
+- Validates patient existence before attempting to delete
+- Uses `.WithErrorCode(ErrorCode.NotFound.Value).WithMessage(ErrorCode.NotFound.Message)` for consistency
+
 ### Step 6: Query Validation
 
 Queries can also have validators for input validation:
@@ -1048,6 +1098,7 @@ RuleFor(c => c)
 - [x] `CreatePatientCommandValidator` uses `.WithErrorCode().WithMessage()` with ErrorCode
 - [x] `SuspendPatientCommandValidator` uses `.WithErrorCode(ErrorCode.NotFound.Value)`
 - [x] `ActivatePatientCommandValidator` uses `.WithErrorCode(ErrorCode.NotFound.Value)`
+- [x] `DeletePatientCommandValidator` uses `.WithErrorCode(ErrorCode.NotFound.Value)`
 - [x] `GetPatientQueryValidator` uses `.WithErrorCode(ErrorCode.NotFound.Value)`
 - [x] `GetAllPatientsQueryValidator` uses `.NotNull()` for SmartEnum validation
 - [x] Validators registered in DI with `AddValidatorsFromAssembly`
@@ -1065,16 +1116,18 @@ Core/Scheduling/
 +-- Scheduling.Application/
     +-- Patients/
     |   +-- Commands/
-    |   |   +-- CreatePatientCommand.cs       <- Command + Request + Response + Validators
+    |   |   +-- CreatePatientCommand.cs
     |   |   +-- CreatePatientCommandHandler.cs
-    |   |   +-- SuspendPatientCommand.cs      <- Command + Response + Validator
+    |   |   +-- SuspendPatientCommand.cs
     |   |   +-- SuspendPatientCommandHandler.cs
-    |   |   +-- ActivatePatientCommand.cs     <- Command + Response + Validator
+    |   |   +-- ActivatePatientCommand.cs
     |   |   +-- ActivatePatientCommandHandler.cs
+    |   |   +-- DeletePatientCommand.cs
+    |   |   +-- DeletePatientCommandHandler.cs
     |   +-- Queries/
-    |   |   +-- GetPatientQuery.cs            <- Query + Validator
+    |   |   +-- GetPatientQuery.cs
     |   |   +-- GetPatientQueryHandler.cs
-    |   |   +-- GetAllPatientsQuery.cs        <- Query + Validator
+    |   |   +-- GetAllPatientsQuery.cs
     |   |   +-- GetAllPatientsQueryHandler.cs
     |   +-- Dtos/
     |   |   +-- PatientDto.cs

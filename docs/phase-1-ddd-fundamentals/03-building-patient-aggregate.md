@@ -194,8 +194,8 @@ namespace Scheduling.Domain.Patients;
 public sealed class PatientStatus : SmartEnum<PatientStatus>
 {
     public static readonly PatientStatus Active = new(nameof(Active), 1);
-    public static readonly PatientStatus Inactive = new(nameof(Inactive), 2);
-    public static readonly PatientStatus Suspended = new(nameof(Suspended), 3);
+    public static readonly PatientStatus Suspended = new(nameof(Suspended), 2);
+    public static readonly PatientStatus Deleted = new(nameof(Deleted), 3);
 
     private PatientStatus(string name, int value) : base(name, value) { }
 }
@@ -274,12 +274,14 @@ public class Patient
         AddDomainEvent(new PatientActivatedEvent(Id));
     }
 
-    public void Deactivate()
+    public void Delete()
     {
-        if (Status == PatientStatus.Inactive)
+        if (Status == PatientStatus.Deleted)
             return;
 
-        Status = PatientStatus.Inactive;
+        Status = PatientStatus.Deleted;
+
+        AddDomainEvent(new PatientDeletedEvent(Id));
     }
 }
 ```
@@ -301,6 +303,7 @@ The only way to create a Patient. Constructor is private.
 **Behavior methods:**
 ```csharp
 public void Suspend() { }
+public void Delete() { }
 public void UpdateContactInfo(...) { }
 ```
 All state changes go through methods that encapsulate the behavior. These methods handle state transitions, not input validation.
@@ -429,6 +432,34 @@ public class PatientTests
         // Assert
         patient.DomainEvents.Should().Contain(e => e is PatientActivatedEvent);
         var evt = patient.DomainEvents.OfType<PatientActivatedEvent>().Single();
+        evt.PatientId.Should().Be(patient.Id);
+    }
+
+    [Fact]
+    public void Delete_ShouldChangeStatusToDeleted()
+    {
+        // Arrange
+        var patient = Patient.Create("John", "Doe", "test@example.com", DateTime.UtcNow.AddYears(-30));
+
+        // Act
+        patient.Delete();
+
+        // Assert
+        patient.Status.Should().Be(PatientStatus.Deleted);
+    }
+
+    [Fact]
+    public void Delete_ShouldRaisePatientDeletedEvent()
+    {
+        // Arrange
+        var patient = Patient.Create("John", "Doe", "test@example.com", DateTime.UtcNow.AddYears(-30));
+
+        // Act
+        patient.Delete();
+
+        // Assert
+        patient.DomainEvents.Should().ContainSingle(e => e is PatientDeletedEvent);
+        var evt = patient.DomainEvents.OfType<PatientDeletedEvent>().Single();
         evt.PatientId.Should().Be(patient.Id);
     }
 }
@@ -567,7 +598,7 @@ All tests should pass.
 - Reusable validators
 
 **Domain behavior** (state transitions) stays in the entity:
-- `Suspend()`, `Activate()`, `Deactivate()`
+- `Suspend()`, `Activate()`, `Delete()`
 - Business rules like "can't suspend an already suspended patient"
 
 This separation keeps the domain focused on **behavior**, not gatekeeping.

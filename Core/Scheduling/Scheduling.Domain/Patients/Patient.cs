@@ -69,11 +69,13 @@ public class Patient : Entity
         AddDomainEvent(new PatientActivatedEvent(Id));
     }
 
-    public void Deactivate()
+    public void Delete()
     {
-        if (Status == PatientStatus.Inactive)
+        if (Status == PatientStatus.Deleted)
             return;
 
-        Status = PatientStatus.Inactive;
+        Status = PatientStatus.Deleted;
+
+        AddDomainEvent(new PatientDeletedEvent(Id));
     }
 }

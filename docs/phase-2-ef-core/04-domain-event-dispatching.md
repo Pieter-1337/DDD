@@ -512,6 +512,45 @@ public class PatientActivatedEventHandler : INotificationHandler<PatientActivate
 }
 ```
 
+### Example: PatientDeletedEventHandler
+
+```csharp
+// Scheduling.Application/Patients/EventHandlers/PatientDeletedEventHandler.cs
+using BuildingBlocks.Application.Interfaces;
+using MediatR;
+using Microsoft.Extensions.Logging;
+using Scheduling.Domain.Patients.Events;
+using Shared.IntegrationEvents.Scheduling;
+
+namespace Scheduling.Application.Patients.EventHandlers;
+
+public class PatientDeletedEventHandler : INotificationHandler<PatientDeletedEvent>
+{
+    private readonly ILogger<PatientDeletedEventHandler> _logger;
+    private readonly IUnitOfWork _unitOfWork;
+
+    public PatientDeletedEventHandler(
+        ILogger<PatientDeletedEventHandler> logger,
+        IUnitOfWork unitOfWork)
+    {
+        _logger = logger;
+        _unitOfWork = unitOfWork;
+    }
+
+    public Task Handle(PatientDeletedEvent notification, CancellationToken cancellationToken)
+    {
+        _logger.LogInformation(
+            "Handling PatientDeletedEvent for patient {PatientId}",
+            notification.PatientId);
+
+        // Queue integration event for cross-BC communication
+        _unitOfWork.QueueIntegrationEvent(new PatientDeletedIntegrationEvent(notification.PatientId));
+
+        return Task.CompletedTask;
+    }
+}
+```
+
 **Key principle:** Domain event handlers bridge the gap between internal domain events and external integration events. This keeps command handlers clean and focused on the core domain operation.
 
 ---
@@ -715,6 +754,24 @@ public async Task PatientActivatedEventHandler_ShouldQueueIntegrationEvent()
         x => x.QueueIntegrationEvent(It.IsAny<PatientActivatedIntegrationEvent>()),
         Times.Once);
 }
+
+[TestMethod]
+public async Task PatientDeletedEventHandler_ShouldQueueIntegrationEvent()
+{
+    // Arrange
+    var mockUow = new Mock<IUnitOfWork>();
+    var handler = new PatientDeletedEventHandler(_logger, mockUow.Object);
+
+    var domainEvent = new PatientDeletedEvent(Guid.NewGuid());
+
+    // Act
+    await handler.Handle(domainEvent, CancellationToken.None);
+
+    // Assert
+    mockUow.Verify(
+        x => x.QueueIntegrationEvent(It.IsAny<PatientDeletedIntegrationEvent>()),
+        Times.Once);
+}
 ```
 
 ### Testing Integration Event Publishing
@@ -769,6 +826,7 @@ Core/Scheduling/
 |           +-- PatientCreatedEvent.cs
 |           +-- PatientSuspendedEvent.cs
 |           +-- PatientActivatedEvent.cs
+|           +-- PatientDeletedEvent.cs
 |
 +-- Scheduling.Application/
     +-- Patients/
@@ -776,6 +834,7 @@ Core/Scheduling/
             +-- PatientCreatedEventHandler.cs
             +-- PatientSuspendedEventHandler.cs
             +-- PatientActivatedEventHandler.cs
+            +-- PatientDeletedEventHandler.cs
 
 Shared/
 +-- IntegrationEvents/
@@ -783,6 +842,7 @@ Shared/
         +-- PatientCreatedIntegrationEvent.cs
         +-- PatientSuspendedIntegrationEvent.cs
         +-- PatientActivatedIntegrationEvent.cs
+        +-- PatientDeletedIntegrationEvent.cs
 ```
 
 ---

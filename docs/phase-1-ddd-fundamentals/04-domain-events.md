@@ -12,6 +12,7 @@ Domain Event = "Something happened that domain experts care about"
 - `PatientCreatedEvent` - A new patient was registered
 - `PatientSuspendedEvent` - A patient's status changed to suspended
 - `PatientActivatedEvent` - A patient's status changed to active
+- `PatientDeletedEvent` - A patient was soft-deleted
 - `AppointmentScheduledEvent` - An appointment was booked
 - `AppointmentCancelledEvent` - An appointment was cancelled
 
@@ -266,6 +267,17 @@ public class Patient : Entity, IHasDomainEvents
         // Raise domain event
         AddDomainEvent(new PatientActivatedEvent(Id));
     }
+
+    public void Delete()
+    {
+        if (Status == PatientStatus.Deleted)
+            return;
+
+        Status = PatientStatus.Deleted;
+
+        // Raise domain event
+        AddDomainEvent(new PatientDeletedEvent(Id));
+    }
 }
 ```
 
@@ -301,6 +313,17 @@ using BuildingBlocks.Domain;
 namespace Scheduling.Domain.Patients.Events;
 
 public record PatientActivatedEvent(
+    Guid PatientId
+) : DomainEventBase;
+```
+
+```csharp
+// Scheduling.Domain/Patients/Events/PatientDeletedEvent.cs
+using BuildingBlocks.Domain;
+
+namespace Scheduling.Domain.Patients.Events;
+
+public record PatientDeletedEvent(
     Guid PatientId
 ) : DomainEventBase;
 ```
@@ -397,6 +420,7 @@ Core/Scheduling/
 |           +-- PatientCreatedEvent.cs
 |           +-- PatientSuspendedEvent.cs
 |           +-- PatientActivatedEvent.cs
+|           +-- PatientDeletedEvent.cs
 |
 +-- Scheduling.Application/
     +-- Patients/
@@ -404,6 +428,7 @@ Core/Scheduling/
             +-- PatientCreatedEventHandler.cs
             +-- PatientSuspendedEventHandler.cs
             +-- PatientActivatedEventHandler.cs
+            +-- PatientDeletedEventHandler.cs
 ```
 
 ---

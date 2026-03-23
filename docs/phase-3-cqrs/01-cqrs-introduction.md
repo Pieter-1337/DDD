@@ -150,6 +150,8 @@ public record CreatePatientCommand(
 public record SuspendPatientCommand(Guid PatientId) : IRequest;
 
 public record ActivatePatientCommand(Guid PatientId) : IRequest;
+
+public record DeletePatientCommand(Guid PatientId) : IRequest;
 ```
 
 **Naming:** Verb + Noun + "Command" → `CreatePatientCommand`, `CancelAppointmentCommand`
@@ -272,7 +274,9 @@ Core/Scheduling/
 │   │   │   ├── SuspendPatientCommand.cs
 │   │   │   ├── SuspendPatientCommandHandler.cs
 │   │   │   ├── ActivatePatientCommand.cs
-│   │   │   └── ActivatePatientCommandHandler.cs
+│   │   │   ├── ActivatePatientCommandHandler.cs
+│   │   │   ├── DeletePatientCommand.cs
+│   │   │   └── DeletePatientCommandHandler.cs
 │   │   ├── Queries/
 │   │   │   ├── GetPatientByIdQuery.cs
 │   │   │   ├── GetPatientByIdQueryHandler.cs

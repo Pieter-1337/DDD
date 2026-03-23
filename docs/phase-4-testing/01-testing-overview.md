@@ -73,7 +73,8 @@ Core/Scheduling/Scheduling.Domain.Tests/
 │       ├── GetPatientQueryValidatorTests.cs
 │       ├── GetAllPatientsQueryValidatorTests.cs
 │       ├── SuspendPatientCommandValidatorTests.cs
-│       └── ActivatePatientCommandValidatorTests.cs
+│       ├── ActivatePatientCommandValidatorTests.cs
+│       └── DeletePatientCommandValidatorTests.cs
 └── DomainTests/
     └── Patients/
         └── PatientTests.cs

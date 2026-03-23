@@ -1,5 +1,6 @@
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Scheduling.Domain.Patients;
+using Scheduling.Domain.Patients.Events;
 using Shouldly;
 
 namespace Scheduling.Tests.DomainTests.Patients;
@@ -79,5 +80,31 @@ public class PatientTests
 
         // Assert
         patient.Status.ShouldBe(PatientStatus.Active);
+    }
+
+    [TestMethod]
+    public void Delete_ShouldChangeStatusToDeleted()
+    {
+        // Arrange
+        var patient = Patient.Create("John", "Doe", "test@example.com", DateTime.UtcNow.AddYears(-30));
+
+        // Act
+        patient.Delete();
+
+        // Assert
+        patient.Status.ShouldBe(PatientStatus.Deleted);
+    }
+   
+    [TestMethod]
+    public void Delete_ShouldRaiseDomainEvent()
+    {
+        // Arrange
+        var patient = Patient.Create("John", "Doe", "test@example.com", DateTime.UtcNow.AddYears(-30));
+
+        // Act
+        patient.Delete();
+
+        // Assert
+        patient.DomainEvents.ShouldContain(e => e is PatientDeletedEvent);
     }
 }

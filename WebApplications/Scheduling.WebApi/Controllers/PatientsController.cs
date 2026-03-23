@@ -63,5 +63,14 @@ namespace Scheduling.WebApi.Controllers
             var response = await _mediator.Send(new ActivatePatientCommand { Id = patientId });
             return Ok(response);
         }
+
+        [HttpDelete("{patientId}")]
+        [ProducesResponseType<bool>(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        public async Task<IActionResult> DeletePatientAsync(Guid patientId)
+        {
+            var response = await _mediator.Send(new DeletePatientCommand { Id = patientId });
+            return Ok(response);
+        }
     }
 }

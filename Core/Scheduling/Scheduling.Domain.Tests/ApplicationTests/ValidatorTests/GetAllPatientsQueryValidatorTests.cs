@@ -64,10 +64,10 @@ public class GetAllPatientsQueryValidatorTests : SchedulingValidatorTestBase
     }
 
     [TestMethod]
-    public async Task Valid_When_StatusIsInactive()
+    public async Task Valid_When_StatusIsDeleted()
     {
         // Arrange
-        var query = new GetAllPatientsQuery { Status = PatientStatus.Inactive.Name };
+        var query = new GetAllPatientsQuery { Status = PatientStatus.Deleted.Name };
 
         // Act
         var result = await ValidatorFor<GetAllPatientsQuery>().ValidateAsync(query);

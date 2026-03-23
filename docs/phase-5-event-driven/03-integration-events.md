@@ -628,6 +628,7 @@ public class SomeService
 public record PatientCreatedIntegrationEvent : IntegrationEventBase { ... }
 public record PatientSuspendedIntegrationEvent : IntegrationEventBase { ... }
 public record PatientActivatedIntegrationEvent : IntegrationEventBase { ... }
+public record PatientDeletedIntegrationEvent : IntegrationEventBase { ... }
 
 // Appointment events
 public record AppointmentScheduledIntegrationEvent : IntegrationEventBase

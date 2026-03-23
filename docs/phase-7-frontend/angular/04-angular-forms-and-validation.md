@@ -101,7 +101,10 @@ export class CreatePatient {
   });
 
   onSubmit(): void {
-    if (this.form.invalid) return;
+    if (this.form.invalid){
+        this.form.markAllAsTouched();
+        return;
+    } 
 
     this.isSubmitting = true;
     this.serverErrors = [];

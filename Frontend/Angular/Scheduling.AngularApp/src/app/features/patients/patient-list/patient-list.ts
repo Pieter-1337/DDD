@@ -29,7 +29,8 @@ export class PatientList implements OnInit {
   statusOptions: Record<string, string> = {
     '' : 'All',
     'Active' : 'Active',
-    'Suspended' :'Suspended'
+    'Suspended' :'Suspended',
+    'Deleted' : 'Deleted'
   };
 
   ngOnInit(): void {

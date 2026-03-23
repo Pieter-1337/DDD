@@ -1,3 +1,5 @@
+import { SuccessOrFailureResponse } from '@shared/models/success-or-failure-response.model';
+
 /**
  * Patient entity returned from API
  */
@@ -7,7 +9,7 @@ export interface Patient {
   lastName: string;
   email: string;
   dateOfBirth: string;  // ISO 8601 date string
-  status: string;       // "Active" | "Suspended"
+  status: string;       // "Active" | "Suspended" | "Deleted"
 }
 
 /**
@@ -24,10 +26,8 @@ export interface CreatePatientRequest {
 /**
  * Response from CreatePatient command
  */
-export interface CreatePatientResponse {
-  success: boolean;
+export interface CreatePatientResponse extends SuccessOrFailureResponse {
   patientId: string;
-  errors?: string[];
 }
 
 /**

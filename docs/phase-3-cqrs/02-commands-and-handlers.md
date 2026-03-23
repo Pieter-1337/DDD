@@ -8,6 +8,7 @@ Commands represent an **intent to change** the system state. They're named imper
 CreatePatientCommand      // Intent: Create a new patient
 SuspendPatientCommand     // Intent: Suspend an existing patient
 ActivatePatientCommand    // Intent: Activate an existing patient
+DeletePatientCommand      // Intent: Soft-delete an existing patient
 UpdateContactInfoCommand  // Intent: Update patient's contact information
 ```
 
@@ -401,6 +402,11 @@ public class ActivatePatientCommandResponse : SuccessOrFailureDto
 {
     // No additional data needed
 }
+
+public class DeletePatientCommandResponse : SuccessOrFailureDto
+{
+    // No additional data needed
+}
 ```
 
 ### Combining Multiple Results
@@ -628,6 +634,8 @@ public class CreatePatientCommandHandlerTests : SchedulingTestBase
 - [x] `SuspendPatientCommandHandler` implements `IRequestHandler`
 - [x] `ActivatePatientCommand` class created
 - [x] `ActivatePatientCommandHandler` implements `IRequestHandler`
+- [x] `DeletePatientCommand` class created
+- [x] `DeletePatientCommandHandler` implements `IRequestHandler`
 - [x] MediatR registered in DI
 - [x] `SuppressAsyncSuffixInActionNames = false` configured
 - [x] Controller receives request DTO, wraps in command
@@ -644,17 +652,19 @@ Commands, requests, responses, and validators are all in the same file:
 Core/Scheduling/
 +-- Scheduling.Domain/
 |   +-- Patients/
-|       +-- Patient.cs                           <- Pure domain entity (no event collection)
+|       +-- Patient.cs
 |       +-- PatientStatus.cs
 +-- Scheduling.Application/
     +-- Patients/
     |   +-- Commands/
-    |   |   +-- CreatePatientCommand.cs          <- Command + Request + Response + Validators
-    |   |   +-- CreatePatientCommandHandler.cs   <- Queues integration events
-    |   |   +-- SuspendPatientCommand.cs         <- Command + Response + Validator
+    |   |   +-- CreatePatientCommand.cs
+    |   |   +-- CreatePatientCommandHandler.cs
+    |   |   +-- SuspendPatientCommand.cs
     |   |   +-- SuspendPatientCommandHandler.cs
-    |   |   +-- ActivatePatientCommand.cs        <- Command + Response + Validator
+    |   |   +-- ActivatePatientCommand.cs
     |   |   +-- ActivatePatientCommandHandler.cs
+    |   |   +-- DeletePatientCommand.cs
+    |   |   +-- DeletePatientCommandHandler.cs
     |   +-- Dtos/
     |       +-- PatientDto.cs
     +-- ServiceCollectionExtensions.cs
@@ -665,6 +675,7 @@ Shared/
         +-- PatientCreatedIntegrationEvent.cs
         +-- PatientSuspendedIntegrationEvent.cs
         +-- PatientActivatedIntegrationEvent.cs
+        +-- PatientDeletedIntegrationEvent.cs
 ```
 
 **Note:** All related types (Command, Request DTO, Response DTO, Validators) are in the same file, organized with `#region Validators`. This keeps related code together and makes it easier to understand the full contract.

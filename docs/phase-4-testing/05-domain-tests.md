@@ -160,6 +160,52 @@ public class PatientTests
 
     #endregion
 
+    #region Delete Tests
+
+    [TestMethod]
+    public void Delete_ShouldChangeStatusToDeleted()
+    {
+        // Arrange
+        var patient = Patient.Create("John", "Doe", "john@test.com", new DateTime(1990, 1, 15));
+
+        // Act
+        patient.Delete();
+
+        // Assert
+        patient.Status.ShouldBe(PatientStatus.Deleted);
+    }
+
+    [TestMethod]
+    public void Delete_ShouldBeIdempotent()
+    {
+        // Arrange
+        var patient = Patient.Create("John", "Doe", "john@test.com", new DateTime(1990, 1, 15));
+
+        // Act - Delete twice
+        patient.Delete();
+        patient.Delete();
+
+        // Assert - Should still be deleted, no exception
+        patient.Status.ShouldBe(PatientStatus.Deleted);
+    }
+
+    [TestMethod]
+    public void Delete_ShouldRaiseDomainEvent()
+    {
+        // Arrange
+        var patient = Patient.Create("John", "Doe", "john@test.com", new DateTime(1990, 1, 15));
+        patient.ClearDomainEvents(); // Clear creation event
+
+        // Act
+        patient.Delete();
+
+        // Assert
+        patient.DomainEvents.Count.ShouldBe(1);
+        patient.DomainEvents[0].ShouldBeOfType<PatientDeletedEvent>();
+    }
+
+    #endregion
+
     #region Update Tests
 
     [TestMethod]

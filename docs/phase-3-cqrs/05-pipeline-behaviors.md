@@ -995,6 +995,12 @@ public record ActivatePatientCommand : Command<ActivatePatientCommandResponse>
     public Guid Id { get; init; }
 }
 
+// Soft-delete command
+public record DeletePatientCommand : Command<DeletePatientCommandResponse>
+{
+    public Guid Id { get; init; }
+}
+
 // Command with primary constructor
 public record CreatePatientCommand(CreatePatientRequest Patient) : Command<CreatePatientCommandResponse>;
 ```

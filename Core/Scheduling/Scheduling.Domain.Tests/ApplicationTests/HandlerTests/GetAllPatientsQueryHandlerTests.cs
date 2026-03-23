@@ -91,8 +91,8 @@ public class GetAllPatientsQueryHandlerTests : SchedulingDbTestBase
 
         await GetMediator().Send(new CreatePatientCommand(patientRequest));
 
-        // Query for inactive patients (none exist)
-        var query = new GetAllPatientsQuery { Status = PatientStatus.Inactive.Name };
+        // Query for deleted patients (none exist)
+        var query = new GetAllPatientsQuery { Status = PatientStatus.Deleted.Name };
 
         // Act
         var result = await GetMediator().Send(query);
