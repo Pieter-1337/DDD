@@ -36,13 +36,13 @@ Angular provides two approaches to handling forms:
 To use reactive forms in a standalone component, import the necessary modules:
 
 ```typescript
-import { ReactiveFormsModule, FormBuilder, FormGroup, Validators } from '@angular/forms';
+import { ReactiveFormsModule, FormBuilder, Validators } from '@angular/forms';
 ```
 
 For Angular Material form fields:
 
 ```typescript
-import { MatFormFieldModule } from '@angular/material/form-field';
+import { MatFormField, MatLabel, MatError } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatButtonModule } from '@angular/material/button';
 import { MatDatepickerModule } from '@angular/material/datepicker';
@@ -53,219 +53,158 @@ import { MatNativeDateModule } from '@angular/material/core';
 
 ## Create Patient Form Example
 
-Here's a complete example of a create patient form using reactive forms and Angular Material.
+Here's the complete create patient form using reactive forms, Angular Material, and NotificationService for user feedback.
 
 **File**: `features/patients/create-patient/create-patient.ts`
 
 ```typescript
-import { Component, inject } from '@angular/core';
+import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
+import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { Router } from '@angular/router';
-import { ReactiveFormsModule, FormBuilder, Validators } from '@angular/forms';
-import { MatFormFieldModule } from '@angular/material/form-field';
-import { MatInputModule } from '@angular/material/input';
-import { MatButtonModule } from '@angular/material/button';
+import { PatientApi } from '@core/services/patient-api';
+import { CreatePatientRequest, CreatePatientResponse } from '@core/models/patient.model';
+import { MatFormField, MatLabel, MatError, MatFormFieldModule } from "@angular/material/form-field";
 import { MatDatepickerModule } from '@angular/material/datepicker';
 import { MatNativeDateModule } from '@angular/material/core';
-import { MatSnackBar } from '@angular/material/snack-bar';
+import { MatInputModule } from '@angular/material/input';
 import { HttpErrorResponse } from '@angular/common/http';
-import { PatientApi } from '@core/services/patient-api';
+import { NotificationService } from '@core/services/notification';
+import { MatButtonModule } from '@angular/material/button';
 
 @Component({
   selector: 'app-create-patient',
   standalone: true,
-  imports: [
-    ReactiveFormsModule,
-    MatFormFieldModule,
-    MatInputModule,
-    MatButtonModule,
-    MatDatepickerModule,
-    MatNativeDateModule,
-  ],
+  imports: [MatFormField, MatLabel, MatError, ReactiveFormsModule, MatDatepickerModule, MatNativeDateModule, MatInputModule, MatButtonModule],
   templateUrl: './create-patient.html',
   styleUrl: './create-patient.scss',
+  changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class CreatePatient {
-  private fb = inject(FormBuilder);
   private patientService = inject(PatientApi);
-  private snackBar = inject(MatSnackBar);
-  private router = inject(Router);
+  private fb = inject(FormBuilder);
+  private notification = inject(NotificationService);
+  router = inject(Router);
 
-  isSubmitting = false;
-  serverErrors: string[] = [];
+  isSubmitting = signal(false);
 
   form = this.fb.nonNullable.group({
-    firstName: ['', [Validators.required, Validators.maxLength(100)]],
-    lastName: ['', [Validators.required, Validators.maxLength(100)]],
+    firstName: ['', Validators.required],
+    lastName: ['', Validators.required],
     email: ['', [Validators.required, Validators.email]],
-    dateOfBirth: ['', [Validators.required, pastDateValidator]],
+    dateOfBirth: [null as Date | null, Validators.required],
+    status: ['Active']
   });
 
-  onSubmit(): void {
+  submit(): void {
     if (this.form.invalid){
-        this.form.markAllAsTouched();
-        return;
-    } 
+      this.form.markAllAsTouched();
+      return;
+    }
 
-    this.isSubmitting = true;
-    this.serverErrors = [];
+    const rawValue = this.form.getRawValue();
+    const dob = rawValue.dateOfBirth!;
 
-    this.patientService.create(this.form.getRawValue()).subscribe({
-      next: (response) => {
-        if (response.success) {
-          this.snackBar.open('Patient created successfully', 'Close', {
-            duration: 3000,
-          });
+    const request: CreatePatientRequest = {
+      firstName: rawValue.firstName,
+      lastName: rawValue.lastName,
+      email: rawValue.email,
+      dateOfBirth: dob.toISOString().split('T')[0],
+      status: rawValue.status
+    };
+
+    this.isSubmitting.set(true);
+    this.patientService.create(request).subscribe({
+      next: (response: CreatePatientResponse) => {
+        if(response.success){
+          this.notification.success(response.message);
           this.router.navigate(['/patients']);
         } else {
-          this.serverErrors = response.errors ?? ['An unknown error occurred'];
-          this.isSubmitting = false;
+          this.notification.error(response.message);
+          this.isSubmitting.set(false);
         }
       },
       error: (err: HttpErrorResponse) => {
-        this.handleError(err);
-        this.isSubmitting = false;
-      },
+        console.log("Failed to create patient", err)
+        this.isSubmitting.set(false);
+      }
     });
-  }
-
-  onCancel(): void {
-    this.router.navigate(['/patients']);
-  }
-
-  private handleError(err: HttpErrorResponse): void {
-    if (err.status === 400 && err.error?.errors) {
-      // FluentValidation errors from backend
-      this.serverErrors = Object.values(err.error.errors).flat() as string[];
-    } else {
-      this.serverErrors = [err.message || 'Failed to create patient'];
-    }
   }
 }
 ```
 
 **create-patient.html**:
 ```html
-<div class="create-patient-container">
-  <h1>Create Patient</h1>
+<h1>Create Patient</h1>
 
-  <form [formGroup]="form" (ngSubmit)="onSubmit()">
-    <mat-form-field>
-      <mat-label>First Name</mat-label>
-      <input matInput formControlName="firstName" />
-      @if (form.controls.firstName.hasError('required')) {
-        <mat-error>First name is required</mat-error>
-      }
-      @if (form.controls.firstName.hasError('maxlength')) {
-        <mat-error>Maximum 100 characters</mat-error>
-      }
-    </mat-form-field>
+<form [formGroup]="form" (ngSubmit)="submit()">
+  <mat-form-field>
+    <mat-label>First Name</mat-label>
+    <input matInput formControlName="firstName" required />
+    <mat-error>First name is required</mat-error>
+  </mat-form-field>
 
-    <mat-form-field>
-      <mat-label>Last Name</mat-label>
-      <input matInput formControlName="lastName" />
-      @if (form.controls.lastName.hasError('required')) {
-        <mat-error>Last name is required</mat-error>
-      }
-      @if (form.controls.lastName.hasError('maxlength')) {
-        <mat-error>Maximum 100 characters</mat-error>
-      }
-    </mat-form-field>
+  <mat-form-field>
+    <mat-label>Last Name</mat-label>
+    <input matInput formControlName="lastName" required />
+    <mat-error>Last name is required</mat-error>
+  </mat-form-field>
 
-    <mat-form-field>
-      <mat-label>Email</mat-label>
-      <input matInput formControlName="email" type="email" />
-      @if (form.controls.email.hasError('required')) {
-        <mat-error>Email is required</mat-error>
-      }
-      @if (form.controls.email.hasError('email')) {
-        <mat-error>Invalid email format</mat-error>
-      }
-    </mat-form-field>
+  <mat-form-field>
+    <mat-label>Email</mat-label>
+    <input matInput type="email" formControlName="email" required />
+    <mat-error>Valid email is required</mat-error>
+  </mat-form-field>
 
-    <mat-form-field>
-      <mat-label>Date of Birth</mat-label>
-      <input matInput [matDatepicker]="picker" formControlName="dateOfBirth" />
-      <mat-datepicker-toggle matIconSuffix [for]="picker" />
-      <mat-datepicker #picker />
-      @if (form.controls.dateOfBirth.hasError('required')) {
-        <mat-error>Date of birth is required</mat-error>
-      }
-      @if (form.controls.dateOfBirth.hasError('pastDate')) {
-        <mat-error>{{ form.controls.dateOfBirth.errors?.['pastDate'].message }}</mat-error>
-      }
-    </mat-form-field>
+  <mat-form-field>
+    <mat-label>Date of Birth</mat-label>
+    <input matInput [matDatepicker]="picker" formControlName="dateOfBirth" required />
+    <mat-datepicker-toggle matIconSuffix [for]="picker"></mat-datepicker-toggle>
+    <mat-datepicker #picker></mat-datepicker>
+  </mat-form-field>
 
-    <div class="actions">
-      <button mat-flat-button color="primary" type="submit"
-              [disabled]="form.invalid || isSubmitting">
-        {{ isSubmitting ? 'Creating...' : 'Create Patient' }}
-      </button>
-      <button mat-button type="button" (click)="onCancel()">
-        Cancel
-      </button>
-    </div>
-
-    @if (serverErrors.length > 0) {
-      <div class="server-errors">
-        @for (error of serverErrors; track error) {
-          <p class="error">{{ error }}</p>
-        }
-      </div>
-    }
-  </form>
-</div>
+  <div class="actions">
+    <button mat-flat-button color="primary" type="submit" [disabled]="isSubmitting()">
+      Create
+    </button>
+    <button mat-button type="button" (click)="router.navigate(['/patients'])">
+      Cancel
+    </button>
+  </div>
+</form>
 ```
 
 **create-patient.scss**:
 ```scss
-.create-patient-container {
-  max-width: 600px;
-  margin: 2rem auto;
-  padding: 2rem;
-}
-
 form {
   display: flex;
   flex-direction: column;
   gap: 1rem;
-}
-
-mat-form-field {
-  width: 100%;
+  max-width: 500px;
 }
 
 .actions {
   display: flex;
-  gap: 1rem;
-  margin-top: 1rem;
-}
-
-.server-errors {
-  margin-top: 1rem;
-  padding: 1rem;
-  background-color: #ffebee;
-  border-radius: 4px;
-}
-
-.error {
-  color: #c62828;
-  margin: 0.25rem 0;
+  gap: 0.5rem;
 }
 ```
 
 ### Key Points
 
-- **FormBuilder** - Use `nonNullable.group()` to create a strongly-typed form that doesn't allow null values
-- **Validators** - Chain multiple validators in an array: `[Validators.required, Validators.maxLength(100)]`
-- **Error Messages** - Use `@if` control flow to conditionally show error messages based on validation state
-- **Disabled State** - Disable submit button when form is invalid or submitting
-- **Server Errors** - Display server-side validation errors separately from client-side errors
+- **FormBuilder** — Use `nonNullable.group()` to create a strongly-typed form that doesn't allow null values
+- **Validators** — Chain multiple validators in an array: `[Validators.required, Validators.email]`
+- **Error Messages** — A single `<mat-error>` per field is sufficient; Angular Material only shows one at a time
+- **Typed Request** — Map `getRawValue()` to a typed `CreatePatientRequest` before sending; format the date as `yyyy-MM-dd`
+- **Signal State** — `isSubmitting` is a signal because the component uses `ChangeDetectionStrategy.OnPush`
+- **NotificationService** — Centralises snackbar config so components just call `success()` or `error()`
+- **Public Router** — `router` has no `private` modifier because the template calls `router.navigate()` inline for the cancel button
 
 ---
 
 ## Custom Validators
 
 Angular provides built-in validators (`required`, `email`, `minLength`, etc.), but you can also create custom validators for domain-specific rules.
+
+> **Future enhancement:** The custom validators below are not yet wired into the create-patient form. They are documented here as ready-to-use examples for when stricter date-of-birth rules are needed.
 
 ### Past Date Validator Example
 
@@ -332,11 +271,13 @@ export function minAgeValidator(minAge: number): ValidatorFn {
 
 ### Using Custom Validators
 
+To wire these into the form, add them to the `dateOfBirth` control:
+
 ```typescript
 import { pastDateValidator, minAgeValidator } from '@shared/validators/date.validators';
 
 form = this.fb.nonNullable.group({
-  dateOfBirth: ['', [
+  dateOfBirth: [null as Date | null, [
     Validators.required,
     pastDateValidator,
     minAgeValidator(18) // Patient must be at least 18 years old
@@ -350,8 +291,8 @@ form = this.fb.nonNullable.group({
 <mat-form-field>
   <mat-label>Date of Birth</mat-label>
   <input matInput [matDatepicker]="picker" formControlName="dateOfBirth" />
-  <mat-datepicker-toggle matIconSuffix [for]="picker" />
-  <mat-datepicker #picker />
+  <mat-datepicker-toggle matIconSuffix [for]="picker"></mat-datepicker-toggle>
+  <mat-datepicker #picker></mat-datepicker>
 
   @if (form.controls.dateOfBirth.hasError('required')) {
     <mat-error>Date of birth is required</mat-error>
@@ -393,105 +334,6 @@ This is the exact same principle as in Blazor: **client for UX, server for secur
 
 ---
 
-## Handling Server Validation Errors
-
-The backend API (using FluentValidation) returns structured validation errors. Here's how to extract and display them in Angular.
-
-### FluentValidation Error Response Format
-
-When FluentValidation fails, ASP.NET Core returns a 400 Bad Request with this structure:
-
-```json
-{
-  "type": "https://tools.ietf.org/html/rfc7231#section-6.5.1",
-  "title": "One or more validation errors occurred.",
-  "status": 400,
-  "errors": {
-    "FirstName": ["First name is required"],
-    "Email": ["Email must be a valid email address", "Email is already in use"]
-  }
-}
-```
-
-### Parsing and Displaying Server Errors
-
-```typescript
-private handleError(err: HttpErrorResponse): void {
-  this.serverErrors = [];
-
-  if (err.status === 400 && err.error?.errors) {
-    // FluentValidation errors from backend
-    // errors is an object with field names as keys and string arrays as values
-    const errorObj = err.error.errors;
-
-    for (const fieldErrors of Object.values(errorObj)) {
-      if (Array.isArray(fieldErrors)) {
-        this.serverErrors.push(...fieldErrors);
-      }
-    }
-  } else if (err.status === 409) {
-    // Conflict - e.g., duplicate email
-    this.serverErrors = [err.error?.detail || 'A conflict occurred'];
-  } else if (err.status === 500) {
-    // Server error
-    this.serverErrors = ['An unexpected server error occurred. Please try again later.'];
-  } else {
-    // Generic error
-    this.serverErrors = [err.message || 'An unexpected error occurred'];
-  }
-}
-```
-
-### Displaying Server Errors in the Template
-
-```html
-@if (serverErrors.length > 0) {
-  <div class="server-errors">
-    <h3>Please correct the following errors:</h3>
-    <ul>
-      @for (error of serverErrors; track error) {
-        <li>{{ error }}</li>
-      }
-    </ul>
-  </div>
-}
-```
-
-### Mapping Server Errors to Form Fields (Advanced)
-
-If you want to map server errors to specific form fields (similar to Blazor's `FluentValidationMessage`), you can use `setErrors`:
-
-```typescript
-private handleError(err: HttpErrorResponse): void {
-  if (err.status === 400 && err.error?.errors) {
-    const errorObj = err.error.errors;
-
-    for (const [fieldName, fieldErrors] of Object.entries(errorObj)) {
-      const control = this.form.get(fieldName.toLowerCase());
-
-      if (control && Array.isArray(fieldErrors)) {
-        control.setErrors({
-          serverError: { message: fieldErrors[0] }
-        });
-      }
-    }
-  } else {
-    // Show generic errors in a summary section
-    this.serverErrors = ['An unexpected error occurred'];
-  }
-}
-```
-
-Then in the template:
-
-```html
-@if (form.controls.email.hasError('serverError')) {
-  <mat-error>{{ form.controls.email.errors?.['serverError'].message }}</mat-error>
-}
-```
-
----
-
 ## Blazor vs Angular Forms Comparison
 
 Both frameworks provide robust form handling with validation, but the approaches differ.
@@ -503,11 +345,11 @@ Both frameworks provide robust form handling with validation, but the approaches
 | **Form model** | POCO class (e.g., `CreatePatientCommand`) | `FormGroup` created with `FormBuilder` |
 | **Data binding** | `@bind-Value="model.FirstName"` | `formControlName="firstName"` |
 | **Error display** | `<FluentValidationMessage For="() => model.FirstName" />` | `<mat-error>` with `hasError('required')` |
-| **Submit handler** | `OnValidSubmit="HandleSubmit"` | `(ngSubmit)="onSubmit()"` |
+| **Submit handler** | `OnValidSubmit="HandleSubmit"` | `(ngSubmit)="submit()"` |
 | **Validation trigger** | Automatic via EditContext | Automatic via FormControl state |
-| **Disable on submit** | `Disabled="@isSubmitting"` | `[disabled]="form.invalid \|\| isSubmitting"` |
+| **Disable on submit** | `Disabled="@isSubmitting"` | `[disabled]="isSubmitting()"` |
 | **Date picker** | `<FluentDatePicker @bind-Value="model.DateOfBirth" />` | `<input matInput [matDatepicker]="picker">` |
-| **Server errors** | `FluentValidationSummary` | Custom error display with `@for` loop |
+| **Server errors** | `FluentValidationSummary` | `NotificationService` error snackbar |
 
 ### Similarities
 
@@ -519,7 +361,7 @@ Both frameworks provide robust form handling with validation, but the approaches
 ### Key Differences
 
 - **Blazor** uses a POCO model that directly maps to the command/DTO sent to the API
-- **Angular** uses `FormGroup` which is then converted to the API payload via `getRawValue()`
+- **Angular** uses `FormGroup` which is then converted to a typed request model via `getRawValue()`
 - **Blazor** validation is defined in C# validator classes (server-side first, optionally reused client-side)
 - **Angular** validation is defined as TypeScript functions (client-side first, separate from server FluentValidation)
 
@@ -529,27 +371,25 @@ Both frameworks provide robust form handling with validation, but the approaches
 
 After implementing forms and validation, verify the following:
 
-- [ ] **Reactive form created** - Form is created using `FormBuilder` with `nonNullable.group()`
-- [ ] **Required validators** - All required fields have `Validators.required`
-- [ ] **Email validation** - Email field has `Validators.email`
-- [ ] **Custom validators** - Date of birth validated with `pastDateValidator` (and optionally `minAgeValidator`)
-- [ ] **Error messages** - `mat-error` displays appropriate validation messages for each error type
-- [ ] **Submit button state** - Submit button is disabled when form is invalid or while submitting
-- [ ] **Loading indicator** - Submit button text changes to "Creating..." during submission
-- [ ] **Server validation errors** - Server validation errors are extracted and displayed to the user
-- [ ] **Success notification** - Successful creation shows a snackbar notification
-- [ ] **Navigation on success** - User is navigated to patient list after successful creation
-- [ ] **Cancel button** - Cancel button navigates back to patient list without submitting
+- [ ] **Reactive form created** — Form is created using `FormBuilder` with `nonNullable.group()`
+- [ ] **Required validators** — All required fields have `Validators.required`
+- [ ] **Email validation** — Email field has `Validators.email`
+- [ ] **Error messages** — `mat-error` displays appropriate validation messages
+- [ ] **Submit button state** — Submit button is disabled while submitting (`isSubmitting()` signal)
+- [ ] **Success notification** — Successful creation shows a snackbar via `NotificationService`
+- [ ] **Error notification** — Failed creation shows an error snackbar via `NotificationService`
+- [ ] **Navigation on success** — User is navigated to patient list after successful creation
+- [ ] **Cancel button** — Cancel button navigates back to patient list without submitting
+- [ ] **Typed request** — Form values are mapped to `CreatePatientRequest` with correct date formatting
 
 ### Testing Your Form
 
-1. **Test required field validation** - Leave fields empty and try to submit
-2. **Test email format validation** - Enter invalid email formats (e.g., "notanemail")
-3. **Test maxLength validation** - Enter more than 100 characters in name fields
-4. **Test date validation** - Try to select a future date for date of birth
-5. **Test submit button state** - Verify it's disabled when form is invalid
-6. **Test server validation** - Submit with data that will fail server validation (e.g., duplicate email)
-7. **Test successful submission** - Create a valid patient and verify navigation and notification
+1. **Test required field validation** — Leave fields empty and try to submit
+2. **Test email format validation** — Enter invalid email formats (e.g., "notanemail")
+3. **Test submit button state** — Verify it's disabled while the request is in flight
+4. **Test server validation** — Submit with data that will fail server validation (e.g., duplicate email)
+5. **Test successful submission** — Create a valid patient and verify navigation and notification
+6. **Test cancel** — Click cancel and verify navigation back without submission
 
 ---
 
