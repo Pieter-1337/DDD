@@ -399,7 +399,7 @@ table {
 
 ### Patient Detail Component
 
-A read-only detail view for a single patient. It reads the `:id` route parameter via `ActivatedRoute`, fetches that patient from the API, and displays their info in a Material card. A toggle button supports both suspending and activating patients, using a `computed` signal to derive the current status and determine the appropriate action. A delete button with a bin icon is placed in the header next to the patient name for soft-deleting a patient — on success, a snackbar is shown and the user is redirected to the list. A "Back to list" button navigates back. The component uses `OnPush` change detection strategy for optimal performance with signals.
+A read-only detail view for a single patient. It reads the `:id` route parameter via `ActivatedRoute`, fetches that patient from the API, and displays their info in a Material card. A toggle button supports both suspending and activating patients, using a `computed` signal to derive the current status and determine the appropriate action. A delete button with a bin icon is placed in the header next to the patient name for soft-deleting a patient — on success, `NotificationService` shows a success toast and the user is redirected to the list. Suspend and activate also show feedback via the notification service. A "Back to list" button navigates back. The component uses `OnPush` change detection strategy for optimal performance with signals.
 
 **`src/app/features/patients/patient-detail/patient-detail.ts`**:
 ```typescript
@@ -412,7 +412,7 @@ import { Patient } from '@core/models/patient.model';
 import { PatientApi } from '@core/services/patient-api';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
-import { MatSnackBar } from '@angular/material/snack-bar';
+import { NotificationService } from '@core/services/notification';
 
 @Component({
   selector: 'app-patient-detail',
@@ -426,7 +426,7 @@ export class PatientDetail implements OnInit {
   private patientService = inject(PatientApi);
   private route = inject(ActivatedRoute);
   router = inject(Router);
-  private snackbar = inject(MatSnackBar);
+  private notification = inject(NotificationService);
 
   patient = signal<Patient | null>(null);
   isSuspended = computed(() => this.patient()!.status === 'Suspended');
@@ -452,14 +452,28 @@ export class PatientDetail implements OnInit {
   suspend(){
     const id = this.patient()!.id;
     this.patientService.suspend(id).subscribe({
-      next: () => this.loadPatient(id)
+      next: (response) => {
+        if (response.success) {
+          this.notification.success(response.message);
+          this.loadPatient(id);
+        } else {
+          this.notification.error(response.message);
+        }
+      }
     });
   }
 
   activate(){
     const id = this.patient()!.id;
     this.patientService.activate(id).subscribe({
-      next: () => this.loadPatient(id)
+      next: (response) => {
+        if (response.success) {
+          this.notification.success(response.message);
+          this.loadPatient(id);
+        } else {
+          this.notification.error(response.message);
+        }
+      }
     });
   }
 
@@ -468,10 +482,10 @@ export class PatientDetail implements OnInit {
     this.patientService.delete(id).subscribe({
       next: (response) => {
         if(response.success){
-          this.snackbar.open(response.message, 'Close', { duration: 3000, panelClass: 'snackbar-success' });
+          this.notification.success(response.message);
           this.router.navigate(['/patients']);
         } else {
-          this.snackbar.open(response.message, 'Close', { duration: 5000, panelClass: 'snackbar-error' });
+          this.notification.error(response.message);
         }
       },
       error: (err) => {
@@ -537,7 +551,7 @@ import { MatDatepickerModule } from '@angular/material/datepicker';
 import { MatNativeDateModule } from '@angular/material/core';
 import { MatInputModule } from '@angular/material/input';
 import { HttpErrorResponse } from '@angular/common/http';
-import { MatSnackBar } from '@angular/material/snack-bar';
+import { NotificationService } from '@core/services/notification';
 
 @Component({
   selector: 'app-create-patient',
@@ -550,7 +564,7 @@ import { MatSnackBar } from '@angular/material/snack-bar';
 export class CreatePatient {
   private patientService = inject(PatientApi);
   private fb = inject(FormBuilder);
-  private snackbar = inject(MatSnackBar)
+  private notification = inject(NotificationService);
   router = inject(Router);
 
   isSubmitting = signal(false);
@@ -584,10 +598,10 @@ export class CreatePatient {
     this.patientService.create(request).subscribe({
       next: (response: CreatePatientResponse) => {
         if(response.success){
-          this.snackbar.open(response.message, 'Close', { duration: 3000, panelClass: 'snackbar-success' });
+          this.notification.success(response.message);
           this.router.navigate(['/patients']);
         } else {
-          this.snackbar.open(response.message, 'Close', { duration: 5000, panelClass: 'snackbar-error' });
+          this.notification.error(response.message);
           this.isSubmitting.set(false);
         }
       },
@@ -718,6 +732,7 @@ After implementing the components, verify:
 - [ ] Delete button soft-deletes patient and redirects to list with snackbar
 - [ ] Suspend/Activate button toggles based on patient status
 - [ ] Suspend and Activate buttons update patient status
+- [ ] Suspend and Activate show success/error snackbar feedback
 - [ ] Back to List button navigates to patient list
 - [ ] Loading spinners display during API calls
 - [ ] Navigation between pages works without page refresh

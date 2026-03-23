@@ -7,7 +7,7 @@ import { Patient } from '@core/models/patient.model';
 import { PatientApi } from '@core/services/patient-api';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
-import { MatSnackBar } from '@angular/material/snack-bar';
+import { NotificationService } from '@core/services/notification';
 
 @Component({
   selector: 'app-patient-detail',
@@ -21,7 +21,7 @@ export class PatientDetail implements OnInit {
   private patientService = inject(PatientApi);
   private route = inject(ActivatedRoute);
   router = inject(Router);
-  private snackbar = inject(MatSnackBar);
+  private notification = inject(NotificationService);
 
   patient = signal<Patient | null>(null);
   isSuspended = computed(() => this.patient()!.status === 'Suspended')
@@ -47,14 +47,28 @@ export class PatientDetail implements OnInit {
   suspend(){
     const id = this.patient()!.id;
     this.patientService.suspend(id).subscribe({
-      next: () => this.loadPatient(id)
+      next: (response) => {
+        if (response.success) {
+          this.notification.success(response.message);
+          this.loadPatient(id);
+        } else {
+          this.notification.error(response.message);
+        }
+      }
     });
   }
 
   activate(){
     const id = this.patient()!.id;
     this.patientService.activate(id).subscribe({
-      next: () => this.loadPatient(id)
+      next: (response) => {
+        if (response.success) {
+          this.notification.success(response.message);
+          this.loadPatient(id);
+        } else {
+          this.notification.error(response.message);
+        }
+      }
     });
   }
 
@@ -63,10 +77,10 @@ export class PatientDetail implements OnInit {
     this.patientService.delete(id).subscribe({
       next: (response) => {
         if(response.success){
-          this.snackbar.open(response.message, 'Close', { duration: 3000, panelClass: 'snackbar-success' });
+          this.notification.success(response.message);
           this.router.navigate(['/patients']);
         } else {
-          this.snackbar.open(response.message, 'Close', { duration: 5000, panelClass: 'snackbar-error' });
+          this.notification.error(response.message);
         }
       },
       error: (err) => {

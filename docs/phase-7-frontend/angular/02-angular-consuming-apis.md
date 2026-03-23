@@ -30,7 +30,7 @@ export const appConfig: ApplicationConfig = {
 };
 ```
 
-`withInterceptorsFromDi()` tells Angular to pick up HTTP interceptors registered via the DI container (e.g. error handlers, auth token headers). Without it, `provideHttpClient()` only supports functional interceptors defined inline with `withInterceptors()`. Since we'll register our `ErrorHandler` interceptor as a class-based DI provider, we need this flag.
+`withInterceptorsFromDi()` tells Angular to pick up HTTP interceptors registered via the DI container (e.g. auth token headers, logging). Without it, `provideHttpClient()` only supports functional interceptors defined inline with `withInterceptors()`. We include it here so class-based interceptors can be added later without changing `app.config.ts`.
 
 ---
 
@@ -114,10 +114,10 @@ Generate the service files from the Angular CLI (run from the `Scheduling.Angula
 
 ```bash
 ng generate service core/services/patient-api
-ng generate service core/services/error-handler
+ng generate service core/services/notification
 ```
 
-This scaffolds each service's `.ts` file with the `@Injectable({ providedIn: 'root' })` decorator. The model file (`patient.model.ts`) is created manually since it only contains TypeScript interfaces.
+This scaffolds each service's `.ts` file with the `@Injectable({ providedIn: 'root' })` decorator. The model file (`patient.model.ts`) is created manually since it only contains TypeScript interfaces. `NotificationService` wraps `MatSnackBar` so components can show success/error toasts with a single call.
 
 ---
 
@@ -426,82 +426,33 @@ Understanding the differences helps when working in both ecosystems:
 
 ---
 
-## Error Handling Pattern
+## Notification Service
 
-### Service-Level Error Handling
+### Centralised User Feedback
 
-Create a reusable error handler:
+Instead of repeating `MatSnackBar` configuration in every component, create a thin wrapper:
 
-**File**: `src/app/core/services/error-handler.ts`
+**File**: `src/app/core/services/notification.ts`
 
 ```typescript
-import { Injectable } from '@angular/core';
-import { HttpErrorResponse } from '@angular/common/http';
-import { Observable, throwError } from 'rxjs';
+import { inject, Injectable } from '@angular/core';
+import { MatSnackBar } from '@angular/material/snack-bar';
 
-/**
- * Centralized error handling for HTTP requests
- */
 @Injectable({ providedIn: 'root' })
-export class ErrorHandler {
-  /**
-   * Handle HTTP errors and return user-friendly message
-   * @param error HttpErrorResponse from Angular
-   * @returns Observable that errors with a formatted message
-   */
-  handleError(error: HttpErrorResponse): Observable<never> {
-    let message = 'An unexpected error occurred';
+export class NotificationService {
+  private snackbar = inject(MatSnackBar);
 
-    if (error.error?.errors && Array.isArray(error.error.errors)) {
-      // Validation errors from backend (FluentValidation)
-      message = error.error.errors.join(', ');
-    } else if (error.error?.message) {
-      // Single error message from backend
-      message = error.error.message;
-    } else if (error.status === 404) {
-      message = 'Resource not found';
-    } else if (error.status === 401) {
-      message = 'Unauthorized. Please log in.';
-    } else if (error.status === 403) {
-      message = 'You do not have permission to perform this action';
-    } else if (error.status === 0) {
-      message = 'Cannot reach the server. Please check your connection.';
-    } else if (error.status >= 500) {
-      message = 'A server error occurred. Please try again later.';
-    }
+  success(message: string): void {
+    this.snackbar.open(message, 'Close', { duration: 3000, panelClass: 'snackbar-success' });
+  }
 
-    console.error('HTTP Error:', error);
-    return throwError(() => new Error(message));
+  error(message: string): void {
+    this.snackbar.open(message, 'Close', { duration: 5000, panelClass: 'snackbar-error' });
   }
 }
 ```
 
-### Using Error Handler in Service
-
-```typescript
-import { catchError } from 'rxjs/operators';
-import { environment } from '@env/environment';
-
-@Injectable({ providedIn: 'root' })
-export class PatientApi {
-  private http = inject(HttpClient);
-  private errorHandler = inject(ErrorHandler);
-  private baseUrl = `${environment.schedulingApiUrl}/api/patients`;
-
-  getAll(params?: PatientFilterParams): Observable<Patient[]> {
-    let httpParams = new HttpParams();
-    if (params?.status) {
-      httpParams = httpParams.set('status', params.status);
-    }
-
-    return this.http.get<Patient[]>(this.baseUrl, { params: httpParams }).pipe(
-      catchError(error => this.errorHandler.handleError(error))
-    );
-  }
-
-  // Apply to all methods...
-}
-```
+Components inject `NotificationService` and call `success()` or `error()` — no repeated config.
 
 ### Displaying Errors in Component
 
@@ -723,7 +674,7 @@ export class PatientList implements OnInit {
 - [ ] Create posts data and returns response with validation errors
 - [ ] Suspend and Activate call correct endpoints
 - [ ] Error handling implemented with `catchError`
-- [ ] ErrorHandler created for reusable error handling
+- [ ] NotificationService created for reusable snackbar feedback
 - [ ] Environment files configured for dev/prod
 - [ ] Signals used in component for reactive state
 - [ ] Loading and error states displayed in UI

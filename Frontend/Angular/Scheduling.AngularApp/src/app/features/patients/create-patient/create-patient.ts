@@ -8,7 +8,7 @@ import { MatDatepickerModule } from '@angular/material/datepicker';
 import { MatNativeDateModule } from '@angular/material/core';
 import { MatInputModule } from '@angular/material/input';
 import { HttpErrorResponse } from '@angular/common/http';
-import { MatSnackBar, MatSnackBarActions } from '@angular/material/snack-bar';
+import { NotificationService } from '@core/services/notification';
 import { MatButtonModule } from '@angular/material/button';
 
 @Component({
@@ -22,7 +22,7 @@ import { MatButtonModule } from '@angular/material/button';
 export class CreatePatient {
   private patientService = inject(PatientApi);
   private fb = inject(FormBuilder);
-  private snackbar = inject(MatSnackBar)
+  private notification = inject(NotificationService);
   router = inject(Router);
 
   isSubmitting = signal(false);
@@ -56,10 +56,10 @@ export class CreatePatient {
     this.patientService.create(request).subscribe({
       next: (response: CreatePatientResponse) => {
         if(response.success){
-          this.snackbar.open(response.message, 'Close', { duration: 3000, panelClass: 'snackbar-success' });
+          this.notification.success(response.message);
           this.router.navigate(['/patients']);
         } else {
-          this.snackbar.open(response.message, 'Close', { duration: 5000, panelClass: 'snackbar-error' });
+          this.notification.error(response.message);
           this.isSubmitting.set(false);
         }
       },

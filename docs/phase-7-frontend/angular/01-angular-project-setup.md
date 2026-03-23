@@ -181,12 +181,11 @@ Frontend/Angular/Scheduling.AngularApp/
 │   │   ├── core/                           # Singleton services, core logic
 │   │   │   ├── services/
 │   │   │   │   ├── patient-api.ts          # Patient API client
-│   │   │   │   └── billing-api.ts          # Billing API client
-│   │   │   ├── models/
-│   │   │   │   ├── patient.model.ts        # Patient TypeScript interfaces
-│   │   │   │   └── billing-profile.model.ts
-│   │   │   └── interceptors/
-│   │   │       └── error-handler.ts        # Global HTTP error handling
+│   │   │   │   ├── billing-api.ts          # Billing API client
+│   │   │   │   └── notification.ts         # Snackbar notification helpers
+│   │   │   └── models/
+│   │   │       ├── patient.model.ts        # Patient TypeScript interfaces
+│   │   │       └── billing-profile.model.ts
 │   │   ├── features/                       # Feature-specific components (lazy-loadable)
 │   │   │   └── patients/
 │   │   │       ├── patient-list/
