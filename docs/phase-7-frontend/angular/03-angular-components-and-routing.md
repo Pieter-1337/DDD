@@ -459,6 +459,8 @@ export class PatientDetail implements OnInit {
         } else {
           this.notification.error(response.message);
         }
+      }, error: (err) => {
+        console.log("Failed to suspend patient", err);
       }
     });
   }
@@ -473,6 +475,8 @@ export class PatientDetail implements OnInit {
         } else {
           this.notification.error(response.message);
         }
+      }, error: (err) => {
+        console.log("Failed to activate patient", err);
       }
     });
   }
