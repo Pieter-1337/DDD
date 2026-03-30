@@ -27,7 +27,6 @@ public static class MassTransitExtensions
                 o.UseBusOutbox();                                   // Intercepts all Publish() calls, not just consumer-scoped ones
                 o.QueryDelay = TimeSpan.FromSeconds(5);             // Background delivery polling interval (default: 1 minute)
                 o.QueryMessageLimit = 100;                          // Max messages to fetch per poll (default: 100)
-                o.MessageDeliveryTimeout = TimeSpan.FromMinutes(30); // Cleanup delivered messages after this duration (default: 1 hour)
             });
 
             x.UsingRabbitMq((context, cfg) =>
