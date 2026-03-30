@@ -6,6 +6,7 @@ using BuildingBlocks.WebApplications.OpenApi;
 using MassTransit;
 using Scheduling.Application;
 using Scheduling.Infrastructure;
+using Scheduling.Infrastructure.Persistence;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -38,7 +39,7 @@ builder.Services.AddSchedulingApplication();
 builder.Services.AddDefaultPipelineBehaviors();
 
 // Add MassTransit for event-driven messaging
-builder.Services.AddMassTransitEventBus(builder.Configuration, configure =>
+builder.Services.AddMassTransitEventBus<SchedulingDbContext>(builder.Configuration, configure =>
 {
     // Register consumers from bounded context assemblies
     configure.AddConsumers(typeof(Scheduling.Infrastructure.ServiceCollectionExtensions).Assembly);

@@ -42,16 +42,14 @@ public class EfCoreUnitOfWork<TContext> : IUnitOfWork where TContext : DbContext
         // Dispatch domain events BEFORE saving (allows handlers to modify state)
         await DispatchDomainEventsAsync(cancellationToken);
 
-        var result = await _context.SaveChangesAsync(cancellationToken);
+        // Publish integration events to the outbox BEFORE SaveChangesAsync.
+        // With the Transactional Outbox, IEventBus.PublishAsync writes to the OutboxMessage
+        // table (not RabbitMQ). SaveChangesAsync then persists domain data + outbox entries
+        // atomically in a single transaction. The background BusOutboxDeliveryService
+        // picks up outbox entries and delivers them to RabbitMQ.
+        await PublishIntegrationEventsToOutboxAsync(cancellationToken);
 
-        // Only publish integration events if NOT in a transaction
-        // If in a transaction, they'll be published after commit in CloseTransactionAsync
-        if (_transaction is null)
-        {
-            await PublishAndClearIntegrationEventsAsync(cancellationToken);
-        }
-
-        return result;
+        return await _context.SaveChangesAsync(cancellationToken);
     }
 
     public IRepository<T> RepositoryFor<T>() where T : class, IEntityBase
@@ -91,33 +89,23 @@ public class EfCoreUnitOfWork<TContext> : IUnitOfWork where TContext : DbContext
         }
     }
 
-    private async Task PublishAndClearIntegrationEventsAsync(CancellationToken cancellationToken)
+    private async Task PublishIntegrationEventsToOutboxAsync(CancellationToken cancellationToken)
     {
         if (_eventBus is null || _queuedIntegrationEvents.Count == 0)
         {
             return;
         }
 
-        var eventsToPublish = _queuedIntegrationEvents.ToList();
-        _queuedIntegrationEvents.Clear();
-
-        foreach (var integrationEvent in eventsToPublish)
+        foreach (var integrationEvent in _queuedIntegrationEvents)
         {
-            await PublishEventAsync(integrationEvent, cancellationToken);
-        }
-    }
+            var eventType = integrationEvent.GetType().Name;
 
-    private async Task PublishEventAsync(IIntegrationEvent integrationEvent, CancellationToken cancellationToken)
-    {
-        var eventType = integrationEvent.GetType().Name;
-
-        try
-        {
             _logger.LogInformation(
-                "Publishing integration event {EventType} with EventId {EventId}",
+                "Writing integration event {EventType} with EventId {EventId} to outbox",
                 eventType,
                 integrationEvent.EventId);
 
+            // With Bus Outbox, this writes to the OutboxMessage table (not RabbitMQ directly)
             // Use reflection to call the generic PublishAsync method with the correct type
             var publishMethod = typeof(IEventBus)
                 .GetMethod(nameof(IEventBus.PublishAsync))!
@@ -125,23 +113,9 @@ public class EfCoreUnitOfWork<TContext> : IUnitOfWork where TContext : DbContext
 
             var task = (Task)publishMethod.Invoke(_eventBus, [integrationEvent, cancellationToken])!;
             await task;
-
-            _logger.LogDebug(
-                "Successfully published integration event {EventType} with EventId {EventId}",
-                eventType,
-                integrationEvent.EventId);
         }
-        catch (Exception ex)
-        {
-            var payload = System.Text.Json.JsonSerializer.Serialize(integrationEvent, integrationEvent.GetType());
 
-            _logger.LogError(ex,
-                "Failed to publish integration event {EventType} with EventId {EventId}. " +
-                "The database transaction was already committed. Payload: {Payload}",
-                eventType,
-                integrationEvent.EventId,
-                payload);
-        }
+        _queuedIntegrationEvents.Clear();
     }
 
     public async Task BeginTransactionAsync(CancellationToken cancellationToken = default)
@@ -180,9 +154,9 @@ public class EfCoreUnitOfWork<TContext> : IUnitOfWork where TContext : DbContext
             }
             else
             {
+                // Commit persists domain data + outbox entries atomically.
+                // The background BusOutboxDeliveryService delivers outbox entries to RabbitMQ.
                 await _transaction.CommitAsync(cancellationToken);
-                // Publish integration events AFTER successful commit
-                await PublishAndClearIntegrationEventsAsync(cancellationToken);
             }
         }
         finally

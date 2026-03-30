@@ -1,6 +1,7 @@
-﻿using BuildingBlocks.Application.Messaging;
+using BuildingBlocks.Application.Messaging;
 using FluentValidation;
 using MassTransit;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -8,15 +9,26 @@ namespace BuildingBlocks.Infrastructure.MassTransit.Configuration;
 
 public static class MassTransitExtensions
 {
-    public static IServiceCollection AddMassTransitEventBus(
+    public static IServiceCollection AddMassTransitEventBus<TDbContext>(
         this IServiceCollection services,
         IConfiguration configuration,
         Action<IRegistrationConfigurator>? configureConsumers = null)
+        where TDbContext : DbContext
     {
         services.AddMassTransit(x =>
         {
             // Allow host to register consumers from specific assemblies
             configureConsumers?.Invoke(x);
+
+            // Configure EF Core Transactional Outbox
+            x.AddEntityFrameworkOutbox<TDbContext>(o =>
+            {
+                o.UseSqlServer();
+                o.UseBusOutbox();                                   // Intercepts all Publish() calls, not just consumer-scoped ones
+                o.QueryDelay = TimeSpan.FromSeconds(5);             // Background delivery polling interval (default: 1 minute)
+                o.QueryMessageLimit = 100;                          // Max messages to fetch per poll (default: 100)
+                o.MessageDeliveryTimeout = TimeSpan.FromMinutes(30); // Cleanup delivered messages after this duration (default: 1 hour)
+            });
 
             x.UsingRabbitMq((context, cfg) =>
             {

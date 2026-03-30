@@ -21,6 +21,7 @@
     <!-- Messaging -->
     <PackageVersion Include="MassTransit" Version="8.3.6" />
     <PackageVersion Include="MassTransit.RabbitMQ" Version="8.3.6" />
+    <PackageVersion Include="MassTransit.EntityFrameworkCore" Version="8.3.6" />
     <!-- Logging -->
     <PackageVersion Include="Microsoft.Extensions.Logging.Abstractions" Version="9.0.0" />
     <!-- Validation -->

@@ -9,6 +9,7 @@
 
     <ItemGroup>
         <PackageReference Include="Ardalis.SmartEnum.EFCore" />
+        <PackageReference Include="MassTransit.EntityFrameworkCore" />
     </ItemGroup>
 
     <ItemGroup>

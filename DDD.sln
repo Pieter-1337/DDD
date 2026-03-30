@@ -100,6 +100,7 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "phase-5-event-driven", "pha
 		docs\phase-5-event-driven\04-idempotency-error-handling.md = docs\phase-5-event-driven\04-idempotency-error-handling.md
 		docs\phase-5-event-driven\05-sagas-orchestration.md = docs\phase-5-event-driven\05-sagas-orchestration.md
 		docs\phase-5-event-driven\06-event-versioning.md = docs\phase-5-event-driven\06-event-versioning.md
+		docs\phase-5-event-driven\07-transactional-outbox.md = docs\phase-5-event-driven\07-transactional-outbox.md
 	EndProjectSection
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "04. Shared", "04. Shared", "{864C7D7F-7A10-4CD5-B358-C6EBE4A79957}"
@@ -155,6 +156,16 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "angular", "angular", "{C3D4
 		docs\phase-7-frontend\angular\02-angular-consuming-apis.md = docs\phase-7-frontend\angular\02-angular-consuming-apis.md
 		docs\phase-7-frontend\angular\03-angular-components-and-routing.md = docs\phase-7-frontend\angular\03-angular-components-and-routing.md
 		docs\phase-7-frontend\angular\04-angular-forms-and-validation.md = docs\phase-7-frontend\angular\04-angular-forms-and-validation.md
+	EndProjectSection
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "phase-8-auth", "phase-8-auth", "{E5F6A7B8-D9E0-4F1A-2B3C-4D5E6F7A8B9C}"
+	ProjectSection(SolutionItems) = preProject
+		docs\phase-8-auth\01-auth-overview.md = docs\phase-8-auth\01-auth-overview.md
+		docs\phase-8-auth\02-authorization-server-setup.md = docs\phase-8-auth\02-authorization-server-setup.md
+		docs\phase-8-auth\03-shared-auth-infrastructure.md = docs\phase-8-auth\03-shared-auth-infrastructure.md
+		docs\phase-8-auth\04-api-resource-protection.md = docs\phase-8-auth\04-api-resource-protection.md
+		docs\phase-8-auth\05-angular-auth.md = docs\phase-8-auth\05-angular-auth.md
+		docs\phase-8-auth\06-user-context-and-authorization.md = docs\phase-8-auth\06-user-context-and-authorization.md
 	EndProjectSection
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "phase-9-api-gateway-bff", "phase-9-api-gateway-bff", "{D4E5F6A7-C8D9-4E0F-1A2B-3C4D5E6F7A8B}"
@@ -471,6 +482,7 @@ Global
 		{A1C2D3E4-F5A6-4B7C-8D9E-0F1A2B3C4D5E} = {68ECA03B-0FF4-4C25-A648-C83FCB98C045}
 		{B2D3E4F5-A6B7-4C8D-9E0F-1A2B3C4D5E6F} = {A1C2D3E4-F5A6-4B7C-8D9E-0F1A2B3C4D5E}
 		{C3D4E5F6-B7C8-4D9E-0F1A-2B3C4D5E6F7A} = {A1C2D3E4-F5A6-4B7C-8D9E-0F1A2B3C4D5E}
+		{E5F6A7B8-D9E0-4F1A-2B3C-4D5E6F7A8B9C} = {68ECA03B-0FF4-4C25-A648-C83FCB98C045}
 		{D4E5F6A7-C8D9-4E0F-1A2B-3C4D5E6F7A8B} = {68ECA03B-0FF4-4C25-A648-C83FCB98C045}
 		{D5E0C74E-507B-FBA1-2641-3C6776080F4D} = {FDD91869-920E-468E-8564-77C5B4102542}
 		{B39888B9-FAC6-CE35-3BE1-2A4CE3FAEDED} = {D5E0C74E-507B-FBA1-2641-3C6776080F4D}

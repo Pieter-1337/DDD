@@ -7,6 +7,10 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="MassTransit.EntityFrameworkCore" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\..\..\BuildingBlocks\BuildingBlocks.Infrastructure.EfCore\BuildingBlocks.Infrastructure.EfCore.csproj" />
     <ProjectReference Include="..\..\..\BuildingBlocks\BuildingBlocks.Infrastructure.MassTransit\BuildingBlocks.Infrastructure.MassTransit.csproj" />
     <ProjectReference Include="..\..\..\Shared\IntegrationEvents\IntegrationEvents.csproj" />

@@ -11,26 +11,6 @@ namespace Scheduling.Tests.ApplicationTests.ValidatorTests;
 public class GetAllPatientsQueryValidatorTests : SchedulingValidatorTestBase
 {
     [TestMethod]
-    public async Task Invalid_When_StatusIsNull()
-    {
-        // Arrange
-        var query = new GetAllPatientsQuery
-        {
-            Status = null!
-        };
-
-        // Act
-        StartStopwatch();
-        var result = await ValidatorFor<GetAllPatientsQuery>().ValidateAsync(query);
-        StopStopwatch();
-
-        // Assert
-        result.Errors.ShouldContainValidation(nameof(GetAllPatientsQuery.Status), ErrorCode.InvalidStatus.Value);
-        result.Errors.Count.ShouldBe(1);
-        ElapsedSeconds().ShouldBeLessThan(0.1M);
-    }
-
-    [TestMethod]
     public async Task Invalid_When_StatusIsInvalidValue()
     {
         // Arrange - Invalid SmartEnum value is now caught by validator

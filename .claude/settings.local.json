@@ -113,7 +113,10 @@
       "Bash(gh issue:*)",
       "Bash(powershell.exe -Command \"Get-Command gh -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Source\")",
       "WebFetch(domain:angular.dev)",
-      "Bash(npx ng build:*)"
+      "Bash(npx ng build:*)",
+      "Bash(git checkout:*)",
+      "Bash(dotnet ef migrations list:*)",
+      "Bash(sqlcmd:*)"
     ]
   }
 }

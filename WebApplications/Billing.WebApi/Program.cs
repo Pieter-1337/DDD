@@ -6,6 +6,7 @@ using BuildingBlocks.WebApplications.OpenApi;
 using MassTransit;
 using Billing.Application;
 using Billing.Infrastructure;
+using Billing.Infrastructure.Persistence;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -38,7 +39,7 @@ builder.Services.AddBillingApplication();
 builder.Services.AddDefaultPipelineBehaviors();
 
 // Add MassTransit for event-driven messaging
-builder.Services.AddMassTransitEventBus(builder.Configuration, configure =>
+builder.Services.AddMassTransitEventBus<BillingDbContext>(builder.Configuration, configure =>
 {
     // Register consumers from bounded context assemblies
     configure.AddConsumers(typeof(Billing.Infrastructure.ServiceCollectionExtensions).Assembly);
