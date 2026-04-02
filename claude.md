@@ -108,6 +108,7 @@ BuildingBlocks/
 ├── BuildingBlocks.Application/         # CQRS behaviors, pipeline, interfaces
 ├── BuildingBlocks.Infrastructure.EfCore/  # Unit of Work, repository base
 ├── BuildingBlocks.Infrastructure.MassTransit/  # Event bus, integration event consumers
+├── BuildingBlocks.Infrastructure.Wolverine/  # Wolverine event bus, MIT-licensed alternative
 ├── BuildingBlocks.WebApplications/     # API filters, JSON config, OpenAPI
 ├── BuildingBlocks.Enumerations/        # Smart enum base
 └── BuildingBlocks.Tests/               # Shared test base classes
@@ -158,7 +159,8 @@ Aspire.ServiceDefaults/                # Shared OpenTelemetry, health checks, re
 - **EF Core 9** - ORM for SQL Server
 - **SQL Server** - Primary database
 - **RabbitMQ** - Message broker
-- **MassTransit** - .NET service bus abstraction
+- **MassTransit** - .NET service bus abstraction (default messaging framework)
+- **Wolverine** - MIT-licensed messaging alternative (switchable via `MessagingFramework` config)
 - **MediatR** - CQRS implementation
 - **FluentValidation** - Command/query validation
 - **Polly** - Resilience and transient fault handling

@@ -10,7 +10,7 @@
 
 ### 1. Transactional Outbox Pattern
 
-**Status**: Not started
+**Status**: Completed (2026-03-27)
 
 **Description**: Current event flow has a potential consistency gap. The system saves changes to SQL Server, dispatches domain events, then publishes integration events to RabbitMQ. If the process crashes between database commit and RabbitMQ publish, the database state is persisted but downstream systems never receive notification.
 
@@ -23,8 +23,8 @@
 **Related Phases**: Phase 5 (Event-Driven Architecture), Phase 6 (Integration)
 
 **Related Documentation**:
-- `docs/phase-5-event-driven/03-domain-vs-integration-events.md`
-- `docs/phase-5-event-driven/07-message-reliability.md`
+- `docs/phase-5-event-driven/01-event-driven-overview.md` (domain vs integration events)
+- `docs/phase-5-event-driven/08-transactional-outbox.md` (message reliability)
 
 **Effort**: Medium (MassTransit has built-in support, requires configuration and migration)
 
@@ -51,7 +51,7 @@
 
 **Related Phases**: Phase 5 (Event-Driven Architecture), Phase 6 (Integration)
 
-**Related Documentation**: `docs/phase-5-event-driven/05-sagas-orchestration.md`
+**Related Documentation**: `docs/phase-5-event-driven/06-sagas-orchestration.md`
 
 **Effort**: Large (requires state machine design, persistence, compensation handlers)
 
@@ -85,7 +85,7 @@
 **Related Phases**: Phase 7 (Frontend), Phase 5 (Event-Driven Architecture), Phase 6 (Integration)
 
 **Related Documentation**:
-- `docs/phase-5-event-driven/03-domain-vs-integration-events.md`
+- `docs/phase-5-event-driven/01-event-driven-overview.md` (domain vs integration events)
 - `docs/phase-7-frontend/` (frontend documentation)
 
 **Effort**: Medium
@@ -226,7 +226,7 @@
 
 **Related Phases**: Phase 5 (Event-Driven Architecture)
 
-**Related Documentation**: `docs/phase-5-event-driven/06-event-versioning.md`
+**Related Documentation**: `docs/phase-5-event-driven/07-event-versioning.md`
 
 **Effort**: Small (once a v2 event is needed)
 
@@ -252,7 +252,7 @@
 
 **Related Phases**: Phase 5 (Event-Driven Architecture)
 
-**Related Documentation**: `docs/phase-5-event-driven/07-message-reliability.md`
+**Related Documentation**: `docs/phase-5-event-driven/05-idempotency-error-handling.md`
 
 **Effort**: Small-Medium
 
@@ -285,3 +285,4 @@
 | Date       | Changes                                                      |
 |------------|--------------------------------------------------------------|
 | 2026-03-12 | Initial document creation with 8 improvement areas identified |
+| 2026-03-27 | Completed #1 Transactional Outbox Pattern (MassTransit EF Core outbox) |

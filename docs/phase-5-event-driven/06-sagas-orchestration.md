@@ -10,6 +10,8 @@ When a business process spans multiple services, you need a way to coordinate. T
 
 > **Note:** Sagas are an advanced topic. You may want to skip this initially and return when you have a real multi-step workflow to implement.
 
+> **Wolverine Alternative**: Wolverine also supports saga/workflow patterns via its built-in Saga feature. Wolverine sagas use a similar state machine approach but with convention-based handler discovery instead of explicit state definitions. Since sagas are not yet implemented in this project, detailed Wolverine saga documentation will be added when this feature is built.
+
 ---
 
 ## The Problem: Distributed Transactions
@@ -525,4 +527,4 @@ For this learning project, you may not need sagas initially. Start with simple e
 
 ---
 
-> Next: [06-event-versioning.md](./06-event-versioning.md) - Handling schema evolution
+> Next: [07-event-versioning.md](./07-event-versioning.md) - Handling schema evolution

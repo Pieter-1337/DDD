@@ -8,6 +8,8 @@ Integration events are contracts between services. When you change an event, you
 - Versioning strategies
 - MassTransit message versioning
 
+> **Framework Note**: The event versioning strategies described in this document (schema evolution, upcasting, versioned event types) are framework-agnostic and apply equally to both MassTransit and Wolverine. Both frameworks serialize events as JSON and support the same versioning patterns at the message contract level.
+
 ---
 
 ## The Problem

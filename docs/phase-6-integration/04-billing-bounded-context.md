@@ -129,7 +129,10 @@ Core/
     |   |   +-- Configurations/
     |   |       +-- BillingProfileConfiguration.cs
     |   +-- Consumers/
-    |   |   +-- PatientCreatedIntegrationEventHandler.cs
+    |   |   +-- MassTransit/
+    |   |   |   +-- PatientCreatedIntegrationEventHandler.cs
+    |   |   +-- Wolverine/
+    |   |       +-- PatientCreatedHandler.cs
     |   +-- ServiceCollectionExtensions.cs
     |
     +-- Billing.WebApi/                        # Separate API host (for Aspire)
@@ -421,7 +424,9 @@ public class CreateBillingProfileCommandValidator
 
 ### Step 5: Consume PatientCreatedIntegrationEvent
 
-**Billing.Infrastructure/Consumers/PatientCreatedIntegrationEventHandler.cs**:
+#### MassTransit Consumer
+
+**Billing.Infrastructure/Consumers/MassTransit/PatientCreatedIntegrationEventHandler.cs**:
 
 ```csharp
 using Billing.Application.BillingProfiles.Commands;
@@ -430,10 +435,10 @@ using IntegrationEvents.Scheduling;
 using MediatR;
 using Microsoft.Extensions.Logging;
 
-namespace Billing.Infrastructure.Consumers;
+namespace Billing.Infrastructure.Consumers.MassTransit;
 
 /// <summary>
-/// Handles PatientCreatedIntegrationEvent from the Scheduling context.
+/// MassTransit consumer for PatientCreatedIntegrationEvent from the Scheduling context.
 /// Creates a BillingProfile for the new patient.
 /// </summary>
 public class PatientCreatedIntegrationEventHandler
@@ -453,7 +458,7 @@ public class PatientCreatedIntegrationEventHandler
         CancellationToken cancellationToken)
     {
         Logger.LogInformation(
-            "Creating billing profile for patient {PatientId} ({FullName})",
+            "MassTransit: Creating billing profile for patient {PatientId} ({FullName})",
             message.PatientId,
             $"{message.FirstName} {message.LastName}");
 
@@ -472,6 +477,65 @@ public class PatientCreatedIntegrationEventHandler
             message.PatientId);
     }
 }
+```
+
+#### Wolverine Handler Alternative
+
+When using Wolverine, the handler is a plain class in a separate folder:
+
+**Billing.Infrastructure/Consumers/Wolverine/PatientCreatedHandler.cs**:
+
+```csharp
+using Billing.Application.BillingProfiles.Commands;
+using IntegrationEvents.Scheduling;
+using MediatR;
+using Microsoft.Extensions.Logging;
+
+namespace Billing.Infrastructure.Consumers.Wolverine;
+
+/// <summary>
+/// Wolverine handler for PatientCreatedIntegrationEvent from the Scheduling context.
+/// Creates a BillingProfile for the new patient.
+/// </summary>
+public class PatientCreatedHandler
+{
+    public async Task Handle(
+        PatientCreatedIntegrationEvent message,
+        IMediator mediator,
+        ILogger<PatientCreatedHandler> logger,
+        CancellationToken cancellationToken)
+    {
+        logger.LogInformation(
+            "Wolverine: Received PatientCreatedIntegrationEvent for {PatientId} ({FullName})",
+            message.PatientId,
+            $"{message.FirstName} {message.LastName}");
+
+        var command = new CreateBillingProfileCommand
+        {
+            PatientId = message.PatientId,
+            Email = message.Email,
+            FullName = $"{message.FirstName} {message.LastName}"
+        };
+
+        var response = await mediator.Send(command, cancellationToken);
+
+        logger.LogInformation(
+            "Created billing profile {BillingProfileId} for patient {PatientId}",
+            response.BillingProfileId,
+            message.PatientId);
+    }
+}
+```
+
+**Folder organization** when supporting both frameworks:
+
+```
+Billing.Infrastructure/
+└── Consumers/
+    ├── MassTransit/
+    │   └── PatientCreatedIntegrationEventHandler.cs   ← MassTransit consumer
+    └── Wolverine/
+        └── PatientCreatedHandler.cs                    ← Wolverine handler
 ```
 
 ### Step 6: Create EF Core Configuration
@@ -593,7 +657,7 @@ public static class ServiceCollectionExtensions
 
 ### Step 8: Create Billing.WebApi
 
-**Billing.WebApi/Program.cs**:
+**Billing.WebApi/Program.cs** (MassTransit version):
 
 ```csharp
 using Billing.Application;
@@ -648,10 +712,71 @@ app.MapControllers();
 app.Run();
 ```
 
-**Billing.WebApi/appsettings.json**:
+#### Framework Selection in Billing.WebApi
+
+To support both MassTransit and Wolverine in the same codebase, use a configuration value to determine which framework to activate:
+
+```csharp
+// Billing.WebApi/Program.cs
+var builder = WebApplication.CreateBuilder(args);
+
+// Add controllers and infrastructure (same as before)
+builder.Services.AddControllers(options =>
+{
+    options.SuppressAsyncSuffixInActionNames = false;
+    options.Filters.Add<ExceptionToJsonFilter>();
+}).AddJsonOptions(options =>
+{
+    options.JsonSerializerOptions.Converters.Add(new SmartEnumJsonConverterFactory());
+});
+
+builder.Services.AddOpenApi();
+
+var connectionString = builder.Configuration.GetConnectionString("DefaultConnection")
+    ?? throw new InvalidOperationException("Connection string 'DefaultConnection' not found.");
+builder.Services.AddBillingInfrastructure(connectionString);
+builder.Services.AddBillingApplication();
+builder.Services.AddDefaultPipelineBehaviors();
+
+// Choose messaging framework based on configuration
+var messagingFramework = builder.Configuration.GetValue<string>("MessagingFramework") ?? "MassTransit";
+
+if (messagingFramework == "Wolverine")
+{
+    builder.AddWolverineEventBus(opts =>
+    {
+        // Handler discovery is filtered by IIntegrationEvent in WolverineExtensions
+        // Just specify which assemblies to scan
+        opts.Discovery.IncludeAssembly(typeof(Billing.Infrastructure.Consumers.Wolverine.PatientCreatedHandler).Assembly);
+    });
+}
+else
+{
+    builder.Services.AddMassTransitEventBus(builder.Configuration, cfg =>
+    {
+        cfg.AddConsumers(typeof(Billing.Infrastructure.ServiceCollectionExtensions).Assembly);
+    });
+}
+
+var app = builder.Build();
+
+if (app.Environment.IsDevelopment())
+{
+    app.UseOpenApiWithScalar("Billing API");
+}
+
+app.UseHttpsRedirection();
+app.UseAuthorization();
+app.MapControllers();
+
+app.Run();
+```
+
+Set `MessagingFramework` in `appsettings.json` or environment variables:
 
 ```json
 {
+  "MessagingFramework": "MassTransit",
   "Logging": {
     "LogLevel": {
       "Default": "Information",
@@ -662,10 +787,17 @@ app.Run();
 }
 ```
 
-**Note:**
+> **Why Both Consumers Can Coexist in the Same Assembly**
+>
+> MassTransit only registers classes explicitly added via `AddConsumer<T>()`. Wolverine only scans assemblies passed to `Discovery.IncludeAssembly()`. Since only one framework is active at a time (controlled by `MessagingFramework` config), the other framework's handlers are just unused classes in the assembly — they don't cause conflicts.
+>
+> To switch frameworks, simply change the `MessagingFramework` configuration value and restart the service. No code changes needed.
+
+**Note on appsettings.json:**
 - `ConnectionStrings` section removed (moved to user secrets)
 - `RabbitMQ` section removed (injected by Aspire)
 - Connection strings are now in user secrets (shared `UserSecretsId` with AppHost)
+- `MessagingFramework` setting controls which event bus implementation is used (MassTransit or Wolverine)
 
 ---
 

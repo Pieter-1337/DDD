@@ -244,6 +244,8 @@ EVENT - "Something happened" (publish/subscribe)
 | **Receivers** | Exactly one | Zero to many |
 | **Coupling** | Tighter (sender knows target) | Loose (sender doesn't care) |
 
+**Messaging Frameworks**: RabbitMQ is the message broker, but we need a .NET library to talk to it. This project supports two options: **MassTransit** (default, explicit registration) and **Wolverine** (MIT-licensed alternative, convention-based). See [02-rabbitmq-masstransit-setup.md](./02-rabbitmq-masstransit-setup.md) for setup details.
+
 ### In MassTransit
 
 ```csharp
@@ -254,6 +256,27 @@ await endpoint.Send(new SendWelcomeEmail { ... });
 // EVENT - broadcast to all subscribers
 await _publishEndpoint.Publish(new PatientCreatedIntegrationEvent { ... });
 ```
+
+### In Wolverine
+
+Wolverine uses the same publish/send distinction but with a simpler API:
+
+```csharp
+// Publishing an event (fan-out to all subscribers)
+await bus.PublishAsync(new PatientCreatedIntegrationEvent
+{
+    PatientId = patient.Id,
+    FullName = patient.FullName.ToString()
+});
+
+// Sending a command (point-to-point to a specific handler)
+await bus.InvokeAsync(new SendWelcomeEmail
+{
+    PatientId = patient.Id
+});
+```
+
+`PublishAsync` = event (multiple subscribers), `InvokeAsync` = command (single handler, waits for completion). Wolverine also has `SendAsync` for fire-and-forget commands.
 
 ---
 
@@ -369,6 +392,8 @@ public class CreatePatientCommandHandler : IRequestHandler<CreatePatientCommand,
 
 ### Consuming Integration Events
 
+#### MassTransit Consumer
+
 Handlers inherit from `IntegrationEventHandler<T>` which provides automatic logging (start, complete, error):
 
 ```csharp
@@ -390,6 +415,33 @@ public class PatientCreatedIntegrationEventHandler
     }
 }
 ```
+
+#### Wolverine Handler
+
+```csharp
+// No interface, no base class — just a plain class with a Handle method
+public class PatientCreatedHandler
+{
+    public async Task Handle(
+        PatientCreatedIntegrationEvent message,
+        IMediator mediator,
+        ILogger<PatientCreatedHandler> logger,
+        CancellationToken cancellationToken)
+    {
+        logger.LogInformation(
+            "Received PatientCreatedIntegrationEvent for {PatientId}",
+            message.PatientId);
+
+        await mediator.Send(
+            new CreateBillingProfileCommand(message.PatientId, message.FullName),
+            cancellationToken);
+    }
+}
+```
+
+Wolverine discovers handlers by convention — any public class with a `Handle(TMessage, ...)` method is automatically registered.
+
+> **Framework Choice**: MassTransit handlers implement `IConsumer<T>` with constructor injection. Wolverine handlers are plain classes with convention-based discovery and method injection. Both implement the same `IEventBus` abstraction, making the choice transparent to the domain layer.
 
 ---
 
@@ -573,10 +625,12 @@ Message Published
 
 1. **01-event-driven-overview.md** - This file
 2. **02-rabbitmq-masstransit-setup.md** - Docker + MassTransit configuration
-3. **03-integration-events.md** - Publishing and consuming events
-4. **04-idempotency-error-handling.md** - DLQ, retries, idempotent handlers
-5. **05-sagas-orchestration.md** - Saga pattern for distributed workflows
-6. **06-event-versioning.md** - Schema evolution and backwards compatibility
+3. **03-rabbitmq-wolverine-setup.md** - Wolverine alternative setup
+4. **04-integration-events.md** - Publishing and consuming events
+5. **05-idempotency-error-handling.md** - DLQ, retries, idempotent handlers
+6. **06-sagas-orchestration.md** - Saga pattern for distributed workflows
+7. **07-event-versioning.md** - Schema evolution and backwards compatibility
+8. **08-transactional-outbox.md** - Transactional Outbox Pattern (MassTransit EF Core Outbox + Wolverine Alternative)
 
 ---
 

@@ -116,7 +116,9 @@
       "Bash(npx ng build:*)",
       "Bash(git checkout:*)",
       "Bash(dotnet ef migrations list:*)",
-      "Bash(sqlcmd:*)"
+      "Bash(sqlcmd:*)",
+      "WebFetch(domain:www.linkedin.com)",
+      "WebFetch(domain:wolverinefx.net)"
     ]
   }
 }

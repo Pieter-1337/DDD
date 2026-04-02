@@ -231,6 +231,13 @@ public static IServiceCollection AddMassTransitEventBus(
 - Single connection to RabbitMQ, managed by MassTransit
 - MassTransit provides its own health checks (covered in the next section)
 
+> **Wolverine Note**: Wolverine reads the same `ConnectionStrings:messaging` value injected by Aspire. The configuration is:
+> ```csharp
+> opts.UseRabbitMq(new Uri(builder.Configuration.GetConnectionString("messaging")!))
+>     .AutoProvision();
+> ```
+> No Aspire-specific changes are needed — Wolverine's RabbitMQ transport accepts standard AMQP connection strings.
+
 ---
 
 ## 4. Connection String Injection
@@ -586,6 +593,21 @@ app.Run();
 - MassTransit now reads `configuration.GetConnectionString("messaging")` internally
 - Health checks are provided by MassTransit (no separate client needed)
 - Added health endpoint mapping for monitoring
+
+**Wolverine Program.cs**:
+```csharp
+var builder = WebApplication.CreateBuilder(args);
+
+// Wolverine uses same Aspire connection string
+builder.AddWolverineEventBus(opts =>
+{
+    opts.Discovery.IncludeAssembly(typeof(PatientCreatedHandler).Assembly);
+});
+
+var app = builder.Build();
+app.MapHealthChecks("/health");
+app.Run();
+```
 
 ### AppHost (Program.cs)
 

@@ -1,6 +1,6 @@
 # RabbitMQ & MassTransit Setup
 
-This document covers setting up the messaging infrastructure for event-driven communication between bounded contexts using RabbitMQ and MassTransit.
+This document provides a complete guide for setting up MassTransit as a messaging framework for event-driven communication between bounded contexts. MassTransit is a mature .NET service bus abstraction that provides enterprise messaging patterns out of the box.
 
 ---
 
@@ -41,6 +41,22 @@ await _publishEndpoint.Publish(new PatientCreatedIntegrationEvent { ... });
 
 RabbitMQ is a proven message broker that provides reliable message delivery between distributed services. We'll run it in Docker for easy setup and teardown during development.
 
+### When to Use MassTransit
+
+MassTransit is a good choice when:
+- You need mature, battle-tested enterprise messaging patterns
+- You want built-in saga/state machine support for distributed transactions
+- You need advanced features like circuit breakers, rate limiting, and scheduling
+- Your team is familiar with the `IConsumer<T>` pattern
+- You prefer explicit handler registration over convention-based discovery
+
+MassTransit provides:
+- RabbitMQ, Azure Service Bus, Amazon SQS support
+- Retry policies and dead letter queues
+- Message serialization
+- In-memory transport for testing
+- Saga state machines
+
 ---
 
 ## 2. MassTransit Licensing
@@ -55,9 +71,11 @@ RabbitMQ is a proven message broker that provides reliable message delivery betw
 **For this learning project**: Use MassTransit v8.x (open source). The concepts you learn transfer to any messaging framework.
 
 **Open source alternatives**:
-- [Wolverine](https://wolverine.netlify.app/) - Modern .NET messaging (MIT)
+- [Wolverine](https://wolverine.netlify.app/) - Modern .NET messaging (MIT) — see [03-rabbitmq-wolverine-setup.md](./03-rabbitmq-wolverine-setup.md)
 - [Rebus](https://github.com/rebus-org/Rebus) - Mature service bus (MIT)
 - [Brighter](https://github.com/BrighterCommand/Brighter) - CQRS/messaging (MIT)
+
+> **Note**: For an alternative MIT-licensed messaging framework with convention-based handler discovery, see [03-rabbitmq-wolverine-setup.md](./03-rabbitmq-wolverine-setup.md).
 
 ---
 
@@ -79,8 +97,8 @@ All events are:
 | **BuildingBlocks.Application/Interfaces** | Unit of work with event queuing | `IUnitOfWork.QueueIntegrationEvent()` |
 | **BuildingBlocks.Infrastructure.MassTransit** | MassTransit provider | `MassTransitEventBus`, `AddMassTransitEventBus()` extension |
 | **Shared/IntegrationEvents** | Integration event definitions | `PatientCreatedIntegrationEvent`, etc. |
-| **[BC].Infrastructure/Consumers** | MassTransit consumers | Handles incoming integration events |
-| **Scheduling.WebApi** | Composition root | MassTransit registration with consumer discovery |
+| **[BC].Infrastructure/Consumers/MassTransit** | MassTransit consumers | Handles incoming integration events |
+| **[BC].WebApi** | Composition root | MassTransit registration with consumer discovery |
 
 ### Key Interfaces
 
@@ -129,30 +147,15 @@ This ensures events are only published if the database save succeeds.
 
 ### Where MassTransit Gets Registered
 
-MassTransit is registered in `WebApplications/Scheduling.WebApi/Program.cs` (the composition root), **not** in bounded context infrastructure layers:
+MassTransit is registered in `WebApplications/Scheduling.WebApi/Program.cs`
 
 ```csharp
 // WebApplications/Scheduling.WebApi/Program.cs
 builder.Services.AddMassTransitEventBus(builder.Configuration, configure =>
 {
-    // Register consumers from bounded context assemblies
     configure.AddConsumers(typeof(Scheduling.Infrastructure.ServiceCollectionExtensions).Assembly);
 });
 ```
-
-### Why Register in the Host, Not Per-Bounded Context?
-
-**In a modular monolith** (like this project):
-- One Scheduling.WebApi hosts all bounded contexts
-- One MassTransit registration handles all messaging
-- Consumer assemblies are passed to `AddConsumers()` for discovery
-
-**In a microservices architecture**:
-- Each service has its own API/host project
-- Each service registers MassTransit in its own `Program.cs`
-- Each service only knows about its own consumers
-
-**The key insight**: There is no benefit to abstracting MassTransit registration per-bounded context. The host project is already the composition root where infrastructure gets wired up. Adding a per-BC registration layer (like `AddSchedulingMessaging()`) only adds complexity without benefit.
 
 ### What Lives Where
 
@@ -171,7 +174,7 @@ builder.Services.AddMassTransitEventBus(builder.Configuration, configure =>
 - Integration event definitions (e.g., `PatientCreatedIntegrationEvent`)
 - These are the public contracts between bounded contexts
 
-**[BC].Infrastructure/Consumers** provides:
+**[BC].Infrastructure/Consumers/MassTransit** provides:
 - MassTransit handlers (e.g., `PatientCreatedIntegrationEventHandler`)
 - These get discovered via `AddConsumers(assembly)`
 
@@ -211,8 +214,9 @@ src/
 |   +-- Scheduling.Application/               # Uses IUnitOfWork.QueueIntegrationEvent()
 |   |
 |   +-- Scheduling.Infrastructure/
-|       +-- Consumers/                        # MassTransit handlers
-|           +-- PatientCreatedIntegrationEventHandler.cs
+|       +-- Consumers/
+|           +-- MassTransit/                  # MassTransit handlers
+|               +-- PatientCreatedIntegrationEventHandler.cs
 |
 +-- WebApplications/Scheduling.WebApi/
     +-- Program.cs                            # MassTransit registered here
@@ -224,18 +228,17 @@ src/
 |---------|---------------------------|------------------------------------------|--------------------------|
 | **{BC}.Domain** | No | No | No |
 | **{BC}.Application** | Yes (IUnitOfWork, IEventBus) | No | Yes (event DTOs) |
-| **{BC}.Infrastructure** | Yes | Yes (IntegrationEventHandler base) | Yes (handlers) |
-| **Scheduling.WebApi** | Yes | Yes (registration) | No |
+| **{BC}.Infrastructure** | Yes | Yes | Yes (handlers) |
+| **{BC}.WebApi** | Yes | Yes | No |
 
-> **Note:** `{BC}.Infrastructure` references `BuildingBlocks.Infrastructure.MassTransit` for the `IntegrationEventHandler<T>` base class. MassTransit packages flow transitively - no direct package reference needed in BC infrastructure.
+> **Note**: `{BC}.Infrastructure` references `BuildingBlocks.Infrastructure.MassTransit` for the `IntegrationEventHandler<T>` base class. MassTransit packages flow transitively.
 
 ### Provider Swappability
 
-This architecture allows swapping messaging providers without changing business logic:
+The `IEventBus` abstraction allows swapping messaging providers without changing business logic. All application code depends on `IEventBus`, not on MassTransit directly.
 
 **Current setup** (MassTransit + RabbitMQ):
 ```csharp
-// In WebApplications/Scheduling.WebApi/Program.cs
 builder.Services.AddMassTransitEventBus(builder.Configuration, configure =>
 {
     configure.AddConsumers(typeof(Scheduling.Infrastructure.ServiceCollectionExtensions).Assembly);
@@ -245,11 +248,7 @@ builder.Services.AddMassTransitEventBus(builder.Configuration, configure =>
 **If switching to Wolverine**:
 1. Create `BuildingBlocks.Infrastructure.Wolverine` project
 2. Implement `IEventBus` using Wolverine
-3. Change host registration:
-```csharp
-// In WebApplications/Scheduling.WebApi/Program.cs
-builder.Services.AddWolverineEventBus(builder.Configuration);
-```
+3. Change host registration
 
 **No changes required in**:
 - Application layer (still uses `IEventBus` abstraction)
@@ -586,7 +585,37 @@ builder.Services.AddMassTransitEventBus(builder.Configuration, configure =>
 });
 ```
 
-**Why register here?** The Scheduling.WebApi is the composition root - the single place where all infrastructure gets wired up. In a monolith, one registration handles all bounded contexts. In microservices, each service's API would have its own registration.
+**Optional: Framework selection via configuration**
+
+To support switching messaging frameworks at runtime, use a configuration setting:
+
+```csharp
+var messagingFramework = builder.Configuration.GetValue<string>("MessagingFramework") ?? "MassTransit";
+
+if (messagingFramework == "MassTransit")
+{
+    builder.Services.AddMassTransitEventBus(builder.Configuration, configure =>
+    {
+        configure.AddConsumers(typeof(Scheduling.Infrastructure.ServiceCollectionExtensions).Assembly);
+    });
+}
+else
+{
+    // Alternative framework (e.g., Wolverine)
+    // See 03-rabbitmq-wolverine-setup.md
+    builder.AddWolverineEventBus(opts =>
+    {
+        opts.Discovery.IncludeAssembly(typeof(Scheduling.Infrastructure.ServiceCollectionExtensions).Assembly);
+    });
+}
+```
+
+Add to `appsettings.json`:
+```json
+{
+  "MessagingFramework": "MassTransit"
+}
+```
 
 ### Step 9: Create Test Endpoint
 
@@ -615,14 +644,14 @@ Notice we inject `IEventBus` (abstraction) instead of `IPublishEndpoint` (MassTr
 
 Handlers inherit from `IntegrationEventHandler<TEvent>` which provides automatic logging (start, complete, error).
 
-Create a handler in `Scheduling.Infrastructure/Consumers/PatientCreatedIntegrationEventHandler.cs`:
+Create a handler in `Scheduling.Infrastructure/Consumers/MassTransit/PatientCreatedIntegrationEventHandler.cs`:
 
 ```csharp
 using BuildingBlocks.Infrastructure.MassTransit;
 using IntegrationEvents.Scheduling;
 using Microsoft.Extensions.Logging;
 
-namespace Scheduling.Infrastructure.Consumers;
+namespace Scheduling.Infrastructure.Consumers.MassTransit;
 
 /// <summary>
 /// Handler for PatientCreatedIntegrationEvent.
@@ -667,7 +696,261 @@ public class PatientCreatedIntegrationEventHandler
 
 ---
 
-## 5. Optional: Auto-Start Docker on F5 in Visual Studio
+## 5. Handler Conventions
+
+MassTransit uses the `IConsumer<T>` interface pattern for message handling. In this project, handlers inherit from `IntegrationEventHandler<TEvent>` — a base class that wraps `IConsumer<T>` with automatic logging.
+
+### How MassTransit Discovers Handlers
+
+1. Host calls `AddConsumers(assembly)` to register consumer classes from specific assemblies
+2. MassTransit scans the assembly for classes implementing `IConsumer<T>`
+3. Each consumer gets its own receive endpoint (queue)
+4. Queue names are derived from the consumer class name (kebab-case)
+5. MassTransit wires up deserialization, retry, and error handling automatically
+
+### Handler Discovery Table
+
+| Convention | MassTransit |
+|---|---|
+| **Handler discovery** | Explicit via `AddConsumers(assembly)` |
+| **Handler interface** | `IConsumer<T>` (or `IntegrationEventHandler<T>` base class) |
+| **Handler base class** | `IntegrationEventHandler<TEvent>` (project-specific, provides logging) |
+| **Dependency injection style** | Constructor injection only |
+| **Queue naming** | `kebab-case` from consumer class name |
+| **Handler naming** | Class name should match event name with `Handler` suffix |
+
+### IntegrationEventHandler<T> Base Class
+
+The project provides `IntegrationEventHandler<TEvent>` in `BuildingBlocks.Infrastructure.MassTransit/` which wraps `IConsumer<T>` with automatic logging:
+
+```csharp
+// BuildingBlocks.Infrastructure.MassTransit/IntegrationEventHandler.cs
+public abstract class IntegrationEventHandler<TEvent> : IConsumer<TEvent>
+    where TEvent : class, IIntegrationEvent
+{
+    protected readonly ILogger Logger;
+
+    protected IntegrationEventHandler(ILogger logger) => Logger = logger;
+
+    public async Task Consume(ConsumeContext<TEvent> context)
+    {
+        Logger.LogInformation("Handling {EventType} with EventId {EventId}",
+            typeof(TEvent).Name, context.Message.EventId);
+
+        try
+        {
+            await HandleAsync(context.Message, context.CancellationToken);
+            Logger.LogInformation("Handled {EventType} with EventId {EventId}",
+                typeof(TEvent).Name, context.Message.EventId);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error handling {EventType} with EventId {EventId}",
+                typeof(TEvent).Name, context.Message.EventId);
+            throw;
+        }
+    }
+
+    protected abstract Task HandleAsync(TEvent message, CancellationToken cancellationToken);
+}
+```
+
+Handlers only need to implement `HandleAsync()` — logging is automatic:
+
+```csharp
+public class PatientCreatedIntegrationEventHandler
+    : IntegrationEventHandler<PatientCreatedIntegrationEvent>
+{
+    public PatientCreatedIntegrationEventHandler(
+        ILogger<PatientCreatedIntegrationEventHandler> logger) : base(logger) { }
+
+    protected override Task HandleAsync(
+        PatientCreatedIntegrationEvent message, CancellationToken ct)
+    {
+        // Business logic only - logging is automatic
+        return Task.CompletedTask;
+    }
+}
+```
+
+### Using Raw IConsumer<T> (Without Base Class)
+
+For request-response handlers or when you need `ConsumeContext` access, use `IConsumer<T>` directly:
+
+```csharp
+public class GetPatientRequestHandler : IConsumer<GetPatientRequest>
+{
+    private readonly ILogger<GetPatientRequestHandler> _logger;
+
+    public GetPatientRequestHandler(ILogger<GetPatientRequestHandler> logger)
+    {
+        _logger = logger;
+    }
+
+    public async Task Consume(ConsumeContext<GetPatientRequest> context)
+    {
+        // Access to ConsumeContext for RespondAsync, Headers, etc.
+        await context.RespondAsync(new GetPatientResponse { ... });
+    }
+}
+```
+
+### ConsumerDefinition for Advanced Configuration
+
+Use `ConsumerDefinition<T>` for fine-grained endpoint configuration:
+
+```csharp
+public class PatientCreatedIntegrationEventHandlerDefinition
+    : ConsumerDefinition<PatientCreatedIntegrationEventHandler>
+{
+    public PatientCreatedIntegrationEventHandlerDefinition()
+    {
+        EndpointName = "billing-patient-created";
+        ConcurrentMessageLimit = 10;
+    }
+
+    protected override void ConfigureConsumer(
+        IReceiveEndpointConfigurator endpointConfigurator,
+        IConsumerConfigurator<PatientCreatedIntegrationEventHandler> consumerConfigurator,
+        IRegistrationContext context)
+    {
+        endpointConfigurator.UseMessageRetry(r => r.Intervals(100, 500, 1000));
+    }
+}
+```
+
+---
+
+## 6. Error Handling and Retry
+
+MassTransit has built-in retry and error handling policies configured via the transport.
+
+### Global Retry Policy
+
+Retry policies are configured in `MassTransitExtensions.cs`:
+
+```csharp
+cfg.UseMessageRetry(r =>
+{
+    r.Intervals(
+        TimeSpan.FromSeconds(1),
+        TimeSpan.FromSeconds(5),
+        TimeSpan.FromSeconds(15),
+        TimeSpan.FromSeconds(30)
+    );
+
+    // Don't retry validation failures
+    r.Ignore<ValidationException>();
+    r.Ignore<ArgumentException>();
+});
+```
+
+### Per-Consumer Retry Policy
+
+Use `ConsumerDefinition<T>` for consumer-specific retry:
+
+```csharp
+protected override void ConfigureConsumer(
+    IReceiveEndpointConfigurator endpointConfigurator,
+    IConsumerConfigurator<PatientCreatedIntegrationEventHandler> consumerConfigurator,
+    IRegistrationContext context)
+{
+    endpointConfigurator.UseMessageRetry(r => r.Intervals(100, 500, 1000));
+
+    endpointConfigurator.UseCircuitBreaker(cb =>
+    {
+        cb.TrackingPeriod = TimeSpan.FromMinutes(1);
+        cb.TripThreshold = 15;
+        cb.ActiveThreshold = 10;
+        cb.ResetInterval = TimeSpan.FromMinutes(5);
+    });
+}
+```
+
+### Dead Letter Queue
+
+MassTransit automatically moves failed messages (after retry exhaustion) to an error queue:
+
+- Error queue name: `{queue-name}_error`
+- Skipped messages go to: `{queue-name}_skipped`
+- Messages in error queues can be inspected via RabbitMQ Management UI
+- You can requeue messages for reprocessing
+
+---
+
+## 7. Outbox Support
+
+MassTransit supports the transactional outbox pattern for guaranteed message delivery. We cover this in detail in [08-transactional-outbox.md](./08-transactional-outbox.md).
+
+---
+
+## 8. Testing
+
+MassTransit provides a built-in test harness for integration testing.
+
+### Test Harness Example
+
+```csharp
+using MassTransit.Testing;
+using Microsoft.Extensions.DependencyInjection;
+
+[TestClass]
+public class MassTransitIntegrationTests
+{
+    [TestMethod]
+    public async Task Should_Consume_PatientCreated_Event()
+    {
+        // Arrange
+        await using var provider = new ServiceCollection()
+            .AddMassTransitTestHarness(x =>
+            {
+                x.AddConsumer<PatientCreatedIntegrationEventHandler>();
+            })
+            .BuildServiceProvider(true);
+
+        var harness = provider.GetRequiredService<ITestHarness>();
+        await harness.Start();
+
+        var @event = new PatientCreatedIntegrationEvent(
+            PatientId: Guid.NewGuid(),
+            FirstName: "Test",
+            LastName: "Patient",
+            Email: "test@test.com",
+            DateOfBirth: new DateTime(1985, 6, 15));
+
+        // Act
+        await harness.Bus.Publish(@event);
+
+        // Assert
+        Assert.IsTrue(await harness.Consumed.Any<PatientCreatedIntegrationEvent>());
+
+        var consumerHarness = harness.GetConsumerHarness<PatientCreatedIntegrationEventHandler>();
+        Assert.IsTrue(await consumerHarness.Consumed.Any<PatientCreatedIntegrationEvent>());
+    }
+}
+```
+
+### In-Memory Transport for Unit Tests
+
+For fast unit tests without RabbitMQ, use the in-memory transport:
+
+```csharp
+services.AddMassTransitTestHarness(x =>
+{
+    x.AddConsumer<PatientCreatedIntegrationEventHandler>();
+    // Uses in-memory transport automatically — no RabbitMQ needed
+});
+```
+
+The test harness:
+- Automatically uses in-memory transport
+- Provides message tracking and assertions
+- Supports consumer, saga, and request-response testing
+- No RabbitMQ dependency for tests
+
+---
+
+## 9. Optional: Auto-Start Docker on F5 in Visual Studio
 
 To automatically start RabbitMQ when you press F5 in Visual Studio, create an MSBuild target that runs before build.
 
@@ -754,7 +1037,7 @@ This approach:
 
 ---
 
-## 6. Reference
+## 10. Reference
 
 ### Docker Commands Cheat Sheet
 
@@ -807,43 +1090,13 @@ x.UsingRabbitMq((context, cfg) =>
 });
 ```
 
-### In-Memory Transport for Testing
+### Handler Naming Convention
 
-For integration tests, use the in-memory transport:
-
-**Naming convention**: Handler classes should match the event class name with `Handler` suffix:
+Handler classes should match the event class name with `Handler` suffix:
 - Event: `PatientCreatedIntegrationEvent`
 - Handler: `PatientCreatedIntegrationEventHandler`
 
 This makes it easy to find handlers using Ctrl+T by typing the event name.
-
-```csharp
-// In test setup
-services.AddMassTransitTestHarness(x =>
-{
-    x.AddConsumer<PatientCreatedIntegrationEventHandler>();
-});
-
-// In tests
-[TestMethod]
-public async Task Should_Consume_PatientCreated_Event()
-{
-    var harness = _serviceProvider.GetRequiredService<ITestHarness>();
-    await harness.Start();
-
-    var @event = new PatientCreatedIntegrationEvent
-    {
-        PatientId = Guid.NewGuid(),
-        Email = "test@test.com",
-        FullName = "Test Patient",
-        DateOfBirth = new DateTime(1985, 6, 15)
-    };
-
-    await harness.Bus.Publish(@event);
-
-    Assert.IsTrue(await harness.Consumed.Any<PatientCreatedIntegrationEvent>());
-}
-```
 
 ### Verification Checklist
 
@@ -871,13 +1124,13 @@ You've set up the messaging infrastructure following Clean Architecture and Depe
 2. **BuildingBlocks.Application/Interfaces/** - `IUnitOfWork` with `QueueIntegrationEvent()` for transactional event publishing
 3. **BuildingBlocks.Infrastructure.MassTransit/** - MassTransit implementation (`MassTransitEventBus`, `AddMassTransitEventBus()`)
 4. **Shared/IntegrationEvents** - Integration event definitions (public contracts between bounded contexts)
-5. **[BC].Infrastructure/Consumers** - MassTransit consumers for incoming integration events
-6. **Scheduling.WebApi/Program.cs** - Single MassTransit registration (composition root)
+5. **[BC].Infrastructure/Consumers/MassTransit** - MassTransit handlers for incoming integration events
+6. **Scheduling.WebApi/Program.cs** - MassTransit registration (composition root)
 
 ### Key Architectural Decisions
 
 **Event publishing:**
-- All events go through RabbitMQ/MassTransit
+- All events go through RabbitMQ via MassTransit
 - All events get durability, retry, and dead-letter queues
 - MediatR is used for CQRS (commands/queries)
 
@@ -887,15 +1140,26 @@ You've set up the messaging infrastructure following Clean Architecture and Depe
 3. Command handler saves: `await _uow.SaveChangesAsync()`
 4. After successful database commit, queued events are published to RabbitMQ
 
-**MassTransit registration:**
-- Registered once in the host (`Scheduling.WebApi/Program.cs`), not per-bounded context
-- In a **monolith**: One API, one MassTransit registration, multiple consumer assemblies
-- In **microservices**: Each service has its own API with its own MassTransit registration
+**Framework registration:**
+- Registered in the WebApi host (`Scheduling.WebApi/Program.cs`) — the composition root where all infrastructure gets wired up
+
+**MassTransit advantages:**
+- **Battle-tested**: Widely used in production across thousands of .NET applications
+- **Saga support**: Built-in state machine sagas for distributed transactions
+- **Explicit registration**: `AddConsumers(assembly)` gives clear control over what's registered
+- **Rich ecosystem**: Scheduling, circuit breakers, rate limiting out of the box
+- **IntegrationEventHandler<T>**: Project-specific base class with automatic logging
 
 This architecture ensures:
 - **Durability**: All events persisted to message broker
-- **Dependency Inversion**: Application layer depends on `IEventBus`, not MassTransit
+- **Dependency Inversion**: Application layer depends on `IEventBus`, not on MassTransit
 - **Transactional Publishing**: Events only published after successful database commit
-- **Provider Swappability**: Swap MassTransit for Wolverine/Rebus by changing one line in `Program.cs`
+- **Provider Swappability**: Swap messaging providers by implementing `IEventBus` with an alternative provider
 
-Next: [03-integration-events.md](./03-integration-events.md) - Defining and publishing integration events
+**See Also:**
+- [03-rabbitmq-wolverine-setup.md](./03-rabbitmq-wolverine-setup.md) - Wolverine alternative implementation (MIT-licensed)
+- [04-integration-events.md](./04-integration-events.md) - Defining and publishing integration events
+
+---
+
+**Next:** [04-integration-events.md](./04-integration-events.md) - Defining and publishing integration events

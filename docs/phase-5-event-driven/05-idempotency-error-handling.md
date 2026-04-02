@@ -212,6 +212,10 @@ public class PatientCreatedIntegrationEventHandler
 | Upsert | Atomic, no race | Only works for updates |
 | Processed events table | Reliable, works for any action | Extra table, cleanup needed |
 
+> **Wolverine Note**: The idempotency strategies shown above (event ID tracking, database constraints, idempotent operations) are framework-agnostic and work identically with Wolverine handlers. Only the handler signature differs — the strategy logic inside the handler remains the same.
+>
+> Wolverine also provides a built-in durable inbox (`UseDurableInbox()`) that automatically deduplicates messages by envelope ID, giving you infrastructure-level idempotency for free.
+
 ---
 
 ## Retry Strategies
@@ -254,6 +258,28 @@ x.UsingRabbitMq((context, cfg) =>
 });
 ```
 
+### Wolverine Retry Configuration
+
+Wolverine uses a policy-based approach to error handling:
+
+```csharp
+builder.UseWolverine(opts =>
+{
+    // Global retry policy
+    opts.OnException<TimeoutException>()
+        .RetryTimes(3);
+
+    opts.OnException<SqlException>()
+        .RetryWithCooldown(TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(5), TimeSpan.FromSeconds(10));
+
+    // Requeue for transient failures
+    opts.OnException<TransientException>()
+        .Requeue(3);
+});
+```
+
+Wolverine's error handling is declarative and exception-type-specific, compared to MassTransit's `UseMessageRetry` pipeline filter approach.
+
 ### Per-Handler Retry
 
 ```csharp
@@ -279,6 +305,42 @@ public class PatientCreatedIntegrationEventHandlerDefinition
     }
 }
 ```
+
+### Wolverine Per-Handler Error Policies
+
+Wolverine supports handler-specific error policies using attributes or fluent configuration:
+
+```csharp
+// Option 1: Using attributes on the handler
+public class PatientCreatedHandler
+{
+    [RetryNow(typeof(SqlException), 50, 100, 250)]
+    public async Task Handle(
+        PatientCreatedIntegrationEvent message,
+        IMediator mediator,
+        CancellationToken cancellationToken)
+    {
+        // handler logic
+    }
+}
+
+// Option 2: Fluent configuration per handler
+builder.UseWolverine(opts =>
+{
+    opts.ForMessagesOfType<PatientCreatedIntegrationEvent>()
+        .MaximumAttempts(5);
+});
+```
+
+### MassTransit vs Wolverine Retry Comparison
+
+| MassTransit | Wolverine |
+|---|---|
+| `e.UseMessageRetry(r => r.Interval(3, 1000))` | `opts.OnException<T>().RetryTimes(3)` |
+| `e.UseDelayedRedelivery(r => r.Intervals(...))` | `opts.OnException<T>().RetryWithCooldown(...)` |
+| `_error` queue suffix | Dead letter queue / error queue |
+| `UseMessageScope()` + `UseInMemoryOutbox()` | `UseDurableInbox()` on listener |
+| Per-consumer `ConfigureEndpoint` | Per-handler attributes or `ForMessagesOfType<T>()` |
 
 ---
 
@@ -382,6 +444,25 @@ public class PatientCreatedFaultHandler : IConsumer<Fault<PatientCreatedIntegrat
     }
 }
 ```
+
+### Wolverine Dead Letter Handling
+
+Wolverine calls these "dead letter queues" as well. After all retries are exhausted, messages are moved to the error queue:
+
+```csharp
+builder.UseWolverine(opts =>
+{
+    // After retries exhausted, move to error queue
+    opts.OnException<Exception>()
+        .MoveToErrorQueue();
+
+    // Or discard specific exception types
+    opts.OnException<ObsoleteEventException>()
+        .Discard();
+});
+```
+
+The error queue serves the same purpose as MassTransit's `_error` queues. Messages can be inspected and replayed from the Wolverine dead letter storage.
 
 ---
 
@@ -606,4 +687,4 @@ public class MyIntegrationEventHandler
 
 ---
 
-> Next: [05-sagas-orchestration.md](./05-sagas-orchestration.md) - Coordinating multi-step processes
+> Next: [06-sagas-orchestration.md](./06-sagas-orchestration.md) - Coordinating multi-step processes

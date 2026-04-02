@@ -330,7 +330,7 @@ err: BuildingBlocks.Infrastructure.EfCore.EfCoreUnitOfWork[0]
 
 This provides visibility into all integration events leaving your bounded context without adding logging to each handler.
 
-### IntegrationEventHandler Base Class
+### IntegrationEventHandler Base Class (MassTransit)
 
 Handlers inherit from `IntegrationEventHandler<TEvent>` which provides automatic logging on the consumer side:
 
@@ -363,13 +363,15 @@ public abstract class IntegrationEventHandler<TEvent> : IConsumer<TEvent>
 
 **Log output:**
 ```
-info: Scheduling.Infrastructure.Consumers.PatientCreatedIntegrationEventHandler[0]
+info: Scheduling.Infrastructure.Consumers.MassTransit.PatientCreatedIntegrationEventHandler[0]
       Handling PatientCreatedIntegrationEvent with EventId 2046b276-be9f-4945-b3ee-315053a0e969
-info: Scheduling.Infrastructure.Consumers.PatientCreatedIntegrationEventHandler[0]
+info: Scheduling.Infrastructure.Consumers.MassTransit.PatientCreatedIntegrationEventHandler[0]
       Processing patient 2046b276-be9f-4945-b3ee-315053a0e969 - John Doe (john.doe@example.com)
-info: Scheduling.Infrastructure.Consumers.PatientCreatedIntegrationEventHandler[0]
+info: Scheduling.Infrastructure.Consumers.MassTransit.PatientCreatedIntegrationEventHandler[0]
       Handled PatientCreatedIntegrationEvent with EventId 2046b276-be9f-4945-b3ee-315053a0e969
 ```
+
+> **Wolverine Note:** Wolverine has no equivalent of `IntegrationEventHandler<T>` base class. Handlers are plain classes discovered by convention. If you need shared behavior (like standard logging), use a Wolverine middleware policy instead of a base class. See [Wolverine Middleware documentation](https://wolverine.netlify.app/guide/handlers/middleware.html) for details.
 
 ### Why This Pattern?
 
@@ -386,17 +388,17 @@ info: Scheduling.Infrastructure.Consumers.PatientCreatedIntegrationEventHandler[
 
 ## Consuming Integration Events
 
-### Creating a Handler
+### Creating a Handler (MassTransit)
 
 Handlers inherit from `IntegrationEventHandler<TEvent>` which provides automatic logging:
 
 ```csharp
-// Billing.Infrastructure/Consumers/PatientCreatedIntegrationEventHandler.cs
+// Billing.Infrastructure/Consumers/MassTransit/PatientCreatedIntegrationEventHandler.cs
 using BuildingBlocks.Infrastructure.MassTransit;
 using IntegrationEvents.Scheduling;
 using Microsoft.Extensions.Logging;
 
-namespace Billing.Infrastructure.Consumers;
+namespace Billing.Infrastructure.Consumers.MassTransit;
 
 public class PatientCreatedIntegrationEventHandler
     : IntegrationEventHandler<PatientCreatedIntegrationEvent>
@@ -431,7 +433,54 @@ public class PatientCreatedIntegrationEventHandler
 }
 ```
 
-### Registering Handlers
+### Creating a Handler (Wolverine Alternative)
+
+Wolverine handlers are plain classes with no interface or base class. The framework discovers them by convention:
+
+```csharp
+// Billing.Infrastructure/Consumers/Wolverine/PatientCreatedHandler.cs
+using IntegrationEvents.Scheduling;
+using MediatR;
+using Microsoft.Extensions.Logging;
+
+namespace Billing.Infrastructure.Consumers.Wolverine;
+
+public class PatientCreatedHandler
+{
+    public async Task Handle(
+        PatientCreatedIntegrationEvent message,
+        IMediator mediator,
+        ILogger<PatientCreatedHandler> logger,
+        CancellationToken cancellationToken)
+    {
+        logger.LogInformation(
+            "Wolverine: Received PatientCreatedIntegrationEvent for {PatientId}",
+            message.PatientId);
+
+        await mediator.Send(
+            new CreateBillingProfileCommand
+            {
+                ExternalPatientId = message.PatientId,
+                Email = message.Email,
+                FullName = message.FullName
+            },
+            cancellationToken);
+
+        logger.LogInformation(
+            "Created billing profile for patient {PatientId}",
+            message.PatientId);
+    }
+}
+```
+
+**Key differences from MassTransit:**
+- No `IntegrationEventHandler<T>` base class needed
+- No wrapper `HandleAsync` method - just a plain `Handle` method
+- Dependencies are method-injected directly (message, mediator, logger, cancellationToken)
+- Logging is inline rather than in a base class
+- Wolverine discovers handlers by scanning assemblies for any public class with a public `Handle(TMessage, ...)` method
+
+### Registering Handlers (MassTransit)
 
 Handlers are registered in MassTransit configuration:
 
@@ -446,6 +495,33 @@ builder.Services.AddMassTransitEventBus(builder.Configuration, configure =>
     configure.AddConsumer<PatientCreatedIntegrationEventHandler>();
 });
 ```
+
+### Registering Handlers (Wolverine Alternative)
+
+Wolverine discovers handlers by scanning assemblies - no explicit registration per handler:
+
+```csharp
+// In WolverineExtensions.cs or Program.cs
+builder.UseWolverine(opts =>
+{
+    // Only discover handlers where the first parameter implements IIntegrationEvent
+    opts.Discovery.IncludeTypes(t =>
+        t.GetMethods().Any(m =>
+            m.Name is "Handle" or "HandleAsync" &&
+            m.GetParameters().FirstOrDefault()?.ParameterType
+                .IsAssignableTo(typeof(IIntegrationEvent)) == true));
+
+    // RabbitMQ transport
+    var connectionString = builder.Configuration.GetConnectionString("messaging");
+    opts.UseRabbitMq(new Uri(connectionString!)).AutoProvision();
+});
+```
+
+> **Key differences:**
+> - No `AddConsumer<T>()` calls needed
+> - Discovery is filtered to only find handlers whose first parameter implements `IIntegrationEvent`
+> - This prevents accidental handler registration for non-event types
+> - Any public class with a `Handle(TEvent, ...)` method where `TEvent : IIntegrationEvent` is automatically registered
 
 ---
 
@@ -512,9 +588,13 @@ Exchange: PatientCreatedIntegrationEvent
     +-- Queue: analytics-patient-created ----> Analytics Handler
 ```
 
+> **Wolverine Note:** Multiple handlers for the same event type are discovered automatically. If two classes both have `Handle(PatientCreatedIntegrationEvent, ...)` methods in different assemblies (or even the same assembly with different class names), Wolverine will invoke both handlers. The pub-sub behavior is the same as MassTransit - each handler gets its own queue.
+
 ---
 
 ## Handler Definition (Advanced Configuration)
+
+### MassTransit Configuration
 
 For fine-grained control, use handler definitions:
 
@@ -550,6 +630,43 @@ public class PatientCreatedIntegrationEventHandlerDefinition
     }
 }
 ```
+
+### Wolverine Endpoint Configuration
+
+Wolverine provides fluent configuration for endpoints:
+
+```csharp
+builder.UseWolverine(opts =>
+{
+    // Listen to RabbitMQ queue with durability and concurrency control
+    opts.ListenToRabbitQueue("patient-created")
+        .UseDurableInbox()            // Durable inbox for reliability
+        .MaximumParallelMessages(5);   // Concurrency control
+
+    // Publishing configuration
+    opts.PublishMessage<PatientCreatedIntegrationEvent>()
+        .ToRabbitExchange("patient-events");
+
+    // Retry policy for all handlers (can also be handler-specific)
+    opts.OnException<SqlException>()
+        .RetryTimes(3);
+
+    // Circuit breaker policy
+    opts.OnException<HttpRequestException>()
+        .RetryWithCooldown(50.Milliseconds(), 250.Milliseconds(), 500.Milliseconds());
+});
+```
+
+**MassTransit vs Wolverine mapping:**
+
+| MassTransit | Wolverine |
+|-------------|-----------|
+| `cfg.ReceiveEndpoint("queue", e => { ... })` | `opts.ListenToRabbitQueue("queue")` |
+| `e.PrefetchCount = 16` | `.MaximumParallelMessages(16)` |
+| `e.UseMessageRetry(r => r.Interval(3, 1000))` | `opts.OnException<T>().RetryTimes(3)` |
+| `cfg.Message<T>(x => x.SetEntityName("exchange"))` | `opts.PublishMessage<T>().ToRabbitExchange("exchange")` |
+| `ConcurrentMessageLimit = 10` | `.MaximumParallelMessages(10)` |
+| Circuit breaker middleware | `opts.OnException<T>().RetryWithCooldown(...)` |
 
 ---
 
@@ -751,4 +868,4 @@ public class AppointmentScheduledEventHandler : INotificationHandler<Appointment
 
 ---
 
-> Next: [04-idempotency-error-handling.md](./04-idempotency-error-handling.md) - Making handlers safe and resilient
+> Next: [05-idempotency-error-handling.md](./05-idempotency-error-handling.md) - Making handlers safe and resilient
