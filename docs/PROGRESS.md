@@ -11,7 +11,7 @@
 | Phase 5: Event-Driven Architecture | Complete | 2026-01-23 | 2026-02-13 |
 | Phase 6: Integration | Complete | 2026-03-09 | 2026-03-16 |
 | Phase 7: Frontend (Blazor + Angular) | In Progress | 2026-03-12 | - |
-| Phase 8: Authentication & Authorization | Not Started | - | - |
+| Phase 8: Authentication & Authorization | Docs Written | 2026-03-25 | - |
 | Phase 9: API Gateway & BFF (optional) | Not Started | - | - |
 
 ---
@@ -238,7 +238,7 @@ This allows using `nameof(GetPatientAsync)` in `CreatedAtAction` calls.
 
 ### Implementation Progress
 
-- [x] Documentation created (all 6 documents)
+- [x] Documentation created (all 7 documents)
 - [x] `BuildingBlocks.Application/Messaging` created (IEventBus abstraction)
 - [x] `BuildingBlocks.Infrastructure.MassTransit` project created
 - [x] `IntegrationEventHandler<T>` base class (automatic start/success/error logging)
@@ -253,6 +253,11 @@ This allows using `nameof(GetPatientAsync)` in `CreatedAtAction` calls.
 - [x] `IUnitOfWork.QueueIntegrationEvent()` pattern
 - [x] Integration event logging (publish + consume)
 - [x] End-to-end tested manually (API → RabbitMQ → Consumer)
+- [x] Transactional Outbox pattern (MassTransit EF Core outbox)
+- [x] Bus Outbox configured for both Scheduling and Billing contexts
+- [x] Outbox tables with context-prefixed names (Scheduling_/Billing_)
+- [x] Simplified UnitOfWork (outbox replaces post-commit publishing)
+- [x] **Wolverine Alternative**: Added documentation for Wolverine as an MIT-licensed alternative to MassTransit. Both frameworks implement the same `IEventBus` abstraction and are switchable via configuration. See Phase 5 docs for side-by-side comparisons.
 
 ### Key Decisions Made
 
@@ -290,11 +295,15 @@ This allows using `nameof(GetPatientAsync)` in `CreatedAtAction` calls.
 ### Docs Available
 
 - `phase-5-event-driven/01-event-driven-overview.md` - Domain events vs integration events, full architecture
-- `phase-5-event-driven/02-rabbitmq-masstransit-setup.md` - Infrastructure setup, project structure
-- `phase-5-event-driven/03-integration-events.md` - Publishing and consuming integration events
-- `phase-5-event-driven/04-idempotency-error-handling.md` - DLQ, retries, idempotent handlers
-- `phase-5-event-driven/05-sagas-orchestration.md` - Saga pattern for distributed workflows
-- `phase-5-event-driven/06-event-versioning.md` - Schema evolution and backwards compatibility
+- `phase-5-event-driven/02-rabbitmq-masstransit-setup.md` - Infrastructure setup, project structure (includes Wolverine sections)
+- `phase-5-event-driven/03-rabbitmq-wolverine-setup.md` - Wolverine alternative setup (PLANNED)
+- `phase-5-event-driven/04-integration-events.md` - Publishing and consuming integration events (includes Wolverine sections)
+- `phase-5-event-driven/05-idempotency-error-handling.md` - DLQ, retries, idempotent handlers (includes Wolverine sections)
+- `phase-5-event-driven/06-sagas-orchestration.md` - Saga pattern for distributed workflows
+- `phase-5-event-driven/07-event-versioning.md` - Schema evolution and backwards compatibility
+- `phase-5-event-driven/08-transactional-outbox.md` - Transactional outbox pattern with MassTransit EF Core (includes Wolverine sections)
+
+**Wolverine Documentation**: Key Phase 5 docs now include side-by-side comparisons showing Wolverine setup, handler conventions, retry policies, and auto-provisioned outbox schema. Both frameworks implement the same `IEventBus` abstraction.
 
 **See also:**
 - `phase-1-ddd-fundamentals/04-domain-events.md` - Domain events concept and implementation
@@ -387,22 +396,49 @@ This allows using `nameof(GetPatientAsync)` in `CreatedAtAction` calls.
 
 ## Phase 8: Authentication & Authorization
 
-*Not started*
+*Documentation written — implementation pending*
 
-### Planned Topics
+### Concepts to Learn
 
-- Cookie-based authentication (no tokens in the browser)
-- ASP.NET Core Identity integration
-- Authorization policies and requirements
-- Role-based vs claims-based authorization
-- Securing pages and components
-- AuthenticationStateProvider
-- User context in domain layer
-- DefaultAzureCredential for local development
+- [x] OAuth 2.0 and OpenID Connect fundamentals (documented)
+- [x] OpenIddict as self-hosted authorization server (documented)
+- [x] Cookie-based authentication (tokens never reach browser) (documented)
+- [x] BuildingBlocks.Infrastructure.Auth shared project (documented)
+- [x] Authorization policies and role-based access (documented)
+- [x] Angular authentication with signals (documented)
+- [x] ICurrentUser and UserValidator activation (documented)
+- [ ] ASP.NET Core Identity setup (implementation pending)
+- [ ] Shared Data Protection keys (implementation pending)
+- [ ] End-to-end auth flow testing (implementation pending)
+
+### Implementation Progress
+
+- [x] Documentation created (all 6 documents)
+- [ ] Identity.WebApi project (Authorization Server on :7010)
+- [ ] BuildingBlocks.Infrastructure.Auth project
+- [ ] API auth middleware (Scheduling + Billing)
+- [ ] Angular auth service and interceptor
+- [ ] ICurrentUser / UserValidator activation
+- [ ] Aspire orchestration update
+- [ ] End-to-end testing
+
+### Key Architecture Decisions (Documented)
+
+1. **OpenIddict** — Self-hosted OIDC server for learning value (vs Duende, Keycloak, cloud)
+2. **Cookie-based auth** — HttpOnly cookies, tokens never reach the browser
+3. **BuildingBlocks.Infrastructure.Auth** — Shared project following MassTransit BuildingBlock pattern
+4. **AuthController** — `/auth/login`, `/auth/logout`, `/auth/me` endpoints in each API
+5. **ICurrentUser** — Replaces commented-out `IUserContext` in `UserValidator<T>`
+6. **No Angular OIDC library** — Server handles the flow, Angular just uses `withCredentials: true`
 
 ### Docs Available
 
-- `phase-8-auth/` - (to be created)
+- `phase-8-auth/01-auth-overview.md` - Auth & OIDC Fundamentals
+- `phase-8-auth/02-authorization-server-setup.md` - Authorization Server with OpenIddict
+- `phase-8-auth/03-shared-auth-infrastructure.md` - BuildingBlocks.Infrastructure.Auth
+- `phase-8-auth/04-api-resource-protection.md` - Securing the APIs
+- `phase-8-auth/05-angular-auth.md` - Angular Authentication
+- `phase-8-auth/06-user-context-and-authorization.md` - User Context in Domain Layer
 
 ---
 
