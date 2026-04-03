@@ -1,12 +1,10 @@
 using BuildingBlocks.Application;
-using BuildingBlocks.Infrastructure.MassTransit.Configuration;
+using BuildingBlocks.Infrastructure.Wolverine;
 using BuildingBlocks.WebApplications.Filters;
 using BuildingBlocks.WebApplications.Json;
 using BuildingBlocks.WebApplications.OpenApi;
-using MassTransit;
 using Billing.Application;
 using Billing.Infrastructure;
-using Billing.Infrastructure.Persistence;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -38,11 +36,10 @@ builder.Services.AddBillingInfrastructure(connectionString);
 builder.Services.AddBillingApplication();
 builder.Services.AddDefaultPipelineBehaviors();
 
-// Add MassTransit for event-driven messaging
-builder.Services.AddMassTransitEventBus<BillingDbContext>(builder.Configuration, configure =>
+// Add Wolverine for event-driven messaging
+builder.AddWolverineEventBus(opts =>
 {
-    // Register consumers from bounded context assemblies
-    configure.AddConsumers(typeof(Billing.Infrastructure.ServiceCollectionExtensions).Assembly);
+    opts.Discovery.IncludeAssembly(typeof(Billing.Infrastructure.ServiceCollectionExtensions).Assembly);
 });
 
 // Add cors

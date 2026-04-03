@@ -17,7 +17,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\BuildingBlocks\BuildingBlocks.Infrastructure.MassTransit\BuildingBlocks.Infrastructure.MassTransit.csproj" />
+    <ProjectReference Include="..\..\BuildingBlocks\BuildingBlocks.Infrastructure.Wolverine\BuildingBlocks.Infrastructure.Wolverine.csproj" />
     <ProjectReference Include="..\..\Core\Billing\Billing.Infrastructure\Billing.Infrastructure.csproj" />
     <ProjectReference Include="..\..\BuildingBlocks\BuildingBlocks.WebApplications\BuildingBlocks.WebApplications.csproj" />
     <ProjectReference Include="..\..\ServiceDefaults\Aspire.ServiceDefaults.csproj" />

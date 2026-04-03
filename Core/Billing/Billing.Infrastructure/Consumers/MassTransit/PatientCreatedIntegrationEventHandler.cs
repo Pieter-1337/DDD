@@ -4,7 +4,7 @@ using IntegrationEvents.Scheduling;
 using MediatR;
 using Microsoft.Extensions.Logging;
 
-namespace Billing.Infrastructure.Consumers
+namespace Billing.Infrastructure.Consumers.MassTransit
 {
     public class PatientCreatedIntegrationEventHandler : IntegrationEventHandler<PatientCreatedIntegrationEvent>
     {
