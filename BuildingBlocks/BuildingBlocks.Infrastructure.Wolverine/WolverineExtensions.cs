@@ -87,6 +87,7 @@ public static class WolverineExtensions
             .ToQueue(queueName);
 
         opts.ListenToRabbitQueue(queueName)
+            .DefaultIncomingMessage<TMessage>()
             .UseMassTransitInterop();
 
         return opts;

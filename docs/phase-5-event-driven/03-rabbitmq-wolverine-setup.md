@@ -879,6 +879,8 @@ builder.AddWolverineEventBus(connectionString, opts =>
 
 ### What `ListenToMassTransitQueue<T>` Does Under the Hood
 
+> **Important:** `.DefaultIncomingMessage<TMessage>()` is required because Wolverine cannot extract the message type from MassTransit's envelope metadata. MassTransit stores the message type inside the JSON body (`messageType` array), but Wolverine's handler pipeline checks for the message type *before* deserializing the body. Without this call, you'll get `ArgumentOutOfRangeException: "The envelope has no Message or MessageType name"`.
+
 The helper in `WolverineExtensions.cs` derives the MassTransit exchange name from the CLR type using the convention `Namespace:TypeName`, then performs the bind and listen:
 
 ```csharp
@@ -893,6 +895,7 @@ public static WolverineOptions ListenToMassTransitQueue<TMessage>(
         .ToQueue(queueName);
 
     opts.ListenToRabbitQueue(queueName)
+        .DefaultIncomingMessage<TMessage>()
         .UseMassTransitInterop();
 
     return opts;
@@ -908,6 +911,7 @@ opts.UseRabbitMq()
     .ToQueue("billing-patient-created");
 
 opts.ListenToRabbitQueue("billing-patient-created")
+    .DefaultIncomingMessage<PatientCreatedIntegrationEvent>()
     .UseMassTransitInterop();
 ```
 
