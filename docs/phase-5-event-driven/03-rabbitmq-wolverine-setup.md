@@ -88,7 +88,7 @@ All events are:
 | **BuildingBlocks.Infrastructure.Wolverine** | Wolverine provider | `WolverineEventBus`, `AddWolverineEventBus()` extension |
 | **Shared/IntegrationEvents** | Integration event definitions | `PatientCreatedIntegrationEvent`, etc. |
 | **[BC].Infrastructure/Consumers/Wolverine** | Wolverine handlers | Handles incoming integration events |
-| **Scheduling.WebApi** | Composition root | Wolverine registration with Scheduling handlers |
+| **[BC].WebApi** | Composition root | Wolverine registration with Bounded context handlers |
 
 ### Key Interfaces
 
@@ -167,9 +167,9 @@ builder.AddWolverineEventBus(opts =>
 
 **[BC].Infrastructure/Consumers/Wolverine** provides:
 - Wolverine handlers (e.g., `PatientCreatedHandler`)
-- These get discovered via `Discovery.IncludeAssembly(assembly)` and `IncludeTypes()` filter
+- These get discovered via `Discovery.IncludeAssembly(assembly)` and `CustomizeHandlerDiscovery()` filter
 
-**Scheduling.WebApi/Host** does:
+**[BC].WebApi/Host** does:
 - Calls `AddWolverineEventBus()` once
 - Passes in assemblies containing handlers
 
@@ -215,7 +215,7 @@ src/
 | **{BC}.Domain** | No | No | No |
 | **{BC}.Application** | Yes (IUnitOfWork, IEventBus) | No | Yes (event DTOs) |
 | **{BC}.Infrastructure** | Yes | Optional (only if using Wolverine-specific types) | Yes (handlers) |
-| **Scheduling.WebApi** | Yes | Yes | No |
+| **{BC}.WebApi** | Yes | Yes | No |
 
 > **Note**: Unlike MassTransit, `{BC}.Infrastructure` does NOT need to reference `BuildingBlocks.Infrastructure.Wolverine` — Wolverine handlers are plain classes with no base class or interface dependency. The reference is only needed if you import Wolverine-specific types (like `Envelope`).
 
@@ -276,15 +276,15 @@ dotnet sln add Shared/IntegrationEvents
 ```bash
 # Add packages to BuildingBlocks.Infrastructure.Wolverine
 cd BuildingBlocks/BuildingBlocks.Infrastructure.Wolverine
-dotnet add package Wolverine
-dotnet add package Wolverine.RabbitMQ
+dotnet add package WolverineFx
+dotnet add package WolverineFx.RabbitMQ
 dotnet add reference ../BuildingBlocks.Application
 ```
 
 Verify `Directory.Packages.props` contains:
 ```xml
-<PackageVersion Include="Wolverine" Version="3.*" />
-<PackageVersion Include="Wolverine.RabbitMQ" Version="3.*" />
+<PackageVersion Include="WolverineFx" Version="4.12.2" />
+<PackageVersion Include="WolverineFx.RabbitMQ" Version="4.12.2" />
 ```
 
 ### Step 3: Set Up Project References
@@ -454,6 +454,7 @@ Create `BuildingBlocks.Infrastructure.Wolverine/WolverineExtensions.cs`:
 using BuildingBlocks.Application.Messaging;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using System.Reflection;
 using Wolverine;
 using Wolverine.RabbitMQ;
 
@@ -482,13 +483,13 @@ public static class WolverineExtensions
             opts.UseRabbitMq(new Uri(connectionString))
                 .AutoProvision(); // Automatically create queues/exchanges
 
-            // Only discover handlers where the first parameter implements IIntegrationEvent
-            // This prevents accidental handler registration for non-event types
-            opts.Discovery.IncludeTypes(t =>
-                t.GetMethods().Any(m =>
-                    m.Name is "Handle" or "HandleAsync" &&
-                    m.GetParameters().FirstOrDefault()?.ParameterType
-                        .IsAssignableTo(typeof(IIntegrationEvent)) == true));
+            // Only discover handlers where the first parameter implements IIntegrationEvent.
+            // This prevents accidental handler registration for non-event types.
+            opts.Discovery.CustomizeHandlerDiscovery(q =>
+            {
+                q.Excludes.WithCondition("Non-IIntegrationEvent handlers", t =>
+                    !HasIntegrationEventHandlerMethod(t));
+            });
 
             // Allow host to configure additional options (e.g., add more assemblies)
             configureWolverine?.Invoke(opts);
@@ -496,14 +497,23 @@ public static class WolverineExtensions
 
         return builder;
     }
+
+    private static bool HasIntegrationEventHandlerMethod(Type type)
+    {
+        return type.GetMethods(BindingFlags.Public | BindingFlags.Instance | BindingFlags.Static)
+            .Any(m =>
+                m.Name is "Handle" or "HandleAsync" &&
+                m.GetParameters().FirstOrDefault()?.ParameterType
+                    .IsAssignableTo(typeof(IIntegrationEvent)) == true);
+    }
 }
 ```
 
 **Why filter by `IIntegrationEvent`?**
 
-Without this filter, Wolverine would register a handler for ANY public class with a `Handle` method in the scanned assembly — even if the first parameter is `string` or another non-event type. By requiring the first parameter to implement `IIntegrationEvent`, only genuine integration event handlers are discovered.
+Without this filter, Wolverine would register a handler for ANY public class with a `Handle` method in the scanned assembly — even if the first parameter is `string` or another non-event type. By excluding types that don't have a `Handle`/`HandleAsync` method with an `IIntegrationEvent` first parameter, only genuine integration event handlers are discovered.
 
-This gives you convention-based discovery with a type-safety guardrail.
+This uses `CustomizeHandlerDiscovery` with an exclude condition via `CompositeFilter<Type>.WithCondition()` this gives you convention-based discovery with a type-safety guardrail.
 
 **Why `IHostApplicationBuilder` instead of `IServiceCollection`?**
 
@@ -667,7 +677,7 @@ Wolverine discovers handlers by convention — no base class, no interface requi
 
 ### What Wolverine Does Under the Hood
 
-1. Scans assemblies registered via `opts.Discovery.IncludeAssembly()` or filtered via `opts.Discovery.IncludeTypes()`
+1. Scans assemblies registered via `opts.Discovery.IncludeAssembly()` or filtered via `opts.Discovery.CustomizeHandlerDiscovery()`
 2. Looks for public classes with public `Handle`/`HandleAsync` methods
 3. Inspects the first parameter of `Handle()` to determine the message type
 4. Remaining parameters are resolved from DI (method injection)
@@ -677,11 +687,15 @@ Wolverine discovers handlers by convention — no base class, no interface requi
 ### Recommended: Filter by IIntegrationEvent
 
 ```csharp
-opts.Discovery.IncludeTypes(t =>
-    t.GetMethods().Any(m =>
-        m.Name is "Handle" or "HandleAsync" &&
-        m.GetParameters().FirstOrDefault()?.ParameterType
-            .IsAssignableTo(typeof(IIntegrationEvent)) == true));
+opts.Discovery.CustomizeHandlerDiscovery(q =>
+{
+    q.Excludes.WithCondition("Non-IIntegrationEvent handlers", t =>
+        !t.GetMethods(BindingFlags.Public | BindingFlags.Instance | BindingFlags.Static)
+            .Any(m =>
+                m.Name is "Handle" or "HandleAsync" &&
+                m.GetParameters().FirstOrDefault()?.ParameterType
+                    .IsAssignableTo(typeof(IIntegrationEvent)) == true));
+});
 ```
 
 This prevents accidental handler registration for non-event types (e.g., a class with `Handle(string message)` would NOT be registered).
@@ -782,11 +796,15 @@ builder.UseWolverine(opts =>
         .MoveToErrorQueue();
 
     // Discovery
-    opts.Discovery.IncludeTypes(t =>
-        t.GetMethods().Any(m =>
-            m.Name is "Handle" or "HandleAsync" &&
-            m.GetParameters().FirstOrDefault()?.ParameterType
-                .IsAssignableTo(typeof(IIntegrationEvent)) == true));
+    opts.Discovery.CustomizeHandlerDiscovery(q =>
+    {
+        q.Excludes.WithCondition("Non-IIntegrationEvent handlers", t =>
+            !t.GetMethods(BindingFlags.Public | BindingFlags.Instance | BindingFlags.Static)
+                .Any(m =>
+                    m.Name is "Handle" or "HandleAsync" &&
+                    m.GetParameters().FirstOrDefault()?.ParameterType
+                        .IsAssignableTo(typeof(IIntegrationEvent)) == true));
+    });
 });
 ```
 
@@ -904,11 +922,15 @@ Event: PatientCreatedIntegrationEvent
 ### Handler Discovery Filter
 
 ```csharp
-opts.Discovery.IncludeTypes(t =>
-    t.GetMethods().Any(m =>
-        m.Name is "Handle" or "HandleAsync" &&
-        m.GetParameters().FirstOrDefault()?.ParameterType
-            .IsAssignableTo(typeof(IIntegrationEvent)) == true));
+opts.Discovery.CustomizeHandlerDiscovery(q =>
+{
+    q.Excludes.WithCondition("Non-IIntegrationEvent handlers", t =>
+        !t.GetMethods(BindingFlags.Public | BindingFlags.Instance | BindingFlags.Static)
+            .Any(m =>
+                m.Name is "Handle" or "HandleAsync" &&
+                m.GetParameters().FirstOrDefault()?.ParameterType
+                    .IsAssignableTo(typeof(IIntegrationEvent)) == true));
+});
 ```
 
 ### Verification Checklist
@@ -937,7 +959,7 @@ You've set up Wolverine for event-driven messaging following Clean Architecture:
 3. **BuildingBlocks.Infrastructure.Wolverine/** - Wolverine implementation (`WolverineEventBus`, `AddWolverineEventBus()`)
 4. **Shared/IntegrationEvents** - Integration event definitions (public contracts between bounded contexts)
 5. **[BC].Infrastructure/Consumers/Wolverine** - Wolverine handlers (plain classes with `Handle()` method)
-6. **Scheduling.WebApi/Program.cs** - Wolverine registration (composition root)
+6. **[BC].WebApi/Program.cs** - Wolverine registration (composition root)
 
 ### Key Architectural Decisions
 

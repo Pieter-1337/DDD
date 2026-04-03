@@ -118,7 +118,8 @@
       "Bash(dotnet ef migrations list:*)",
       "Bash(sqlcmd:*)",
       "WebFetch(domain:www.linkedin.com)",
-      "WebFetch(domain:wolverinefx.net)"
+      "WebFetch(domain:wolverinefx.net)",
+      "Bash(pwsh -Command \"[Reflection.Assembly]::LoadFile\\(''C:/Users/piete/.nuget/packages/jasperfx/1.6.1/lib/net9.0/JasperFx.dll''\\) | Get-Member\")"
     ]
   }
 }
