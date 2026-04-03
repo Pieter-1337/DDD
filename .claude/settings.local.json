@@ -125,7 +125,12 @@
       "Bash(dotnet run:*)",
       "Bash(dotnet clean:*)",
       "Bash(cygpath:*)",
-      "WebFetch(domain:jeremydmiller.com)"
+      "WebFetch(domain:jeremydmiller.com)",
+      "WebFetch(domain:127.0.0.1)",
+      "Bash(python -m json.tool:*)",
+      "Bash(tasklist:*)",
+      "Bash(python:*)",
+      "WebFetch(domain:api.github.com)"
     ]
   }
 }

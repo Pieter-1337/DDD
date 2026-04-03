@@ -1,11 +1,14 @@
 using BuildingBlocks.Application;
+using BuildingBlocks.Infrastructure.MassTransit.Configuration;
 using BuildingBlocks.Infrastructure.Wolverine;
 using BuildingBlocks.WebApplications.Filters;
 using BuildingBlocks.WebApplications.Json;
 using BuildingBlocks.WebApplications.OpenApi;
 using Billing.Application;
 using Billing.Infrastructure;
+using Billing.Infrastructure.Persistence;
 using IntegrationEvents.Scheduling;
+using MassTransit;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -37,13 +40,24 @@ builder.Services.AddBillingInfrastructure(connectionString);
 builder.Services.AddBillingApplication();
 builder.Services.AddDefaultPipelineBehaviors();
 
-// Add Wolverine for event-driven messaging (consuming from MassTransit publisher)
-builder.AddWolverineEventBus(connectionString, opts =>
-{
-    opts.Discovery.IncludeAssembly(typeof(Billing.Infrastructure.ServiceCollectionExtensions).Assembly);
+// Add event-driven messaging (configurable: Wolverine or MassTransit)
+var messagingFramework = builder.Configuration.GetValue<string>("MessagingFramework") ?? "Wolverine";
 
-    opts.ListenToMassTransitQueue<PatientCreatedIntegrationEvent>("billing-patient-created");
-});
+if (messagingFramework == "Wolverine")
+{
+    builder.AddWolverineEventBus(connectionString, opts =>
+    {
+        opts.Discovery.IncludeAssembly(typeof(Billing.Infrastructure.ServiceCollectionExtensions).Assembly);
+        opts.ListenToMassTransitQueue<PatientCreatedIntegrationEvent>("billing-patient-created");
+    });
+}
+else
+{
+    builder.Services.AddMassTransitEventBus<BillingDbContext>(builder.Configuration, configure =>
+    {
+        configure.AddConsumers(typeof(Billing.Infrastructure.ServiceCollectionExtensions).Assembly);
+    });
+}
 
 // Add cors
 builder.Services.AddCors(options =>
