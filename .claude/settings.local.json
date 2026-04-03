@@ -119,7 +119,12 @@
       "Bash(sqlcmd:*)",
       "WebFetch(domain:www.linkedin.com)",
       "WebFetch(domain:wolverinefx.net)",
-      "Bash(pwsh -Command \"[Reflection.Assembly]::LoadFile\\(''C:/Users/piete/.nuget/packages/jasperfx/1.6.1/lib/net9.0/JasperFx.dll''\\) | Get-Member\")"
+      "Bash(pwsh -Command \"[Reflection.Assembly]::LoadFile\\(''C:/Users/piete/.nuget/packages/jasperfx/1.6.1/lib/net9.0/JasperFx.dll''\\) | Get-Member\")",
+      "Bash(dotnet list:*)",
+      "Bash(dotnet script:*)",
+      "Bash(dotnet run:*)",
+      "Bash(dotnet clean:*)",
+      "Bash(cygpath:*)"
     ]
   }
 }

@@ -37,7 +37,7 @@ builder.Services.AddBillingApplication();
 builder.Services.AddDefaultPipelineBehaviors();
 
 // Add Wolverine for event-driven messaging
-builder.AddWolverineEventBus(opts =>
+builder.AddWolverineEventBus(connectionString, opts =>
 {
     opts.Discovery.IncludeAssembly(typeof(Billing.Infrastructure.ServiceCollectionExtensions).Assembly);
 });

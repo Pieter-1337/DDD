@@ -13,6 +13,8 @@
   <ItemGroup>
     <PackageReference Include="WolverineFx" />
     <PackageReference Include="WolverineFx.RabbitMQ" />
+    <PackageReference Include="WolverineFx.SqlServer" />
+    <PackageReference Include="FluentValidation" />
   </ItemGroup>
 
 </Project>

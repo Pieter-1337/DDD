@@ -317,7 +317,7 @@ builder.UseWolverine(opts =>
     opts.PersistMessagesWithSqlServer(connectionString!, "wolverine");
 
     // Auto-create tables on startup
-    opts.AutoBuildMessageStorageOnStartup = true;
+    opts.AutoBuildMessageStorageOnStartup = AutoCreate.CreateOrUpdate;
 
     opts.UseRabbitMq(new Uri(rabbitConnectionString!))
         .AutoProvision();
