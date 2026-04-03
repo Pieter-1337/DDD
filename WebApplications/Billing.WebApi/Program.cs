@@ -5,6 +5,7 @@ using BuildingBlocks.WebApplications.Json;
 using BuildingBlocks.WebApplications.OpenApi;
 using Billing.Application;
 using Billing.Infrastructure;
+using IntegrationEvents.Scheduling;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -36,10 +37,12 @@ builder.Services.AddBillingInfrastructure(connectionString);
 builder.Services.AddBillingApplication();
 builder.Services.AddDefaultPipelineBehaviors();
 
-// Add Wolverine for event-driven messaging
+// Add Wolverine for event-driven messaging (consuming from MassTransit publisher)
 builder.AddWolverineEventBus(connectionString, opts =>
 {
     opts.Discovery.IncludeAssembly(typeof(Billing.Infrastructure.ServiceCollectionExtensions).Assembly);
+
+    opts.ListenToMassTransitQueue<PatientCreatedIntegrationEvent>("billing-patient-created");
 });
 
 // Add cors

@@ -71,6 +71,44 @@ public static class WolverineExtensions
         return builder;
     }
 
+    /// <summary>
+    /// Listens to a MassTransit-published message by binding a queue to MassTransit's exchange
+    /// and configuring MassTransit envelope deserialization.
+    /// </summary>
+    public static WolverineOptions ListenToMassTransitQueue<TMessage>(
+        this WolverineOptions opts,
+        string queueName)
+    {
+        // MassTransit exchange naming convention: "Namespace:TypeName"
+        var exchangeName = $"{typeof(TMessage).Namespace}:{typeof(TMessage).Name}";
+
+        opts.UseRabbitMq()
+            .BindExchange(exchangeName)
+            .ToQueue(queueName);
+
+        opts.ListenToRabbitQueue(queueName)
+            .UseMassTransitInterop();
+
+        return opts;
+    }
+
+    /// <summary>
+    /// Publishes messages to a MassTransit consumer by routing to MassTransit's exchange
+    /// and wrapping messages in MassTransit's envelope format.
+    /// </summary>
+    public static WolverineOptions PublishToMassTransitExchange<TMessage>(
+        this WolverineOptions opts)
+    {
+        // MassTransit exchange naming convention: "Namespace:TypeName"
+        var exchangeName = $"{typeof(TMessage).Namespace}:{typeof(TMessage).Name}";
+
+        opts.PublishMessage<TMessage>()
+            .ToRabbitExchange(exchangeName)
+            .UseMassTransitInterop();
+
+        return opts;
+    }
+
     private static bool HasIntegrationEventHandlerMethod(Type type)
     {
         return type.GetMethods(BindingFlags.Public | BindingFlags.Instance | BindingFlags.Static)

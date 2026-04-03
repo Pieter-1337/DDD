@@ -124,7 +124,8 @@
       "Bash(dotnet script:*)",
       "Bash(dotnet run:*)",
       "Bash(dotnet clean:*)",
-      "Bash(cygpath:*)"
+      "Bash(cygpath:*)",
+      "WebFetch(domain:jeremydmiller.com)"
     ]
   }
 }

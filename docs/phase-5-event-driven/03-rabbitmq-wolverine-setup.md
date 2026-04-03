@@ -844,7 +844,146 @@ Wolverine supports the transactional outbox pattern for guaranteed message deliv
 
 ---
 
-## 8. Testing
+## 8. MassTransit Interoperability
+
+When migrating bounded contexts independently between messaging frameworks, you may need Wolverine to consume messages published by MassTransit (or vice versa). Wolverine has built-in support for this via `.UseMassTransitInterop()`.
+
+### The Problem
+
+MassTransit and Wolverine use different conventions:
+
+| Aspect | MassTransit | Wolverine |
+|--------|-------------|-----------|
+| **Exchange naming** | `Namespace:MessageType` (e.g., `IntegrationEvents.Scheduling:PatientCreatedIntegrationEvent`) | CLR type full name |
+| **Message envelope** | Wraps payload in `{ "messageType": [...], "message": { ... }, "headers": { ... } }` | Own envelope format |
+| **Queue naming** | Based on consumer type (kebab-case) | Based on handler endpoint |
+
+This means a message published by MassTransit won't be consumed by Wolverine out of the box — they use different exchanges, queues, and serialization formats.
+
+### The Solution: `UseMassTransitInterop()`
+
+Wolverine can consume MassTransit messages by:
+1. **Binding** a Wolverine queue to MassTransit's exchange (solves routing)
+2. **Using MassTransit interop mode** on the listener (solves envelope deserialization)
+
+```csharp
+// In Billing.WebApi/Program.cs (Wolverine consumer)
+builder.AddWolverineEventBus(connectionString, opts =>
+{
+    opts.Discovery.IncludeAssembly(typeof(Billing.Infrastructure.ServiceCollectionExtensions).Assembly);
+
+    // One-liner: derives MassTransit exchange name from generic type, binds queue, and enables interop
+    opts.ListenToMassTransitQueue<PatientCreatedIntegrationEvent>("billing-patient-created");
+});
+```
+
+### What `ListenToMassTransitQueue<T>` Does Under the Hood
+
+The helper in `WolverineExtensions.cs` derives the MassTransit exchange name from the CLR type using the convention `Namespace:TypeName`, then performs the bind and listen:
+
+```csharp
+public static WolverineOptions ListenToMassTransitQueue<TMessage>(
+    this WolverineOptions opts,
+    string queueName)
+{
+    var exchangeName = $"{typeof(TMessage).Namespace}:{typeof(TMessage).Name}";
+
+    opts.UseRabbitMq()
+        .BindExchange(exchangeName)
+        .ToQueue(queueName);
+
+    opts.ListenToRabbitQueue(queueName)
+        .UseMassTransitInterop();
+
+    return opts;
+}
+```
+
+This is equivalent to the manual approach:
+
+```csharp
+// Manual approach (what the helper does internally)
+opts.UseRabbitMq()
+    .BindExchange("IntegrationEvents.Scheduling:PatientCreatedIntegrationEvent")
+    .ToQueue("billing-patient-created");
+
+opts.ListenToRabbitQueue("billing-patient-created")
+    .UseMassTransitInterop();
+```
+
+### How It Works
+
+1. MassTransit publishes `PatientCreatedIntegrationEvent` to a fanout exchange named `IntegrationEvents.Scheduling:PatientCreatedIntegrationEvent`
+2. RabbitMQ routes the message to the `billing-patient-created` queue (via the exchange binding)
+3. Wolverine picks up the message and uses `UseMassTransitInterop()` to:
+   - Parse the outer MassTransit envelope
+   - Extract the `message` property containing the actual payload
+   - Map the `messageType` URN to the correct .NET type
+   - Carry over correlation metadata (messageId, correlationId, etc.)
+4. Wolverine's handler receives the deserialized `PatientCreatedIntegrationEvent` as normal
+
+### When to Use This
+
+This pattern is valuable for **incremental migration**:
+- Migrate one bounded context at a time from MassTransit to Wolverine (or vice versa)
+- No need to switch all services simultaneously
+- The interop layer handles the envelope translation transparently
+
+### Reverse Direction: Wolverine → MassTransit
+
+The interop works both ways. If a Wolverine service needs to publish messages that a MassTransit consumer can understand, apply `.UseMassTransitInterop()` to the **publishing** side:
+
+```csharp
+// Wolverine publisher wrapping messages in MassTransit envelope format
+builder.AddWolverineEventBus(connectionString, opts =>
+{
+    opts.Discovery.IncludeAssembly(typeof(MyBoundedContext.Infrastructure.ServiceCollectionExtensions).Assembly);
+
+    // One-liner: derives MassTransit exchange name from generic type and enables interop
+    opts.PublishToMassTransitExchange<PatientCreatedIntegrationEvent>();
+});
+```
+
+This is equivalent to the manual approach:
+
+```csharp
+// Manual approach (what the helper does internally)
+opts.PublishMessage<PatientCreatedIntegrationEvent>()
+    .ToRabbitExchange("IntegrationEvents.Scheduling:PatientCreatedIntegrationEvent")
+    .UseMassTransitInterop();
+```
+
+This wraps outgoing messages in MassTransit's envelope format (`messageType`, `message`, `headers`, etc.) so MassTransit consumers deserialize them natively — no changes needed on the MassTransit side.
+
+### Full Migration Matrix
+
+| Direction | Wolverine Configuration | MassTransit Side |
+|-----------|------------------------|------------------|
+| **MassTransit → Wolverine** | `opts.ListenToMassTransitQueue<T>("queue-name")` | No changes needed |
+| **Wolverine → MassTransit** | `opts.PublishToMassTransitExchange<T>()` | No changes needed |
+| **Wolverine ↔ Wolverine** | Default (no interop) | N/A |
+| **MassTransit ↔ MassTransit** | N/A | Default (no interop) |
+
+This enables true **incremental migration** — migrate one bounded context at a time in either direction, with the interop layer handling envelope translation transparently.
+
+### Important Caveat
+
+> **Reserve interop endpoints for cross-framework traffic.** Don't mix MassTransit interop and Wolverine-to-Wolverine communication on the same queue. Use separate queues for each.
+
+### MassTransit Exchange Naming Convention
+
+MassTransit creates fanout exchanges using the pattern `Namespace:TypeName`:
+
+```
+CLR Type: IntegrationEvents.Scheduling.PatientCreatedIntegrationEvent
+Exchange: IntegrationEvents.Scheduling:PatientCreatedIntegrationEvent
+```
+
+To find the exchange name for any integration event, check the RabbitMQ Management UI (Exchanges tab) after MassTransit has published at least one message.
+
+---
+
+## 9. Testing
 
 Wolverine provides a built-in test harness for integration testing.
 
@@ -898,13 +1037,13 @@ builder.UseWolverine(opts =>
 
 ---
 
-## 9. Optional: Auto-Start Docker on F5 in Visual Studio
+## 10. Optional: Auto-Start Docker on F5 in Visual Studio
 
 See [02a-rabbitmq-docker-setup.md](./02a-rabbitmq-docker-setup.md#3-auto-start-docker-on-f5-in-visual-studio-optional) for the PowerShell script and MSBuild target setup.
 
 ---
 
-## 10. Reference
+## 11. Reference
 
 ### Docker Commands Cheat Sheet
 
