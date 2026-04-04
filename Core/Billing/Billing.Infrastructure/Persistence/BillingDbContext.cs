@@ -1,5 +1,6 @@
 using MassTransit;
 using Microsoft.EntityFrameworkCore;
+using Wolverine.EntityFrameworkCore;
 
 namespace Billing.Infrastructure.Persistence
 {
@@ -17,6 +18,10 @@ namespace Billing.Infrastructure.Persistence
             modelBuilder.AddInboxStateEntity(o => o.ToTable("Billing_InboxState"));
             modelBuilder.AddOutboxMessageEntity(o => o.ToTable("Billing_OutboxMessage"));
             modelBuilder.AddOutboxStateEntity(o => o.ToTable("Billing_OutboxState"));
+
+            // Wolverine Transactional Outbox — maps envelope storage for EF Core batching
+            // ExcludeFromMigrations applied internally, Wolverine auto-provisions via Weasel
+            modelBuilder.MapWolverineEnvelopeStorage("wolverine_billing");
         }
     }
 }

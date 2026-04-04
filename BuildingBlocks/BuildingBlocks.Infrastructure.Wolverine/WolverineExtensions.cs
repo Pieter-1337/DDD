@@ -1,12 +1,15 @@
 using System.Reflection;
+using BuildingBlocks.Application.Interfaces;
 using BuildingBlocks.Application.Messaging;
 using FluentValidation;
 using JasperFx;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using RabbitMQ.Client;
 using Wolverine;
+using Wolverine.EntityFrameworkCore;
 using Wolverine.ErrorHandling;
 using Wolverine.RabbitMQ;
 using Wolverine.SqlServer;
@@ -15,12 +18,16 @@ namespace BuildingBlocks.Infrastructure.Wolverine;
 
 public static class WolverineExtensions
 {
-    public static IHostApplicationBuilder AddWolverineEventBus(
+    public static IHostApplicationBuilder AddWolverineEventBus<TDbContext>(
         this IHostApplicationBuilder builder,
         string dbConnectionString,
+        string schemaName,
         Action<WolverineOptions>? configureWolverine = null)
+        where TDbContext : DbContext
     {
-        builder.Services.AddScoped<IEventBus, WolverineEventBus>();
+        builder.Services.AddScoped<IEventBus, WolverineDbContextEventBus<TDbContext>>();
+        builder.Services.AddScoped<ICommitStrategy, WolverineCommitStrategy<TDbContext>>();
+        builder.Services.AddScoped(typeof(IDbContextOutbox<TDbContext>), typeof(DbContextOutbox<TDbContext>));
 
         builder.UseWolverine(opts =>
         {
@@ -52,9 +59,12 @@ public static class WolverineExtensions
                     !HasIntegrationEventHandlerMethod(t));
             });
 
-            // Configure transactional outbox with SQL Server
-            opts.PersistMessagesWithSqlServer(dbConnectionString, "wolverine");
+            // Configure transactional outbox with SQL Server (per-BC schema)
+            opts.PersistMessagesWithSqlServer(dbConnectionString, schemaName);
             opts.AutoBuildMessageStorageOnStartup = AutoCreate.CreateOrUpdate;
+
+            // Use EF Core transactions for atomic outbox
+            opts.UseEntityFrameworkCoreTransactions();
 
             // Configure retry policy — matches MassTransit's retry intervals
             opts.OnException<ValidationException>().MoveToErrorQueue();

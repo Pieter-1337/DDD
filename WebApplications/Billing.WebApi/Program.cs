@@ -45,7 +45,7 @@ var messagingFramework = builder.Configuration.GetValue<string>("MessagingFramew
 
 if (messagingFramework == "Wolverine")
 {
-    builder.AddWolverineEventBus(connectionString, opts =>
+    builder.AddWolverineEventBus<BillingDbContext>(connectionString, "wolverine_billing", opts =>
     {
         opts.Discovery.IncludeAssembly(typeof(Billing.Infrastructure.ServiceCollectionExtensions).Assembly);
         opts.ListenToMassTransitQueue<PatientCreatedIntegrationEvent>("billing-patient-created");

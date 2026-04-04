@@ -15,6 +15,7 @@ public class EfCoreUnitOfWork<TContext> : IUnitOfWork where TContext : DbContext
     private readonly TContext _context;
     private readonly IEventBus? _eventBus;
     private readonly IMediator? _mediator;
+    private readonly ICommitStrategy? _commitStrategy;
     private readonly ILogger<EfCoreUnitOfWork<TContext>> _logger;
     private readonly List<IIntegrationEvent> _queuedIntegrationEvents = [];
     private IDbContextTransaction? _transaction;
@@ -23,11 +24,13 @@ public class EfCoreUnitOfWork<TContext> : IUnitOfWork where TContext : DbContext
     public EfCoreUnitOfWork(
         TContext context,
         IEventBus? eventBus = null,
+        ICommitStrategy? commitStrategy = null,
         IMediator? mediator = null,
         ILogger<EfCoreUnitOfWork<TContext>>? logger = null)
     {
         _context = context;
         _eventBus = eventBus;
+        _commitStrategy = commitStrategy;
         _mediator = mediator;
         _logger = logger ?? NullLogger<EfCoreUnitOfWork<TContext>>.Instance;
     }
@@ -42,11 +45,11 @@ public class EfCoreUnitOfWork<TContext> : IUnitOfWork where TContext : DbContext
         // Dispatch domain events BEFORE saving (allows handlers to modify state)
         await DispatchDomainEventsAsync(cancellationToken);
 
-        // Publish integration events to the outbox BEFORE SaveChangesAsync.
-        // With the Transactional Outbox, IEventBus.PublishAsync writes to the OutboxMessage
-        // table (not RabbitMQ). SaveChangesAsync then persists domain data + outbox entries
-        // atomically in a single transaction. The background BusOutboxDeliveryService
-        // picks up outbox entries and delivers them to RabbitMQ.
+        // Publish integration events to the outbox BEFORE saving.
+        // IEventBus.PublishAsync queues messages for the outbox (MassTransit writes to
+        // OutboxMessage table, Wolverine buffers in memory). The actual commit + delivery
+        // happens in CloseTransactionAsync at depth 0, either via the commit strategy
+        // (Wolverine) or the regular transaction commit (MassTransit).
         await PublishIntegrationEventsToOutboxAsync(cancellationToken);
 
         return await _context.SaveChangesAsync(cancellationToken);
@@ -152,9 +155,15 @@ public class EfCoreUnitOfWork<TContext> : IUnitOfWork where TContext : DbContext
                 // Discard queued integration events on rollback
                 _queuedIntegrationEvents.Clear();
             }
+            else if (_commitStrategy is not null)
+            {
+                // Delegate commit to the commit strategy (e.g., Wolverine outbox
+                // persists outbox messages + commits + delivers in one atomic operation).
+                await _commitStrategy.CommitAsync(cancellationToken);
+            }
             else
             {
-                // Commit persists domain data + outbox entries atomically.
+                // MassTransit path: commit persists domain data + outbox entries atomically.
                 // The background BusOutboxDeliveryService delivers outbox entries to RabbitMQ.
                 await _transaction.CommitAsync(cancellationToken);
             }

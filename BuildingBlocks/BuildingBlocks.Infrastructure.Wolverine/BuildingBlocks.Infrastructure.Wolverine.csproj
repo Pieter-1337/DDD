@@ -12,6 +12,7 @@
 
   <ItemGroup>
     <PackageReference Include="WolverineFx" />
+    <PackageReference Include="WolverineFx.EntityFrameworkCore" />
     <PackageReference Include="WolverineFx.RabbitMQ" />
     <PackageReference Include="WolverineFx.SqlServer" />
     <PackageReference Include="FluentValidation" />

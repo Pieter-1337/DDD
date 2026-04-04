@@ -743,7 +743,7 @@ var messagingFramework = builder.Configuration.GetValue<string>("MessagingFramew
 
 if (messagingFramework == "Wolverine")
 {
-    builder.AddWolverineEventBus(opts =>
+    builder.AddWolverineEventBus<BillingDbContext>(connectionString, "wolverine_billing", opts =>
     {
         // Handler discovery is filtered by IIntegrationEvent in WolverineExtensions
         // Just specify which assemblies to scan

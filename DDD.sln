@@ -96,11 +96,15 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "phase-5-event-driven", "pha
 	ProjectSection(SolutionItems) = preProject
 		docs\phase-5-event-driven\01-event-driven-overview.md = docs\phase-5-event-driven\01-event-driven-overview.md
 		docs\phase-5-event-driven\02-rabbitmq-masstransit-setup.md = docs\phase-5-event-driven\02-rabbitmq-masstransit-setup.md
-		docs\phase-5-event-driven\03-integration-events.md = docs\phase-5-event-driven\03-integration-events.md
-		docs\phase-5-event-driven\04-idempotency-error-handling.md = docs\phase-5-event-driven\04-idempotency-error-handling.md
-		docs\phase-5-event-driven\05-sagas-orchestration.md = docs\phase-5-event-driven\05-sagas-orchestration.md
-		docs\phase-5-event-driven\06-event-versioning.md = docs\phase-5-event-driven\06-event-versioning.md
-		docs\phase-5-event-driven\07-transactional-outbox.md = docs\phase-5-event-driven\07-transactional-outbox.md
+		docs\phase-5-event-driven\02a-rabbitmq-docker-setup.md = docs\phase-5-event-driven\02a-rabbitmq-docker-setup.md
+		docs\phase-5-event-driven\03-rabbitmq-wolverine-setup.md = docs\phase-5-event-driven\03-rabbitmq-wolverine-setup.md
+		docs\phase-5-event-driven\04-integration-events.md = docs\phase-5-event-driven\04-integration-events.md
+		docs\phase-5-event-driven\05-idempotency-error-handling.md = docs\phase-5-event-driven\05-idempotency-error-handling.md
+		docs\phase-5-event-driven\06-sagas-orchestration.md = docs\phase-5-event-driven\06-sagas-orchestration.md
+		docs\phase-5-event-driven\07-event-versioning.md = docs\phase-5-event-driven\07-event-versioning.md
+		docs\phase-5-event-driven\08-transactional-outbox.md = docs\phase-5-event-driven\08-transactional-outbox.md
+		docs\phase-5-event-driven\08a-transactional-outbox-masstransit.md = docs\phase-5-event-driven\08a-transactional-outbox-masstransit.md
+		docs\phase-5-event-driven\08b-transactional-outbox-wolverine.md = docs\phase-5-event-driven\08b-transactional-outbox-wolverine.md
 	EndProjectSection
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "04. Shared", "04. Shared", "{864C7D7F-7A10-4CD5-B358-C6EBE4A79957}"
