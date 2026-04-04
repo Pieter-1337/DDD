@@ -1,8 +1,11 @@
+using BuildingBlocks.Application.Interfaces;
+using BuildingBlocks.Application.Messaging;
 using BuildingBlocks.Domain;
 using BuildingBlocks.Infrastructure.EfCore;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
+using Moq;
 using Shouldly;
 
 namespace BuildingBlocks.Tests;
@@ -218,6 +221,123 @@ public class EfCoreUnitOfWorkTests
         entities.ShouldContain(e => e.Name == "Level2");
         entities.ShouldContain(e => e.Name == "Level3");
     }
+
+    [TestMethod]
+    public async Task CloseTransaction_Should_CallCommitStrategy_WhenPresent()
+    {
+        // Arrange
+        var commitStrategyMock = new Mock<ICommitStrategy>();
+        var unitOfWork = new EfCoreUnitOfWork<TestDbContext>(_context!, commitStrategy: commitStrategyMock.Object);
+
+        await unitOfWork.BeginTransactionAsync();
+        unitOfWork.RepositoryFor<TestEntity>().Add(new TestEntity { Name = "Test" });
+        await unitOfWork.SaveChangesAsync();
+
+        // Act
+        await unitOfWork.CloseTransactionAsync();
+
+        // Assert
+        commitStrategyMock.Verify(s => s.CommitAsync(It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [TestMethod]
+    public async Task CloseTransaction_Should_NotCallCommitStrategy_WhenNestedDepth()
+    {
+        // Arrange
+        var commitStrategyMock = new Mock<ICommitStrategy>();
+        var unitOfWork = new EfCoreUnitOfWork<TestDbContext>(_context!, commitStrategy: commitStrategyMock.Object);
+
+        // Begin outer (depth 1)
+        await unitOfWork.BeginTransactionAsync();
+        // Begin inner (depth 2)
+        await unitOfWork.BeginTransactionAsync();
+
+        // Act - Close inner (depth goes to 1, should NOT call strategy)
+        await unitOfWork.CloseTransactionAsync();
+
+        // Assert - not called yet
+        commitStrategyMock.Verify(s => s.CommitAsync(It.IsAny<CancellationToken>()), Times.Never);
+
+        // Act - Close outer (depth goes to 0, should call strategy)
+        await unitOfWork.CloseTransactionAsync();
+
+        // Assert - called exactly once at depth 0
+        commitStrategyMock.Verify(s => s.CommitAsync(It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [TestMethod]
+    public async Task CloseTransaction_Should_NotCallCommitStrategy_OnRollback()
+    {
+        // Arrange
+        var commitStrategyMock = new Mock<ICommitStrategy>();
+        var unitOfWork = new EfCoreUnitOfWork<TestDbContext>(_context!, commitStrategy: commitStrategyMock.Object);
+
+        await unitOfWork.BeginTransactionAsync();
+
+        // Act - close with exception (rollback)
+        await unitOfWork.CloseTransactionAsync(new InvalidOperationException("Test error"));
+
+        // Assert - commit strategy should NOT be called on rollback
+        commitStrategyMock.Verify(s => s.CommitAsync(It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [TestMethod]
+    public async Task SaveChangesAsync_Should_PublishIntegrationEvents_ViaEventBus()
+    {
+        // Arrange
+        var eventBusMock = new Mock<IEventBus>();
+        eventBusMock
+            .Setup(b => b.PublishAsync(It.IsAny<TestIntegrationEvent>(), It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+        var unitOfWork = new EfCoreUnitOfWork<TestDbContext>(_context!, eventBus: eventBusMock.Object);
+
+        var event1 = new TestIntegrationEvent(Guid.NewGuid(), DateTime.UtcNow);
+        var event2 = new TestIntegrationEvent(Guid.NewGuid(), DateTime.UtcNow);
+        unitOfWork.QueueIntegrationEvent(event1);
+        unitOfWork.QueueIntegrationEvent(event2);
+
+        // Act
+        await unitOfWork.SaveChangesAsync();
+
+        // Assert - both events published
+        eventBusMock.Verify(
+            b => b.PublishAsync(It.IsAny<TestIntegrationEvent>(), It.IsAny<CancellationToken>()),
+            Times.Exactly(2));
+
+        // Act - second SaveChanges should publish nothing (queue was cleared)
+        await unitOfWork.SaveChangesAsync();
+
+        // Assert - still exactly 2 (no new calls)
+        eventBusMock.Verify(
+            b => b.PublishAsync(It.IsAny<TestIntegrationEvent>(), It.IsAny<CancellationToken>()),
+            Times.Exactly(2));
+    }
+
+    [TestMethod]
+    public async Task CloseTransaction_WithException_Should_ClearQueuedIntegrationEvents()
+    {
+        // Arrange
+        var eventBusMock = new Mock<IEventBus>();
+        eventBusMock
+            .Setup(b => b.PublishAsync(It.IsAny<TestIntegrationEvent>(), It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+        var unitOfWork = new EfCoreUnitOfWork<TestDbContext>(_context!, eventBus: eventBusMock.Object);
+
+        unitOfWork.QueueIntegrationEvent(new TestIntegrationEvent(Guid.NewGuid(), DateTime.UtcNow));
+
+        await unitOfWork.BeginTransactionAsync();
+
+        // Act - rollback should clear queued events
+        await unitOfWork.CloseTransactionAsync(new InvalidOperationException("Test error"));
+
+        // SaveChanges after rollback should NOT publish anything
+        await unitOfWork.SaveChangesAsync();
+
+        // Assert
+        eventBusMock.Verify(
+            b => b.PublishAsync(It.IsAny<TestIntegrationEvent>(), It.IsAny<CancellationToken>()),
+            Times.Never);
+    }
 }
 
 /// <summary>
@@ -248,3 +368,5 @@ public class TestDbContext : DbContext
         });
     }
 }
+
+public record TestIntegrationEvent(Guid EventId, DateTime OccurredOn) : IIntegrationEvent;
