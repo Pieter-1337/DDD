@@ -743,7 +743,7 @@ public class PatientCreatedHandler
         CancellationToken cancellationToken)     // Injected from DI
     {
         logger.LogInformation("Processing {PatientId}", message.PatientId);
-        return mediator.Send(new CreateBillingProfileCommand(message.PatientId), cancellationToken);
+        return mediator.Send(new SomeCommand(message.PatientId), cancellationToken);
     }
 }
 ```
@@ -867,15 +867,22 @@ Wolverine can consume MassTransit messages by:
 2. **Using MassTransit interop mode** on the listener (solves envelope deserialization)
 
 ```csharp
-// In Billing.WebApi/Program.cs (Wolverine consumer)
+// In the consuming service's Program.cs (Wolverine consumer)
 builder.AddWolverineEventBus(connectionString, opts =>
 {
-    opts.Discovery.IncludeAssembly(typeof(Billing.Infrastructure.ServiceCollectionExtensions).Assembly);
+    opts.Discovery.IncludeAssembly(typeof(MyBoundedContext.Infrastructure.ServiceCollectionExtensions).Assembly);
 
     // One-liner: derives MassTransit exchange name from generic type, binds queue, and enables interop
-    opts.ListenToMassTransitQueue<PatientCreatedIntegrationEvent>("billing-patient-created");
+    opts.ListenToMassTransitQueue<PatientCreatedIntegrationEvent>("consumer-patient-created");
 });
 ```
+
+> **Stale queue cleanup:** If you previously ran Wolverine with `IncludeAssembly` but **without** `ListenToMassTransitQueue`, Wolverine's `AutoProvision()` may have auto-created a queue named `PatientCreatedIntegrationEventHandler` bound to the MassTransit exchange. This queue lacks MassTransit interop, so messages pile up without being consumed. After adding the explicit listener above, delete the stale queue from RabbitMQ management:
+>
+> - `PatientCreatedIntegrationEventHandler`
+> - `PatientCreatedIntegrationEventHandler_error`
+>
+> With `ListenToMassTransitQueue` configured, Wolverine routes the handler to `consumer-patient-created` instead and will not recreate the stale queue.
 
 ### What `ListenToMassTransitQueue<T>` Does Under the Hood
 
@@ -908,9 +915,9 @@ This is equivalent to the manual approach:
 // Manual approach (what the helper does internally)
 opts.UseRabbitMq()
     .BindExchange("IntegrationEvents.Scheduling:PatientCreatedIntegrationEvent")
-    .ToQueue("billing-patient-created");
+    .ToQueue("consumer-patient-created");
 
-opts.ListenToRabbitQueue("billing-patient-created")
+opts.ListenToRabbitQueue("consumer-patient-created")
     .DefaultIncomingMessage<PatientCreatedIntegrationEvent>()
     .UseMassTransitInterop();
 ```
@@ -918,7 +925,7 @@ opts.ListenToRabbitQueue("billing-patient-created")
 ### How It Works
 
 1. MassTransit publishes `PatientCreatedIntegrationEvent` to a fanout exchange named `IntegrationEvents.Scheduling:PatientCreatedIntegrationEvent`
-2. RabbitMQ routes the message to the `billing-patient-created` queue (via the exchange binding)
+2. RabbitMQ routes the message to the `consumer-patient-created` queue (via the exchange binding)
 3. Wolverine picks up the message and uses `UseMassTransitInterop()` to:
    - Parse the outer MassTransit envelope
    - Extract the `message` property containing the actual payload
@@ -958,6 +965,8 @@ opts.PublishMessage<PatientCreatedIntegrationEvent>()
 ```
 
 This wraps outgoing messages in MassTransit's envelope format (`messageType`, `message`, `headers`, etc.) so MassTransit consumers deserialize them natively — no changes needed on the MassTransit side.
+
+> **Note:** In this example, the consuming service uses a generic `MyBoundedContext` placeholder. In a real scenario, this would be the actual bounded context name (e.g., in Phase 6, this becomes the Billing bounded context consuming events from Scheduling).
 
 ### Full Migration Matrix
 
@@ -1061,6 +1070,32 @@ Wolverine uses kebab-case naming derived from message type:
 Event: PatientCreatedIntegrationEvent
   +-- Queue: patient-created-integration-event
 ```
+
+### Queue Topology: Per-Type vs Per-Service
+
+Wolverine defaults to **per-message-type queues** — each event type gets its own queue (e.g., `patient-created-integration-event` for `PatientCreatedIntegrationEvent`). An alternative pattern is **per-service queues**, where a single queue per bounded context (e.g., `billing`) receives all event types, with internal dispatch to the right handler.
+
+| | Per-message-type (our approach) | Per-service |
+|---|---|---|
+| **Queue count** | One per event type per consumer | One per service |
+| **Monitoring** | Granular per event type | "How's billing doing?" at a glance |
+| **Scaling** | Scale consumers per event type independently | Single scaling unit per service |
+| **Retry/prefetch** | Configure per event type | Shared across all event types |
+
+We use per-type queues in this project because it's the default and provides granular control over scaling and retry policies per event type.
+
+Wolverine supports per-service queues via `UseConventionalRouting`:
+
+```csharp
+opts.UseRabbitMq()
+    .UseConventionalRouting(x =>
+    {
+        // Route all message types to a single queue per service
+        x.QueueNameForListener(type => "billing");
+    });
+```
+
+This routes all incoming messages to the `billing` queue, regardless of message type. Wolverine dispatches to the correct handler based on the message type in its envelope.
 
 ### Handler Discovery Filter
 

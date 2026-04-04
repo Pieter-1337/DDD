@@ -793,6 +793,15 @@ Set `MessagingFramework` in `appsettings.json` or environment variables:
 >
 > To switch frameworks, simply change the `MessagingFramework` configuration value and restart the service. No code changes needed.
 
+> **RabbitMQ cleanup when switching frameworks:** Each framework creates its own queues and exchange bindings in RabbitMQ. When you switch from one framework to the other, the previous framework's queues remain — RabbitMQ doesn't clean up infrastructure that's no longer declared. These stale queues stay bound to the message exchanges, so published messages get delivered to **both** the new consumer queue and the old one (where they pile up unconsumed). After switching, delete the stale queues from RabbitMQ management:
+>
+> | Switching to | Delete these stale queues |
+> |---|---|
+> | **Wolverine** | MassTransit consumer queues (e.g., `billing-patient-created` if MassTransit named it that, or the full consumer type name) |
+> | **MassTransit** | `billing-patient-created`, `billing-patient-created_error` (Wolverine's explicit listener queues) |
+>
+> For local development with Aspire, the simplest option is to recreate the RabbitMQ container for a clean broker state.
+
 **Note on appsettings.json:**
 - `ConnectionStrings` section removed (moved to user secrets)
 - `RabbitMQ` section removed (injected by Aspire)

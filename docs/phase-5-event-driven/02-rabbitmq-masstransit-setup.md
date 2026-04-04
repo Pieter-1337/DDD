@@ -937,6 +937,31 @@ x.UsingRabbitMq((context, cfg) =>
 });
 ```
 
+### Queue Topology: Per-Type vs Per-Service
+
+MassTransit defaults to **per-message-type queues** — each event type gets its own queue (e.g., `billing-patient-created` for `PatientCreatedIntegrationEvent`). An alternative pattern is **per-service queues**, where a single queue per bounded context (e.g., `billing`) receives all event types, with internal dispatch to the right consumer.
+
+| | Per-message-type (our approach) | Per-service |
+|---|---|---|
+| **Queue count** | One per event type per consumer | One per service |
+| **Monitoring** | Granular per event type | "How's billing doing?" at a glance |
+| **Scaling** | Scale consumers per event type independently | Single scaling unit per service |
+| **Retry/prefetch** | Configure per event type | Shared across all event types |
+
+We use per-type queues in this project because it's the default and provides granular control over scaling and retry policies per event type.
+
+MassTransit supports per-service queues via multi-consumer endpoints:
+
+```csharp
+cfg.ReceiveEndpoint("billing", e =>
+{
+    e.ConfigureConsumer<PatientCreatedIntegrationEventConsumer>(ctx);
+    e.ConfigureConsumer<AppointmentBookedIntegrationEventConsumer>(ctx);
+});
+```
+
+This works because MassTransit's envelope format includes a `messageType` array. When a message arrives, MassTransit inspects this metadata and dispatches to the correct consumer, regardless of how many types share the queue.
+
 ### Handler Naming Convention
 
 Handler classes should match the event class name with `Handler` suffix:
