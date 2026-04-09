@@ -270,6 +270,180 @@
 
 ---
 
+### 9. Architecture Tests
+
+**Status**: Not started
+
+**Description**: Add architecture tests that enforce layer dependency rules at build/test time. For example, ensure Domain layer never references Infrastructure, Application never references WebApi, etc. Milan Jovanovic's Clean Architecture template includes these as a standard practice using `NetArchTest`.
+
+**Why It Matters**:
+- Prevents accidental layer violations during development
+- Catches architectural drift early (in CI, not code review)
+- Low effort, high value safety net
+- Industry best practice for Clean Architecture projects
+
+**Related Phases**: Phase 4 (Testing)
+
+**Effort**: Small
+
+**Implementation Notes**:
+- Add `NetArchTest.Rules` NuGet package to a new `ArchitectureTests` project
+- Write rules: Domain must not depend on Application, Infrastructure, or WebApi
+- Write rules: Application must not depend on Infrastructure or WebApi
+- Write rules: Infrastructure must not depend on WebApi
+- Verify entity classes are sealed or follow expected patterns
+- Run as part of CI pipeline
+
+---
+
+### 10. Result Pattern for Error Handling
+
+**Status**: Not started
+
+**Description**: Currently the solution uses `ValidationException` and `ExceptionToJsonFilter` for error handling (exception-driven control flow). The `Result<T>` pattern (as used in Milan Jovanovic's template) makes success/failure explicit in the return type, avoiding exceptions for expected business failures. Exceptions should be reserved for truly exceptional situations.
+
+**Why It Matters**:
+- Makes error paths explicit in method signatures
+- Avoids using exceptions for control flow (performance + clarity)
+- Command handlers return `Result<T>` instead of throwing
+- More functional, composable error handling
+- Industry trend in modern .NET architecture
+
+**Related Phases**: Phase 3 (CQRS Pattern)
+
+**Effort**: Medium-Large (touches all command handlers and pipeline behaviors)
+
+**Implementation Notes**:
+- Create `Result<T>` and `Error` types in BuildingBlocks.Domain
+- Refactor command handlers to return `Result<TResponse>` instead of throwing `ValidationException`
+- Update `ValidationBehavior` to return `Result.Failure` instead of throwing
+- Update API controllers/filters to map `Result.Failure` to appropriate HTTP status codes
+- Consider keeping exceptions for truly unexpected errors only
+- Migrate incrementally (one handler at a time)
+
+**Reference**: Milan Jovanovic's approach — domain errors as a dictionary of typed errors returned via `Result<T>`
+
+---
+
+### 11. Dapper for Read-Side Queries (True CQRS Split)
+
+**Status**: Not started
+
+**Description**: Current query handlers use EF Core with DTO projections (`IEntityDto<T>.Project`) for the read side. While this works well, a true CQRS implementation uses a different data access technology for reads. Dapper provides raw SQL performance without EF Core's change tracking overhead, making it ideal for complex read queries.
+
+**Why It Matters**:
+- Demonstrates the full CQRS pattern (different read/write stacks)
+- Better performance for complex queries (no change tracker overhead)
+- Teaches writing optimized SQL for read models
+- Complements item #6 (Read Model Separation)
+
+**Related Phases**: Phase 3 (CQRS Pattern)
+
+**Related Improvements**: #6 (Read Model Separation)
+
+**Effort**: Medium
+
+**Implementation Notes**:
+- Add `Dapper` NuGet package to Infrastructure projects
+- Create `ISqlConnectionFactory` interface in Application layer
+- Implement with `SqlConnection` in Infrastructure layer
+- Refactor one or two query handlers to use Dapper (e.g., `GetAllPatientsQueryHandler`)
+- Compare performance with EF Core DTO projection approach
+- Keep EF Core for command handlers (write side)
+- Consider: start with complex queries where Dapper benefits are most visible
+
+---
+
+## Low Priority / Future Considerations
+
+### 7. Event Versioning in Practice
+
+**Status**: Documented only
+
+**Description**: Event versioning strategies are documented but not implemented. Worth implementing when adding a second version of an integration event contract (e.g., `PatientCreatedIntegrationEventV2` with additional fields).
+
+**Why It Matters**:
+- Critical for evolving distributed systems
+- Teaches backward compatibility strategies
+- Real-world microservices maintenance scenario
+
+**Related Phases**: Phase 5 (Event-Driven Architecture)
+
+**Related Documentation**: `docs/phase-5-event-driven/07-event-versioning.md`
+
+**Effort**: Small (once a v2 event is needed)
+
+**Implementation Notes**:
+- Add new event version with additional fields
+- Update consumers to handle both v1 and v2
+- Use MassTransit message headers for version routing
+- Test mixed-version scenarios
+- Document migration strategy
+
+---
+
+### 8. Idempotent Message Handlers in Practice
+
+**Status**: Documented only
+
+**Description**: Idempotency is documented but not enforced. Adding an idempotency check (e.g., deduplication table, inbox pattern) to at least one consumer ensures at-least-once delivery doesn't cause duplicate side effects.
+
+**Why It Matters**:
+- Essential for reliable message processing
+- Prevents duplicate operations (e.g., double-billing)
+- Teaches defensive programming for distributed systems
+
+**Related Phases**: Phase 5 (Event-Driven Architecture)
+
+**Related Documentation**: `docs/phase-5-event-driven/05-idempotency-error-handling.md`
+
+**Effort**: Small-Medium
+
+**Implementation Approaches**:
+- **Inbox Pattern**: Store processed message IDs in database table
+- **Natural Idempotency**: Design operations to be naturally idempotent
+- **Deduplication Window**: Track message IDs for recent time window
+
+**Implementation Notes**:
+- Add `ProcessedMessages` table with MessageId and ProcessedAt
+- Check table in consumer before processing
+- Use database transaction to ensure atomic check+process
+- Add metrics for duplicate detection rate
+- Test redelivery scenarios
+
+---
+
+### 12. MediatR Replacement Strategy
+
+**Status**: Monitoring
+
+**Description**: MediatR is transitioning to a commercial model. Milan Jovanovic has already removed MediatR from his Clean Architecture template. While MediatR still works under its current license, it's worth having a migration plan. Alternatives include building a lightweight in-house mediator, using Wolverine's built-in mediator capabilities, or adopting another open-source library.
+
+**Why It Matters**:
+- MediatR commercial licensing may affect future updates
+- Reduces dependency on a single library for a core architectural pattern
+- Wolverine already provides mediator-like capabilities (used in Billing BC)
+- Good exercise in understanding what MediatR actually does under the hood
+
+**Related Phases**: Phase 3 (CQRS Pattern), Phase 5 (Event-Driven Architecture)
+
+**Effort**: Large (MediatR is deeply integrated — pipeline behaviors, notification handlers, DI registration)
+
+**Possible Alternatives**:
+- **Wolverine**: Already in the project, has built-in mediator pattern
+- **Custom lightweight mediator**: Simple `IMediator` implementation (~100 lines)
+- **Microsoft.Extensions.DependencyInjection**: Direct handler resolution without mediator
+- **Other OSS libraries**: Mediator (source-generated, high performance)
+
+**Implementation Notes**:
+- Monitor MediatR licensing changes
+- Evaluate Wolverine's mediator capabilities as a natural replacement
+- If migrating: abstract behind own `IMediator` interface first
+- Consider source-generated alternatives for zero-reflection performance
+- No urgency — current MediatR version works fine
+
+---
+
 ## How to Use This Document
 
 1. **Review Regularly**: Revisit after completing major phases or milestones
@@ -286,3 +460,4 @@
 |------------|--------------------------------------------------------------|
 | 2026-03-12 | Initial document creation with 8 improvement areas identified |
 | 2026-03-27 | Completed #1 Transactional Outbox Pattern (MassTransit EF Core outbox) |
+| 2026-04-09 | Added #9-#12: Architecture Tests, Result Pattern, Dapper for reads, MediatR replacement strategy (from Milan Jovanovic comparison) |
