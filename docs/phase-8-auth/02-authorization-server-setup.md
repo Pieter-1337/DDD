@@ -99,7 +99,8 @@ WebApplications/
     │   ├── _ViewImports.cshtml
     │   ├── _ViewStart.cshtml
     │   ├── Shared/
-    │   │   └── _Layout.cshtml
+    │   │   ├── _Layout.cshtml
+    │   │   └── _ValidationScriptsPartial.cshtml
     │   └── Account/
     │       ├── Login.cshtml
     │       ├── Login.cshtml.cs
@@ -113,6 +114,13 @@ WebApplications/
     │   └── IdentitySeedData.cs
     └── Identity.WebApi.csproj
 ```
+
+> **Scaffold alternative:** Duende provides a `dotnet new` template that scaffolds this structure for you:
+> ```bash
+> dotnet new install Duende.IdentityServer.Templates
+> dotnet new isaspid -n Identity.WebApi
+> ```
+> The `isaspid` template generates a working IdentityServer with ASP.NET Identity, Razor Pages UI (login, logout, consent), and a `Config.cs` — structurally very similar to what we build below. The template includes extra pages (consent, device flow, grants management) that you can strip out. We build it manually here for learning purposes.
 
 ---
 
@@ -157,6 +165,10 @@ Add the authentication packages to the centralized package management file:
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.OpenApi" />
+  </ItemGroup>
+
+  <ItemGroup>
     <PackageReference Include="Duende.IdentityServer" />
     <PackageReference Include="Duende.IdentityServer.AspNetIdentity" />
     <PackageReference Include="Duende.IdentityServer.EntityFramework" />
@@ -167,6 +179,10 @@ Add the authentication packages to the centralized package management file:
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
     </PackageReference>
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\ServiceDefaults\Aspire.ServiceDefaults.csproj" />
   </ItemGroup>
 
 </Project>
@@ -195,7 +211,6 @@ public class ApplicationUser : IdentityUser
     // Future extensions:
     // public string? FirstName { get; set; }
     // public string? LastName { get; set; }
-    // public string? Department { get; set; }
 }
 ```
 
@@ -463,10 +478,9 @@ builder.Services.AddIdentityServer(options =>
         // Enable automatic token cleanup
         options.EnableTokenCleanup = true;
         options.TokenCleanupInterval = 3600; // seconds (1 hour)
-    })
-
-    // Development signing credential (use real certificate in production)
-    .AddDevelopmentSigningCredential();
+    });
+    // Note: Duende v7+ has automatic key management built in — no need for AddDevelopmentSigningCredential().
+    // Keys are generated, rotated, and stored automatically.
 
 // Add hosted service for seeding data
 builder.Services.AddHostedService<IdentitySeedData>();
@@ -575,6 +589,15 @@ app.Run();
 @using Identity.WebApi
 @namespace Identity.WebApi.Pages
 @addTagHelper *, Microsoft.AspNetCore.Mvc.TagHelpers
+```
+
+### _ValidationScriptsPartial.cshtml
+
+```cshtml
+@* C:\projects\DDD\DDD\WebApplications\Identity.WebApi\Pages\Shared\_ValidationScriptsPartial.cshtml *@
+<script src="https://cdn.jsdelivr.net/npm/jquery@3.7.1/dist/jquery.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jquery-validation@1.21.0/dist/jquery.validate.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jquery-validation-unobtrusive@4.0.0/dist/jquery.validate.unobtrusive.min.js"></script>
 ```
 
 ### Login Page (Razor)
@@ -1136,16 +1159,18 @@ var messaging = builder.AddRabbitMQ("messaging", password: messagingPassword)
 
 // Identity Server (Authorization Server)
 var identityApi = builder.AddProject<Projects.Identity_WebApi>("identity-webapi")
-    .WithHttpsEndpoint(port: 7010, name: "https");
+    .WithHttpsEndpoint(port: 7010, name: "identity-https");
 
-// Scheduling API (references Identity for authentication)
+// Scheduling API (fixed port — OIDC redirect URIs must match exactly)
 var schedulingApi = builder.AddProject<Projects.Scheduling_WebApi>("scheduling-webapi")
+    .WithHttpsEndpoint(port: 7001, name: "scheduling-https")
     .WithReference(messaging)
     .WithReference(identityApi)
     .WaitFor(messaging);
 
-// Billing API (references Identity for authentication)
+// Billing API (fixed port — OIDC redirect URIs must match exactly)
 var billingApi = builder.AddProject<Projects.Billing_WebApi>("billing-webapi")
+    .WithHttpsEndpoint(port: 7002, name: "billing-https")
     .WithReference(messaging)
     .WithReference(identityApi)
     .WaitFor(messaging);
@@ -1164,27 +1189,36 @@ builder.Build().Run();
 **What This Does:**
 
 - **WithReference(identityApi)**: Injects the Identity server URL as an environment variable into the API projects
-- **Port 7010**: Identity server runs on this port
-- APIs and SPA will read this URL to configure OIDC authentication
+- **Fixed ports**: All services use fixed HTTPS ports because OIDC requires exact redirect URI matching in the client configuration (`Config.cs`). If ports changed dynamically, the auth server would reject redirects.
+  - Identity.WebApi: `7010`
+  - Scheduling.WebApi: `7001`
+  - Billing.WebApi: `7002`
+  - Angular SPA: `7003`
 
 ### Connection String Configuration
 
-Add the IdentityDb connection string to `appsettings.Development.json` or User Secrets:
+Store the connection string in **User Secrets** (not `appsettings.json`) to keep credentials out of source control.
 
-```json
-// C:\projects\DDD\DDD\WebApplications\Identity.WebApi\appsettings.Development.json
-{
-  "Logging": {
-    "LogLevel": {
-      "Default": "Information",
-      "Microsoft.AspNetCore": "Warning"
-    }
-  },
-  "ConnectionStrings": {
-    "IdentityDb": "Server=(localdb)\\mssqllocaldb;Database=IdentityDb;Trusted_Connection=True;MultipleActiveResultSets=true"
-  }
-}
+#### Shared User Secrets
+
+Identity.WebApi should reference the **same `UserSecretsId`** as the Aspire AppHost, so secrets are shared across all projects:
+
+```xml
+<!-- WebApplications/Identity.WebApi/Identity.WebApi.csproj -->
+<PropertyGroup>
+  <UserSecretsId>12d3119a-ea1f-43ad-b1f3-6c5072eb7dcd</UserSecretsId>
+</PropertyGroup>
 ```
+
+#### Set the Connection String
+
+```bash
+dotnet user-secrets set "ConnectionStrings:IdentityDb" "Data Source=YOUR_SERVER;Initial Catalog=IdentityDb;Integrated Security=true;TrustServerCertificate=True" --project Aspire.AppHost
+```
+
+This keeps the connection string available to Identity.WebApi whether running via Aspire or standalone.
+
+> **Note:** Do NOT add `MultipleActiveResultSets=true` (MARS). MARS disables EF Core savepoints on transactions — see [Phase 2 docs](../phase-2-ef-core/03-database-migrations.md#step-2-add-connection-string-via-user-secrets) for details.
 
 ---
 
