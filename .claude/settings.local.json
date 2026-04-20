@@ -130,7 +130,8 @@
       "Bash(python -m json.tool:*)",
       "Bash(tasklist:*)",
       "Bash(python:*)",
-      "WebFetch(domain:api.github.com)"
+      "WebFetch(domain:api.github.com)",
+      "WebFetch(domain:www.milanjovanovic.tech)"
     ]
   }
 }
