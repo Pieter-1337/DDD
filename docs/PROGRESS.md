@@ -401,7 +401,7 @@ This allows using `nameof(GetPatientAsync)` in `CreatedAtAction` calls.
 ### Concepts to Learn
 
 - [x] OAuth 2.0 and OpenID Connect fundamentals (documented)
-- [x] OpenIddict as self-hosted authorization server (documented)
+- [x] Duende IdentityServer as self-hosted authorization server (documented)
 - [x] Cookie-based authentication (tokens never reach browser) (documented)
 - [x] BuildingBlocks.Infrastructure.Auth shared project (documented)
 - [x] Authorization policies and role-based access (documented)
@@ -424,7 +424,7 @@ This allows using `nameof(GetPatientAsync)` in `CreatedAtAction` calls.
 
 ### Key Architecture Decisions (Documented)
 
-1. **OpenIddict** — Self-hosted OIDC server for learning value (vs Duende, Keycloak, cloud)
+1. **Duende IdentityServer** — Self-hosted OIDC server for learning value (vs Keycloak, cloud)
 2. **Cookie-based auth** — HttpOnly cookies, tokens never reach the browser
 3. **BuildingBlocks.Infrastructure.Auth** — Shared project following MassTransit BuildingBlock pattern
 4. **AuthController** — `/auth/login`, `/auth/logout`, `/auth/me` endpoints in each API
@@ -434,7 +434,7 @@ This allows using `nameof(GetPatientAsync)` in `CreatedAtAction` calls.
 ### Docs Available
 
 - `phase-8-auth/01-auth-overview.md` - Auth & OIDC Fundamentals
-- `phase-8-auth/02-authorization-server-setup.md` - Authorization Server with OpenIddict
+- `phase-8-auth/02-authorization-server-setup.md` - Authorization Server with Duende IdentityServer
 - `phase-8-auth/03-shared-auth-infrastructure.md` - BuildingBlocks.Infrastructure.Auth
 - `phase-8-auth/04-api-resource-protection.md` - Securing the APIs
 - `phase-8-auth/05-angular-auth.md` - Angular Authentication

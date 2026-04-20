@@ -10,7 +10,7 @@ This document covers protecting the Scheduling and Billing APIs with cookie-base
 
 Now that we have:
 - An Auth Server (Phase 8.02) that issues authentication cookies
-- Shared authentication infrastructure (Phase 8.03) with OpenIddict cookie validation and reusable auth endpoints
+- Shared authentication infrastructure (Phase 8.03) with Duende IdentityServer cookie validation and reusable auth endpoints
 
 We need to **protect our existing API endpoints** by:
 1. Adding authentication middleware to validate cookies
@@ -91,8 +91,9 @@ The following packages need to be added to `Directory.Packages.props` (add them 
     <PackageVersion Include="Aspire.Hosting.JavaScript" Version="13.1.1" />
 
     <!-- Authentication & Authorization (NEW) -->
-    <PackageVersion Include="OpenIddict.AspNetCore" Version="6.3.0" />
-    <PackageVersion Include="OpenIddict.EntityFrameworkCore" Version="6.3.0" />
+    <PackageVersion Include="Duende.IdentityServer" Version="7.0.8" />
+    <PackageVersion Include="Duende.IdentityServer.AspNetIdentity" Version="7.0.8" />
+    <PackageVersion Include="Duende.IdentityServer.EntityFramework" Version="7.0.8" />
     <PackageVersion Include="Microsoft.AspNetCore.Identity.EntityFrameworkCore" Version="9.0.3" />
     <PackageVersion Include="Microsoft.AspNetCore.DataProtection.EntityFrameworkCore" Version="9.0.3" />
   </ItemGroup>
@@ -157,8 +158,8 @@ builder.Services.AddMassTransitEventBus(builder.Configuration, configure =>
 
 // ==================== AUTHENTICATION & AUTHORIZATION (NEW) ====================
 
-// Add OpenIddict cookie authentication (validates cookies issued by Auth Server)
-builder.Services.AddOpenIddictCookieAuth(builder.Configuration);
+// Add OIDC cookie authentication (validates cookies issued by Auth Server)
+builder.Services.AddOidcCookieAuth(builder.Configuration);
 
 // Add authorization policies
 builder.Services.AddAuthorization(options =>
@@ -222,7 +223,7 @@ app.Run();
 ### What Changed?
 
 1. **New using**: `BuildingBlocks.Infrastructure.Auth` for the shared auth extension method
-2. **Authentication**: `AddOpenIddictCookieAuth(builder.Configuration)` registers cookie validation
+2. **Authentication**: `AddOidcCookieAuth(builder.Configuration)` registers cookie validation
 3. **Authorization policies**: Three policies for role-based access control
 4. **CORS update**: Added `AllowCredentials()` and Auth Server origin
 5. **Middleware order**: Added `UseAuthentication()` before `UseAuthorization()`
@@ -282,8 +283,8 @@ builder.Services.AddMassTransitEventBus(builder.Configuration, configure =>
 
 // ==================== AUTHENTICATION & AUTHORIZATION (NEW) ====================
 
-// Add OpenIddict cookie authentication (validates cookies issued by Auth Server)
-builder.Services.AddOpenIddictCookieAuth(builder.Configuration);
+// Add OIDC cookie authentication (validates cookies issued by Auth Server)
+builder.Services.AddOidcCookieAuth(builder.Configuration);
 
 // Add authorization policies
 builder.Services.AddAuthorization(options =>
@@ -655,7 +656,7 @@ Scalar supports sending cookies if they're already set in the browser. The easie
 
 ## Configuration: appsettings.json
 
-Both WebApi projects need the same `OpenIddict` configuration section added to `appsettings.json`:
+Both WebApi projects need the same `Auth` configuration section added to `appsettings.json`:
 
 ```json
 // File: WebApplications/Scheduling.WebApi/appsettings.json
@@ -670,8 +671,8 @@ Both WebApi projects need the same `OpenIddict` configuration section added to `
   "ConnectionStrings": {
     "DefaultConnection": "Server=(localdb)\\mssqllocaldb;Database=SchedulingDb;Trusted_Connection=True;MultipleActiveResultSets=true"
   },
-  "OpenIddict": {
-    "Issuer": "https://localhost:7010",
+  "Auth": {
+    "Authority": "https://localhost:7010",
     "Audiences": [
       "scheduling-api",
       "billing-api"
@@ -693,8 +694,8 @@ Both WebApi projects need the same `OpenIddict` configuration section added to `
   "ConnectionStrings": {
     "DefaultConnection": "Server=(localdb)\\mssqllocaldb;Database=BillingDb;Trusted_Connection=True;MultipleActiveResultSets=true"
   },
-  "OpenIddict": {
-    "Issuer": "https://localhost:7010",
+  "Auth": {
+    "Authority": "https://localhost:7010",
     "Audiences": [
       "scheduling-api",
       "billing-api"
@@ -704,7 +705,7 @@ Both WebApi projects need the same `OpenIddict` configuration section added to `
 ```
 
 **Why this config matters**:
-- `Issuer`: The Auth Server that issued the cookie (must match for validation)
+- `Authority`: The Auth Server that issued the cookie (must match for validation)
 - `Audiences`: The APIs that can accept this cookie (both APIs trust cookies for both audiences)
 
 ---
@@ -718,7 +719,7 @@ Both WebApi projects need the same `OpenIddict` configuration section added to `
 **Causes**:
 1. **Middleware order wrong**: `UseAuthorization()` is before `UseAuthentication()`
 2. **Missing `AllowCredentials()`**: Browser doesn't send cookie due to CORS
-3. **Issuer mismatch**: `appsettings.json` has wrong Issuer URL
+3. **Authority mismatch**: `appsettings.json` has wrong Authority URL
 4. **Cookie domain mismatch**: Auth Server and API on different domains without proper configuration
 
 **Fix**: Verify middleware order and CORS configuration as shown above.
@@ -757,15 +758,15 @@ this.http.get('https://localhost:7001/api/patients', { withCredentials: true })
 
 ### 1. Use HTTPS Everywhere
 
-Cookies marked `Secure` (which OpenIddict does by default) are **only sent over HTTPS**. Ensure all services use HTTPS in development and production.
+Cookies marked `Secure` (which Duende IdentityServer does by default) are **only sent over HTTPS**. Ensure all services use HTTPS in development and production.
 
 ### 2. HttpOnly Cookies
 
-OpenIddict sets `HttpOnly = true`, preventing JavaScript from accessing the cookie. This protects against XSS attacks.
+Duende IdentityServer sets `HttpOnly = true`, preventing JavaScript from accessing the cookie. This protects against XSS attacks.
 
 ### 3. SameSite Policy
 
-OpenIddict sets `SameSite = SameSiteMode.Lax` by default. For stricter security, consider:
+Duende IdentityServer sets `SameSite = SameSiteMode.Lax` by default. For stricter security, consider:
 
 ```csharp
 // In BuildingBlocks.Infrastructure.Auth configuration
@@ -805,7 +806,7 @@ In this document, we:
 3. **Configured CORS** to allow credentials (`AllowCredentials()`)
 4. **Applied `[Authorize]` attributes** to controllers and methods
 5. **Defined authorization policies** for role-based access control
-6. **Updated `appsettings.json`** with OpenIddict configuration
+6. **Updated `appsettings.json`** with Auth configuration
 7. **Tested protected endpoints** with and without authentication
 
 ### What We Built

@@ -1,17 +1,17 @@
-# Phase 8.2 - Authorization Server Setup with OpenIddict
+# Phase 8.2 - Authorization Server Setup with Duende IdentityServer
 
-This document walks through setting up a centralized OAuth 2.0/OpenID Connect authorization server using ASP.NET Core Identity and OpenIddict. This server will be the single source of truth for authentication and issue access tokens to our microservices.
+This document walks through setting up a centralized OAuth 2.0/OpenID Connect authorization server using ASP.NET Core Identity and Duende IdentityServer. This server will be the single source of truth for authentication and issue access tokens to our microservices.
 
 ---
 
 ## Table of Contents
 
 1. [Architecture Overview](#architecture-overview)
-2. [Why OpenIddict?](#why-openiddict)
+2. [Why Duende IdentityServer?](#why-duende-identityserver)
 3. [Project Structure](#project-structure)
 4. [NuGet Package Setup](#nuget-package-setup)
 5. [Database Context and Models](#database-context-and-models)
-6. [OpenIddict Configuration](#openiddict-configuration)
+6. [Duende IdentityServer Configuration](#duende-identityserver-configuration)
 7. [Razor Pages Login UI](#razor-pages-login-ui)
 8. [Seed Data](#seed-data)
 9. [Aspire Integration](#aspire-integration)
@@ -33,7 +33,7 @@ Our authorization server acts as the centralized identity provider for all bound
 │  │  - UserManager, SignInManager                            │  │
 │  └──────────────────────────────────────────────────────────┘  │
 │  ┌──────────────────────────────────────────────────────────┐  │
-│  │ OpenIddict Server (OAuth 2.0 / OIDC)                     │  │
+│  │ Duende IdentityServer (OAuth 2.0 / OIDC)                │  │
 │  │  - Authorization endpoint                                │  │
 │  │  - Token endpoint                                        │  │
 │  │  - UserInfo endpoint                                     │  │
@@ -44,9 +44,9 @@ Our authorization server acts as the centralized identity provider for all bound
 │  │  - Login, Register, Logout                               │  │
 │  └──────────────────────────────────────────────────────────┘  │
 │  ┌──────────────────────────────────────────────────────────┐  │
-│  │ IdentityDbContext (Separate Database)                    │  │
-│  │  - AspNetUsers, AspNetRoles                              │  │
-│  │  - OpenIddictApplications, OpenIddictTokens              │  │
+│  │ IdentityDbContext + EF Core Stores                       │  │
+│  │  - AspNetUsers, AspNetRoles (Identity)                   │  │
+│  │  - Clients, ApiScopes, PersistedGrants (Duende)         │  │
 │  └──────────────────────────────────────────────────────────┘  │
 └─────────────────────────────────────────────────────────────────┘
                             │
@@ -64,27 +64,22 @@ Our authorization server acts as the centralized identity provider for all bound
 **Key Concepts:**
 
 - **ASP.NET Core Identity**: Handles user registration, password hashing, role management
-- **OpenIddict**: Implements OAuth 2.0 and OpenID Connect protocol on top of Identity
+- **Duende IdentityServer**: Implements OAuth 2.0 and OpenID Connect protocol on top of Identity
 - **Authorization Code Flow**: Most secure flow for server-side applications and SPAs with PKCE
 - **Reference Tokens**: Tokens are opaque identifiers stored in the database (not self-contained JWTs). This allows instant revocation and better security
 - **Separate Database**: Identity has its own bounded context with its own database (IdentityDb)
 
 ---
 
-## Why OpenIddict?
+## Why Duende IdentityServer?
 
-**OpenIddict vs IdentityServer:**
+Duende IdentityServer is the industry standard for OAuth 2.0 / OpenID Connect in .NET — the successor to the legendary IdentityServer4, built by the original team. Key benefits:
 
-| Feature | OpenIddict | IdentityServer |
-|---------|-----------|----------------|
-| License | Free (Apache 2.0) | Commercial for production |
-| Integration | Built-in ASP.NET Core Identity integration | Requires additional setup |
-| Database | EF Core out-of-the-box | Custom stores or EF Core |
-| Learning Curve | Moderate | Steeper |
-| Community | Growing | Mature |
-| Token Storage | Reference tokens supported | JWT-focused |
-
-For a learning project and small-to-medium production scenarios, OpenIddict is an excellent choice. It integrates seamlessly with ASP.NET Core Identity and supports all the OAuth 2.0 flows we need.
+- **Free Community Edition** for learning, development, and small production (revenue < $1M)
+- **Batteries-included** — built-in OIDC endpoints, no custom controllers needed
+- **Excellent documentation** and large community
+- **Seamless ASP.NET Identity integration** via `AddAspNetIdentity<T>()`
+- **EF Core support** via separate Configuration and Operational stores
 
 ---
 
@@ -112,6 +107,8 @@ WebApplications/
     │       ├── Register.cshtml.cs
     │       ├── Logout.cshtml
     │       └── Logout.cshtml.cs
+    ├── Config/
+    │   └── IdentityServerConfig.cs
     ├── SeedData/
     │   └── IdentitySeedData.cs
     └── Identity.WebApi.csproj
@@ -136,8 +133,9 @@ Add the authentication packages to the centralized package management file:
     <!-- Existing packages... -->
 
     <!-- Authentication & Authorization -->
-    <PackageVersion Include="OpenIddict.AspNetCore" Version="6.3.0" />
-    <PackageVersion Include="OpenIddict.EntityFrameworkCore" Version="6.3.0" />
+    <PackageVersion Include="Duende.IdentityServer" Version="7.0.7" />
+    <PackageVersion Include="Duende.IdentityServer.AspNetIdentity" Version="7.0.7" />
+    <PackageVersion Include="Duende.IdentityServer.EntityFramework" Version="7.0.7" />
     <PackageVersion Include="Microsoft.AspNetCore.Identity.EntityFrameworkCore" Version="9.0.3" />
     <PackageVersion Include="Microsoft.AspNetCore.DataProtection.EntityFrameworkCore" Version="9.0.3" />
     <PackageVersion Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="9.0.3" />
@@ -159,8 +157,9 @@ Add the authentication packages to the centralized package management file:
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="OpenIddict.AspNetCore" />
-    <PackageReference Include="OpenIddict.EntityFrameworkCore" />
+    <PackageReference Include="Duende.IdentityServer" />
+    <PackageReference Include="Duende.IdentityServer.AspNetIdentity" />
+    <PackageReference Include="Duende.IdentityServer.EntityFramework" />
     <PackageReference Include="Microsoft.AspNetCore.Identity.EntityFrameworkCore" />
     <PackageReference Include="Microsoft.AspNetCore.DataProtection.EntityFrameworkCore" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" />
@@ -202,7 +201,7 @@ public class ApplicationUser : IdentityUser
 
 ### IdentityDbContext
 
-This context combines ASP.NET Core Identity tables with OpenIddict entity stores:
+This context is used for ASP.NET Core Identity tables only. Duende IdentityServer uses separate contexts (ConfigurationDbContext and PersistedGrantDbContext) configured via the EF stores:
 
 ```csharp
 // C:\projects\DDD\DDD\WebApplications\Identity.WebApi\Data\IdentityDbContext.cs
@@ -215,7 +214,8 @@ using Microsoft.EntityFrameworkCore;
 
 /// <summary>
 /// Database context for the Identity bounded context.
-/// Combines ASP.NET Core Identity tables, OpenIddict stores, and DataProtection keys.
+/// Contains ASP.NET Core Identity tables and DataProtection keys.
+/// Duende IdentityServer tables are managed separately via ConfigurationDbContext and PersistedGrantDbContext.
 /// </summary>
 public class IdentityDbContext : IdentityDbContext<ApplicationUser>, IDataProtectionKeyContext
 {
@@ -245,25 +245,159 @@ public class IdentityDbContext : IdentityDbContext<ApplicationUser>, IDataProtec
 
 - **IdentityDbContext<ApplicationUser>**: Provides tables for users, roles, claims, logins
 - **IDataProtectionKeyContext**: Stores data protection keys in the database for multi-instance deployments
-- **OpenIddict tables**: Added automatically when we configure OpenIddict to use EF Core stores
+- **Duende tables**: Managed separately via `AddConfigurationStore()` and `AddOperationalStore()` in Program.cs
 
 ---
 
-## OpenIddict Configuration
+## Duende IdentityServer Configuration
+
+### IdentityServerConfig.cs
+
+Duende uses a configuration pattern with static classes defining resources, scopes, and clients:
+
+```csharp
+// C:\projects\DDD\DDD\WebApplications\Identity.WebApi\Config\IdentityServerConfig.cs
+namespace Identity.WebApi.Config;
+
+using Duende.IdentityServer;
+using Duende.IdentityServer.Models;
+
+/// <summary>
+/// Duende IdentityServer configuration for identity resources, API scopes, and clients.
+/// </summary>
+public static class IdentityServerConfig
+{
+    /// <summary>
+    /// Identity resources define user identity data that can be requested via scopes.
+    /// </summary>
+    public static IEnumerable<IdentityResource> IdentityResources =>
+    [
+        new IdentityResources.OpenId(),
+        new IdentityResources.Profile(),
+        new IdentityResources.Email(),
+        new IdentityResource("roles", "User roles", new[] { "role" })
+    ];
+
+    /// <summary>
+    /// API scopes define permissions that clients can request for accessing APIs.
+    /// </summary>
+    public static IEnumerable<ApiScope> ApiScopes =>
+    [
+        new ApiScope("scheduling_api", "Scheduling API"),
+        new ApiScope("billing_api", "Billing API")
+    ];
+
+    /// <summary>
+    /// Clients represent applications that can request tokens from this authorization server.
+    /// </summary>
+    public static IEnumerable<Client> Clients =>
+    [
+        // Scheduling API Client (Confidential - has client secret)
+        new Client
+        {
+            ClientId = "scheduling-api",
+            ClientName = "Scheduling API",
+            ClientSecrets = { new Secret("scheduling-secret".Sha256()) },
+
+            AllowedGrantTypes = GrantTypes.Code,
+            RequirePkce = true,
+
+            // Use reference tokens for this client (opaque tokens stored in DB)
+            AccessTokenType = AccessTokenType.Reference,
+
+            RedirectUris = { "https://localhost:7001/signin-oidc" },
+            PostLogoutRedirectUris = { "https://localhost:7001/signout-callback-oidc" },
+
+            AllowedScopes =
+            {
+                IdentityServerConstants.StandardScopes.OpenId,
+                IdentityServerConstants.StandardScopes.Profile,
+                IdentityServerConstants.StandardScopes.Email,
+                "roles",
+                "scheduling_api"
+            },
+
+            AllowOfflineAccess = true // Enable refresh tokens
+        },
+
+        // Billing API Client (Confidential - has client secret)
+        new Client
+        {
+            ClientId = "billing-api",
+            ClientName = "Billing API",
+            ClientSecrets = { new Secret("billing-secret".Sha256()) },
+
+            AllowedGrantTypes = GrantTypes.Code,
+            RequirePkce = true,
+
+            // Use reference tokens for this client (opaque tokens stored in DB)
+            AccessTokenType = AccessTokenType.Reference,
+
+            RedirectUris = { "https://localhost:7002/signin-oidc" },
+            PostLogoutRedirectUris = { "https://localhost:7002/signout-callback-oidc" },
+
+            AllowedScopes =
+            {
+                IdentityServerConstants.StandardScopes.OpenId,
+                IdentityServerConstants.StandardScopes.Profile,
+                IdentityServerConstants.StandardScopes.Email,
+                "roles",
+                "billing_api"
+            },
+
+            AllowOfflineAccess = true // Enable refresh tokens
+        },
+
+        // Angular SPA Client (Public - no client secret, PKCE required)
+        new Client
+        {
+            ClientId = "angular-spa",
+            ClientName = "Angular SPA",
+
+            AllowedGrantTypes = GrantTypes.Code,
+            RequirePkce = true,
+            RequireClientSecret = false, // Public client (SPA can't keep secrets)
+
+            // Use reference tokens for better security
+            AccessTokenType = AccessTokenType.Reference,
+
+            RedirectUris =
+            {
+                "https://localhost:7003/callback",
+                "https://localhost:7003/silent-refresh.html"
+            },
+            PostLogoutRedirectUris = { "https://localhost:7003/" },
+            AllowedCorsOrigins = { "https://localhost:7003" },
+
+            AllowedScopes =
+            {
+                IdentityServerConstants.StandardScopes.OpenId,
+                IdentityServerConstants.StandardScopes.Profile,
+                IdentityServerConstants.StandardScopes.Email,
+                "roles",
+                "scheduling_api",
+                "billing_api"
+            },
+
+            AllowOfflineAccess = true // Enable refresh tokens
+        }
+    ];
+}
+```
 
 ### Program.cs
 
-This is the heart of the authorization server. We configure ASP.NET Core Identity, OpenIddict server, and Razor Pages:
+This is the heart of the authorization server. We configure ASP.NET Core Identity, Duende IdentityServer, and Razor Pages:
 
 ```csharp
 // C:\projects\DDD\DDD\WebApplications\Identity.WebApi\Program.cs
+using Identity.WebApi.Config;
 using Identity.WebApi.Data;
 using Identity.WebApi.Models;
 using Identity.WebApi.SeedData;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
-using OpenIddict.Abstractions;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -274,15 +408,14 @@ builder.Services.AddRazorPages();
 var connectionString = builder.Configuration.GetConnectionString("IdentityDb")
     ?? throw new InvalidOperationException("Connection string 'IdentityDb' not found.");
 
+var migrationsAssembly = typeof(Program).Assembly.GetName().Name;
+
+// ASP.NET Core Identity
 builder.Services.AddDbContext<IdentityDbContext>(options =>
 {
     options.UseSqlServer(connectionString);
-
-    // Configure OpenIddict to use EF Core stores
-    options.UseOpenIddict();
 });
 
-// ASP.NET Core Identity
 builder.Services.AddIdentity<ApplicationUser, IdentityRole>(options =>
 {
     // Password settings (relax for development, tighten for production)
@@ -310,71 +443,39 @@ builder.Services.AddDataProtection()
     .PersistKeysToDbContext<IdentityDbContext>()
     .SetApplicationName("DDD.Identity");
 
-// OpenIddict Server
-builder.Services.AddOpenIddict()
-    // Register Entity Framework Core stores
-    .AddCore(options =>
+// Duende IdentityServer
+builder.Services.AddIdentityServer(options =>
+{
+    options.EmitStaticAudienceClaim = true; // Include 'aud' claim in tokens
+
+    options.Events.RaiseErrorEvents = true;
+    options.Events.RaiseInformationEvents = true;
+    options.Events.RaiseFailureEvents = true;
+    options.Events.RaiseSuccessEvents = true;
+})
+    // Integrate with ASP.NET Core Identity
+    .AddAspNetIdentity<ApplicationUser>()
+
+    // Configuration store (clients, resources, scopes)
+    .AddConfigurationStore(options =>
     {
-        options.UseEntityFrameworkCore()
-            .UseDbContext<IdentityDbContext>();
+        options.ConfigureDbContext = b =>
+            b.UseSqlServer(connectionString, sql => sql.MigrationsAssembly(migrationsAssembly));
     })
 
-    // Register ASP.NET Core OpenIddict server components
-    .AddServer(options =>
+    // Operational store (tokens, consents, codes)
+    .AddOperationalStore(options =>
     {
-        // Enable the authorization, token, userinfo, and logout endpoints
-        options.SetAuthorizationEndpointUris("/connect/authorize")
-               .SetTokenEndpointUris("/connect/token")
-               .SetUserinfoEndpointUris("/connect/userinfo")
-               .SetLogoutEndpointUris("/connect/logout");
+        options.ConfigureDbContext = b =>
+            b.UseSqlServer(connectionString, sql => sql.MigrationsAssembly(migrationsAssembly));
 
-        // Enable the authorization code flow
-        // This is the recommended flow for server-side web apps and SPAs
-        options.AllowAuthorizationCodeFlow()
-               .AllowRefreshTokenFlow();
-
-        // Register the signing and encryption credentials
-        // For development: use a temporary development certificate
-        // For production: use a real certificate from a trusted CA
-        options.AddDevelopmentEncryptionCertificate()
-               .AddDevelopmentSigningCertificate();
-
-        // Register the ASP.NET Core host and configure the ASP.NET Core-specific options
-        options.UseAspNetCore()
-               .EnableAuthorizationEndpointPassthrough()
-               .EnableTokenEndpointPassthrough()
-               .EnableUserinfoEndpointPassthrough()
-               .EnableLogoutEndpointPassthrough();
-
-        // Use reference tokens instead of self-contained JWTs
-        // Reference tokens are opaque identifiers stored in the database
-        // This allows instant revocation and better security
-        options.UseReferenceAccessTokens()
-               .UseReferenceRefreshTokens();
-
-        // Disable access token encryption for development (easier debugging)
-        // Enable in production for better security
-        if (builder.Environment.IsDevelopment())
-        {
-            options.DisableAccessTokenEncryption();
-        }
-
-        // Register scopes
-        options.RegisterScopes(
-            OpenIddictConstants.Scopes.Email,
-            OpenIddictConstants.Scopes.Profile,
-            OpenIddictConstants.Scopes.Roles,
-            "scheduling-api",
-            "billing-api"
-        );
+        // Enable automatic token cleanup
+        options.EnableTokenCleanup = true;
+        options.TokenCleanupInterval = 3600; // seconds (1 hour)
     })
 
-    // Register the OpenIddict validation components (for local token validation)
-    .AddValidation(options =>
-    {
-        options.UseLocalServer();
-        options.UseAspNetCore();
-    });
+    // Development signing credential (use real certificate in production)
+    .AddDevelopmentSigningCredential();
 
 // Add hosted service for seeding data
 builder.Services.AddHostedService<IdentitySeedData>();
@@ -395,6 +496,7 @@ app.UseRouting();
 
 // Authentication & Authorization
 app.UseAuthentication();
+app.UseIdentityServer(); // Duende IdentityServer middleware
 app.UseAuthorization();
 
 app.MapRazorPages();
@@ -405,24 +507,27 @@ app.Run();
 **Key Configuration Sections Explained:**
 
 1. **Endpoints:**
+   - Duende IdentityServer automatically registers standard OIDC endpoints:
    - `/connect/authorize`: Where users are redirected to log in
    - `/connect/token`: Where clients exchange authorization codes for access tokens
    - `/connect/userinfo`: Returns user profile information
-   - `/connect/logout`: Logs out the user
+   - `/connect/endsession`: Logs out the user
 
 2. **Flows:**
    - **Authorization Code Flow**: Most secure flow. Client redirects user to login, user authenticates, server returns authorization code, client exchanges code for token
-   - **Refresh Token Flow**: Allows clients to get new access tokens without re-authenticating
+   - **Refresh Token Flow**: Allows clients to get new access tokens without re-authenticating (via `AllowOfflineAccess = true`)
 
 3. **Reference Tokens:**
-   - Tokens are stored in `OpenIddictTokens` table as opaque identifiers
+   - Configured per-client via `AccessTokenType = AccessTokenType.Reference`
+   - Tokens are stored in `PersistedGrants` table as opaque identifiers
    - APIs validate tokens by calling back to the authorization server
    - Allows instant revocation (just delete from database)
    - Better security than self-contained JWTs (can't be decoded)
 
-4. **Scopes:**
-   - `email`, `profile`, `roles`: Standard OIDC scopes
-   - `scheduling-api`, `billing-api`: Custom API scopes
+4. **Database Stores:**
+   - **ConfigurationStore**: Stores clients, identity resources, API scopes
+   - **OperationalStore**: Stores tokens, authorization codes, refresh tokens, user consents
+   - Both use EF Core with separate DbContexts
 
 ---
 
@@ -835,17 +940,19 @@ public class LogoutModel : PageModel
 
 ## Seed Data
 
-Create test users and register OAuth clients for development:
+Create test users, roles, and register OAuth clients for development. With Duende, we seed configuration data directly into the EF stores:
 
 ```csharp
 // C:\projects\DDD\DDD\WebApplications\Identity.WebApi\SeedData\IdentitySeedData.cs
 namespace Identity.WebApi.SeedData;
 
+using Duende.IdentityServer.EntityFramework.DbContexts;
+using Duende.IdentityServer.EntityFramework.Mappers;
+using Identity.WebApi.Config;
 using Identity.WebApi.Data;
 using Identity.WebApi.Models;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
-using OpenIddict.Abstractions;
 
 /// <summary>
 /// Seeds the identity database with test users, roles, and OAuth clients.
@@ -872,12 +979,19 @@ public class IdentitySeedData : IHostedService
 
         using var scope = _serviceProvider.CreateScope();
 
-        var context = scope.ServiceProvider.GetRequiredService<IdentityDbContext>();
-        await context.Database.EnsureCreatedAsync(cancellationToken);
+        // Ensure databases are created
+        var identityContext = scope.ServiceProvider.GetRequiredService<IdentityDbContext>();
+        await identityContext.Database.EnsureCreatedAsync(cancellationToken);
+
+        var configurationContext = scope.ServiceProvider.GetRequiredService<ConfigurationDbContext>();
+        await configurationContext.Database.EnsureCreatedAsync(cancellationToken);
+
+        var persistedGrantContext = scope.ServiceProvider.GetRequiredService<PersistedGrantDbContext>();
+        await persistedGrantContext.Database.EnsureCreatedAsync(cancellationToken);
 
         await SeedRolesAsync(scope.ServiceProvider);
         await SeedUsersAsync(scope.ServiceProvider);
-        await SeedClientsAsync(scope.ServiceProvider);
+        await SeedIdentityServerConfigurationAsync(scope.ServiceProvider);
     }
 
     public Task StopAsync(CancellationToken cancellationToken) => Task.CompletedTask;
@@ -956,122 +1070,50 @@ public class IdentitySeedData : IHostedService
         }
     }
 
-    private static async Task SeedClientsAsync(IServiceProvider serviceProvider)
+    private static async Task SeedIdentityServerConfigurationAsync(IServiceProvider serviceProvider)
     {
-        var manager = serviceProvider.GetRequiredService<IOpenIddictApplicationManager>();
+        var context = serviceProvider.GetRequiredService<ConfigurationDbContext>();
 
-        // Scheduling API client
-        if (await manager.FindByClientIdAsync("scheduling-api") == null)
+        // Seed Identity Resources
+        if (!await context.IdentityResources.AnyAsync())
         {
-            await manager.CreateAsync(new OpenIddictApplicationDescriptor
+            foreach (var resource in IdentityServerConfig.IdentityResources)
             {
-                ClientId = "scheduling-api",
-                ClientSecret = "scheduling-secret",
-                DisplayName = "Scheduling API",
-                Type = OpenIddictConstants.ClientTypes.Confidential,
-                Permissions =
-                {
-                    OpenIddictConstants.Permissions.Endpoints.Authorization,
-                    OpenIddictConstants.Permissions.Endpoints.Token,
-                    OpenIddictConstants.Permissions.GrantTypes.AuthorizationCode,
-                    OpenIddictConstants.Permissions.GrantTypes.RefreshToken,
-                    OpenIddictConstants.Permissions.ResponseTypes.Code,
-                    OpenIddictConstants.Permissions.Scopes.Email,
-                    OpenIddictConstants.Permissions.Scopes.Profile,
-                    OpenIddictConstants.Permissions.Scopes.Roles,
-                    OpenIddictConstants.Permissions.Prefixes.Scope + "scheduling-api"
-                },
-                RedirectUris =
-                {
-                    new Uri("https://localhost:7001/signin-oidc")
-                },
-                PostLogoutRedirectUris =
-                {
-                    new Uri("https://localhost:7001/signout-callback-oidc")
-                }
-            });
+                context.IdentityResources.Add(resource.ToEntity());
+            }
+            await context.SaveChangesAsync();
         }
 
-        // Billing API client
-        if (await manager.FindByClientIdAsync("billing-api") == null)
+        // Seed API Scopes
+        if (!await context.ApiScopes.AnyAsync())
         {
-            await manager.CreateAsync(new OpenIddictApplicationDescriptor
+            foreach (var scope in IdentityServerConfig.ApiScopes)
             {
-                ClientId = "billing-api",
-                ClientSecret = "billing-secret",
-                DisplayName = "Billing API",
-                Type = OpenIddictConstants.ClientTypes.Confidential,
-                Permissions =
-                {
-                    OpenIddictConstants.Permissions.Endpoints.Authorization,
-                    OpenIddictConstants.Permissions.Endpoints.Token,
-                    OpenIddictConstants.Permissions.GrantTypes.AuthorizationCode,
-                    OpenIddictConstants.Permissions.GrantTypes.RefreshToken,
-                    OpenIddictConstants.Permissions.ResponseTypes.Code,
-                    OpenIddictConstants.Permissions.Scopes.Email,
-                    OpenIddictConstants.Permissions.Scopes.Profile,
-                    OpenIddictConstants.Permissions.Scopes.Roles,
-                    OpenIddictConstants.Permissions.Prefixes.Scope + "billing-api"
-                },
-                RedirectUris =
-                {
-                    new Uri("https://localhost:7002/signin-oidc")
-                },
-                PostLogoutRedirectUris =
-                {
-                    new Uri("https://localhost:7002/signout-callback-oidc")
-                }
-            });
+                context.ApiScopes.Add(scope.ToEntity());
+            }
+            await context.SaveChangesAsync();
         }
 
-        // Angular SPA client
-        if (await manager.FindByClientIdAsync("angular-spa") == null)
+        // Seed Clients
+        if (!await context.Clients.AnyAsync())
         {
-            await manager.CreateAsync(new OpenIddictApplicationDescriptor
+            foreach (var client in IdentityServerConfig.Clients)
             {
-                ClientId = "angular-spa",
-                DisplayName = "Angular SPA",
-                Type = OpenIddictConstants.ClientTypes.Public, // No client secret (SPA can't keep secrets)
-                Permissions =
-                {
-                    OpenIddictConstants.Permissions.Endpoints.Authorization,
-                    OpenIddictConstants.Permissions.Endpoints.Token,
-                    OpenIddictConstants.Permissions.GrantTypes.AuthorizationCode,
-                    OpenIddictConstants.Permissions.GrantTypes.RefreshToken,
-                    OpenIddictConstants.Permissions.ResponseTypes.Code,
-                    OpenIddictConstants.Permissions.Scopes.Email,
-                    OpenIddictConstants.Permissions.Scopes.Profile,
-                    OpenIddictConstants.Permissions.Scopes.Roles,
-                    OpenIddictConstants.Permissions.Prefixes.Scope + "scheduling-api",
-                    OpenIddictConstants.Permissions.Prefixes.Scope + "billing-api"
-                },
-                RedirectUris =
-                {
-                    new Uri("https://localhost:7003/callback"),
-                    new Uri("https://localhost:7003/silent-refresh.html")
-                },
-                PostLogoutRedirectUris =
-                {
-                    new Uri("https://localhost:7003/")
-                },
-                Requirements =
-                {
-                    OpenIddictConstants.Requirements.Features.ProofKeyForCodeExchange // PKCE for SPAs
-                }
-            });
+                context.Clients.Add(client.ToEntity());
+            }
+            await context.SaveChangesAsync();
         }
     }
 }
 ```
 
-**Client Registration Explained:**
+**Seeding Strategy Explained:**
 
-- **ClientId / ClientSecret**: Credentials for confidential clients (APIs). SPAs are public clients (no secret)
-- **Type**: `Confidential` (can keep secrets) vs `Public` (SPAs, native apps)
-- **Permissions**: Allowed endpoints, flows, scopes
-- **RedirectUris**: Where to redirect after successful login
-- **PostLogoutRedirectUris**: Where to redirect after logout
-- **PKCE**: Required for SPAs (prevents authorization code interception)
+- **Identity Resources**: Define user identity claims (openid, profile, email, roles)
+- **API Scopes**: Define API permissions (scheduling_api, billing_api)
+- **Clients**: Define applications that can request tokens (APIs, SPAs)
+- **ToEntity()**: Extension method from Duende that converts configuration models to EF entities
+- All configuration is stored in the `ConfigurationDbContext` tables
 
 ---
 
@@ -1145,18 +1187,45 @@ Add the IdentityDb connection string to `appsettings.Development.json` or User S
 
 ## Testing the Setup
 
-### 1. Create Database Migration
+### 1. Create Database Migrations
+
+Duende IdentityServer requires separate migrations for the configuration and operational stores:
 
 ```bash
 cd C:\projects\DDD\DDD\WebApplications\Identity.WebApi
-dotnet ef migrations add InitialIdentity
-dotnet ef database update
+
+# Identity tables (ASP.NET Core Identity)
+dotnet ef migrations add InitialIdentity -c IdentityDbContext
+
+# IdentityServer configuration tables (Clients, Scopes, Resources)
+dotnet ef migrations add InitialIdentityServerConfigurationDbMigration -c ConfigurationDbContext
+
+# IdentityServer operational tables (Tokens, Grants, Codes)
+dotnet ef migrations add InitialIdentityServerPersistedGrantDbMigration -c PersistedGrantDbContext
+
+# Apply all migrations
+dotnet ef database update -c IdentityDbContext
+dotnet ef database update -c ConfigurationDbContext
+dotnet ef database update -c PersistedGrantDbContext
 ```
 
-This creates:
-- ASP.NET Core Identity tables (AspNetUsers, AspNetRoles, etc.)
-- OpenIddict tables (OpenIddictApplications, OpenIddictTokens, etc.)
-- DataProtectionKeys table
+This creates three sets of tables:
+
+**Identity Tables (IdentityDbContext):**
+- AspNetUsers, AspNetRoles, AspNetUserRoles, AspNetUserClaims, AspNetRoleClaims
+- DataProtectionKeys
+
+**Configuration Tables (ConfigurationDbContext):**
+- Clients, ClientScopes, ClientSecrets, ClientGrantTypes, ClientRedirectUris, ClientPostLogoutRedirectUris, ClientCorsOrigins
+- IdentityResources, IdentityResourceClaims
+- ApiScopes, ApiScopeClaims
+- ApiResources, ApiResourceScopes, ApiResourceClaims
+
+**Operational Tables (PersistedGrantDbContext):**
+- PersistedGrants (stores reference tokens, refresh tokens, authorization codes)
+- DeviceCodes
+- Keys (signing keys)
+- ServerSideSessions
 
 ### 2. Run the Application
 
@@ -1178,12 +1247,12 @@ You should see a JSON response like:
 
 ```json
 {
-  "issuer": "https://localhost:7010/",
+  "issuer": "https://localhost:7010",
   "authorization_endpoint": "https://localhost:7010/connect/authorize",
   "token_endpoint": "https://localhost:7010/connect/token",
   "userinfo_endpoint": "https://localhost:7010/connect/userinfo",
-  "end_session_endpoint": "https://localhost:7010/connect/logout",
-  "jwks_uri": "https://localhost:7010/.well-known/jwks",
+  "end_session_endpoint": "https://localhost:7010/connect/endsession",
+  "jwks_uri": "https://localhost:7010/.well-known/openid-configuration/jwks",
   "grant_types_supported": [
     "authorization_code",
     "refresh_token"
@@ -1196,8 +1265,9 @@ You should see a JSON response like:
     "email",
     "profile",
     "roles",
-    "scheduling-api",
-    "billing-api"
+    "scheduling_api",
+    "billing_api",
+    "offline_access"
   ],
   "token_endpoint_auth_methods_supported": [
     "client_secret_basic",
@@ -1244,16 +1314,28 @@ You should see the login form. Try logging in with the seeded users:
 Open SQL Server Management Studio or Azure Data Studio and connect to `(localdb)\mssqllocaldb`.
 
 Check the `IdentityDb` database for:
+
+**Identity Tables:**
 - **AspNetUsers**: Should contain 3 users
 - **AspNetRoles**: Should contain 4 roles (Admin, User, Doctor, Nurse)
 - **AspNetUserRoles**: Should link users to their roles
-- **OpenIddictApplications**: Should contain 3 registered clients
+
+**Configuration Tables:**
+- **Clients**: Should contain 3 registered clients (scheduling-api, billing-api, angular-spa)
+- **ClientScopes**: Should contain scope assignments for each client
+- **ClientRedirectUris**: Should contain redirect URIs
+- **IdentityResources**: Should contain 4 identity resources (openid, profile, email, roles)
+- **ApiScopes**: Should contain 2 API scopes (scheduling_api, billing_api)
+
+**Operational Tables:**
+- **PersistedGrants**: Will populate as tokens are issued
+- **Keys**: Contains signing keys
 
 ---
 
 ## Next Steps
 
-You now have a fully functional OAuth 2.0/OpenID Connect authorization server. The next steps are:
+You now have a fully functional OAuth 2.0/OpenID Connect authorization server using Duende IdentityServer. The next steps are:
 
 1. **Create Shared Authentication Infrastructure** (doc 03): Build a `BuildingBlocks.Authentication` library with reusable JWT validation, ICurrentUser abstraction, and authorization policies
 2. **Configure APIs** (doc 04): Add OIDC authentication to Scheduling.WebApi and Billing.WebApi
@@ -1268,13 +1350,14 @@ In this document, you:
 
 - Created an **Identity.WebApi** project as the centralized authorization server
 - Configured **ASP.NET Core Identity** for user management
-- Integrated **OpenIddict** for OAuth 2.0 / OIDC protocol implementation
+- Integrated **Duende IdentityServer** for OAuth 2.0 / OIDC protocol implementation
+- Defined **configuration via code** (IdentityServerConfig.cs)
 - Built **Razor Pages** login/register UI
-- Seeded **test users, roles, and OAuth clients**
+- Seeded **test users, roles, and OAuth clients** into EF Core stores
 - Registered the authorization server with **.NET Aspire**
 - Tested the **discovery endpoint** and **login flow**
 
-This authorization server will issue access tokens that our APIs validate in the next documents.
+This authorization server will issue access tokens that our APIs validate in the next documents. Duende IdentityServer provides industry-standard OAuth 2.0/OIDC implementation with excellent documentation and community support.
 
 ---
 

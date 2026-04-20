@@ -131,7 +131,9 @@
       "Bash(tasklist:*)",
       "Bash(python:*)",
       "WebFetch(domain:api.github.com)",
-      "WebFetch(domain:www.milanjovanovic.tech)"
+      "WebFetch(domain:www.milanjovanovic.tech)",
+      "WebFetch(domain:docs.duendesoftware.com)",
+      "WebFetch(domain:nestenius.se)"
     ]
   }
 }

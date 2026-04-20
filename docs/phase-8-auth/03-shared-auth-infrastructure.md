@@ -21,7 +21,7 @@ Rather than duplicate this configuration in every API's `Program.cs`, we extract
 | BuildingBlock | Purpose | Entry Point |
 |---------------|---------|-------------|
 | `BuildingBlocks.Infrastructure.MassTransit` | Event bus integration | `AddMassTransitEventBus()` |
-| `BuildingBlocks.Infrastructure.Auth` | Authentication infrastructure | `AddOpenIddictCookieAuth()` |
+| `BuildingBlocks.Infrastructure.Auth` | Authentication infrastructure | `AddOidcCookieAuth()` |
 
 Both follow the same pattern: a single extension method that APIs call in `Program.cs`, encapsulating all the complexity.
 
@@ -33,7 +33,7 @@ Both follow the same pattern: a single extension method that APIs call in `Progr
 BuildingBlocks/
   BuildingBlocks.Infrastructure.Auth/
     BuildingBlocks.Infrastructure.Auth.csproj
-    AuthExtensions.cs                    # AddOpenIddictCookieAuth() extension
+    AuthExtensions.cs                    # AddOidcCookieAuth() extension
     AuthController.cs                    # /auth/login, /auth/logout, /auth/me
     HttpContextCurrentUser.cs            # ICurrentUser implementation
     DataProtection/
@@ -68,9 +68,6 @@ dotnet sln ../DDD.sln add BuildingBlocks.Infrastructure.Auth/BuildingBlocks.Infr
   </PropertyGroup>
 
   <ItemGroup>
-    <!-- OpenIddict for OIDC client (cookie authentication with Auth Server) -->
-    <PackageReference Include="OpenIddict.AspNetCore" />
-
     <!-- Data Protection for shared cookie encryption keys -->
     <PackageReference Include="Microsoft.AspNetCore.DataProtection.EntityFrameworkCore" />
 
@@ -88,13 +85,13 @@ dotnet sln ../DDD.sln add BuildingBlocks.Infrastructure.Auth/BuildingBlocks.Infr
 
 **Why these dependencies?**
 
-- **OpenIddict.AspNetCore**: Provides the OIDC client middleware to integrate with our Auth Server (OpenIddict.Server from doc 02)
+- **No OIDC-specific packages needed**: ASP.NET Core's built-in `Microsoft.AspNetCore.Authentication.OpenIdConnect` middleware (included in `Microsoft.AspNetCore.App`) works with any OIDC-compliant server, including Duende IdentityServer
 - **Microsoft.AspNetCore.DataProtection.EntityFrameworkCore**: Allows storing Data Protection keys in SQL Server so both APIs can decrypt the same cookies
 - **BuildingBlocks.Application**: Contains the `ICurrentUser` interface that domain handlers depend on
 
 ---
 
-## 2. The AddOpenIddictCookieAuth() Extension Method
+## 2. The AddOidcCookieAuth() Extension Method
 
 This is the main entry point, mirroring the pattern from `AddMassTransitEventBus()`. It encapsulates all authentication setup.
 
@@ -110,18 +107,18 @@ using BuildingBlocks.Application.Abstractions;
 namespace BuildingBlocks.Infrastructure.Auth;
 
 /// <summary>
-/// Extension methods for configuring cookie-based authentication with OpenIddict.
+/// Extension methods for configuring cookie-based authentication with OIDC.
 /// </summary>
 public static class AuthExtensions
 {
     /// <summary>
-    /// Adds cookie authentication with OpenID Connect (OIDC) client configured for OpenIddict Auth Server.
+    /// Adds cookie authentication with OpenID Connect (OIDC) client configured for any OIDC-compliant authorization server (e.g., Duende IdentityServer).
     /// </summary>
     /// <param name="services">The service collection.</param>
     /// <param name="configuration">Configuration containing Auth:Authority, Auth:ClientId, Auth:ClientSecret.</param>
     /// <param name="sharedKeysPath">Optional file path for shared Data Protection keys. If null, uses ephemeral keys (dev only).</param>
     /// <returns>The service collection for chaining.</returns>
-    public static IServiceCollection AddOpenIddictCookieAuth(
+    public static IServiceCollection AddOidcCookieAuth(
         this IServiceCollection services,
         IConfiguration configuration,
         string? sharedKeysPath = null)
@@ -542,7 +539,7 @@ if (!string.IsNullOrEmpty(sharedKeysPath))
 ```csharp
 // WebApplications/Scheduling.WebApi/Program.cs
 var sharedKeysPath = builder.Configuration["DataProtection:SharedKeysPath"];
-builder.Services.AddOpenIddictCookieAuth(
+builder.Services.AddOidcCookieAuth(
     builder.Configuration,
     sharedKeysPath: sharedKeysPath);
 ```
@@ -610,7 +607,7 @@ Run migrations to create the `DataProtectionKeys` table. Both APIs connect to th
 │  ────────────────────────────────────────────────────────   │
 │                                                              │
 │  Program.cs:                                                 │
-│    services.AddOpenIddictCookieAuth(configuration, keys)    │ ← BuildingBlocks.Infrastructure.Auth
+│    services.AddOidcCookieAuth(configuration, keys)          │ ← BuildingBlocks.Infrastructure.Auth
 │                                                              │
 │  2. Cookie middleware reads "DDD.Auth" cookie                │
 │  3. Data Protection decrypts cookie using shared keys        │
@@ -709,7 +706,7 @@ builder.Services.AddControllers();
 
 // Add authentication (NEW)
 var sharedKeysPath = builder.Configuration["DataProtection:SharedKeysPath"];
-builder.Services.AddOpenIddictCookieAuth(
+builder.Services.AddOidcCookieAuth(
     builder.Configuration,
     sharedKeysPath: sharedKeysPath);
 
@@ -795,14 +792,14 @@ We use cookies because:
 
 For production with mobile apps, add JWT support (doc 05 optional topic).
 
-### OpenIddict Client vs Server
+### OIDC Server vs Client
 
-| Role | Package | Responsibility |
-|------|---------|----------------|
-| **Server** | `OpenIddict.Server` | Issues tokens, validates credentials (Auth Server) |
-| **Client** | `OpenIddict.AspNetCore` | Consumes tokens, validates with server (Scheduling/Billing APIs) |
+| Role | Package/Technology | Responsibility |
+|------|-------------------|----------------|
+| **Server** | Duende IdentityServer | Issues tokens, validates credentials (Identity.WebApi project from doc 02) |
+| **Client** | `Microsoft.AspNetCore.Authentication.OpenIdConnect` | Consumes tokens, validates with server (Scheduling/Billing APIs) |
 
-The Auth Server (doc 02) is the **Server**. The APIs are **Clients**.
+The Auth Server (doc 02: Identity.WebApi) runs **Duende IdentityServer**. The Scheduling and Billing APIs are **clients** using standard ASP.NET Core OIDC middleware — this middleware works with any OIDC-compliant server, keeping the API projects provider-agnostic.
 
 ### Data Protection Key Rotation
 
@@ -876,7 +873,7 @@ Start Billing API and verify it uses the same key (no new key generated).
 
 **Cause**: Missing `AddAuthentication()` call.
 
-**Fix**: Ensure `AddOpenIddictCookieAuth()` is called in `Program.cs`.
+**Fix**: Ensure `AddOidcCookieAuth()` is called in `Program.cs`.
 
 ### "Correlation failed"
 
@@ -902,14 +899,14 @@ Start Billing API and verify it uses the same key (no new key generated).
 
 You've built a reusable authentication infrastructure in `BuildingBlocks.Infrastructure.Auth` that:
 
-- ✅ Provides a single extension method (`AddOpenIddictCookieAuth`) following the project's BuildingBlock pattern
-- ✅ Configures cookie authentication with OIDC client for OpenIddict Auth Server
+- ✅ Provides a single extension method (`AddOidcCookieAuth`) following the project's BuildingBlock pattern
+- ✅ Configures cookie authentication with standard OIDC client middleware for any OIDC-compliant authorization server (Duende IdentityServer in this project)
 - ✅ Exposes `/auth/login`, `/auth/logout`, `/auth/me` endpoints for Angular integration
 - ✅ Implements `ICurrentUser` for domain handlers to access authenticated user information
 - ✅ Shares Data Protection keys across APIs so cookies work universally
 - ✅ Maps OIDC claims to .NET claims for consistent access
 
-Both Scheduling and Billing APIs can now call `AddOpenIddictCookieAuth()` in two lines and get full authentication support.
+Both Scheduling and Billing APIs can now call `AddOidcCookieAuth()` in two lines and get full authentication support.
 
 **Next**: We'll protect API endpoints with `[Authorize]` attributes and implement role-based authorization.
 

@@ -160,7 +160,7 @@ public class HttpContextCurrentUser : ICurrentUser
 }
 ```
 
-**Registered as Scoped** in `AddOpenIddictCookieAuth()`:
+**Registered as Scoped** in `AddOidcCookieAuth()`:
 ```csharp
 services.AddScoped<ICurrentUser, HttpContextCurrentUser>();
 ```
@@ -1016,7 +1016,7 @@ if (context.Exception is ForbiddenException forbiddenEx)
 ### Next Steps
 
 With user context and authorization in place, Phase 8 is complete. You now have:
-- OpenIddict-based authentication
+- Duende IdentityServer-based authentication
 - Cookie-based session management
 - Angular frontend integration with OIDC
 - Blazor Server authentication (documented)
@@ -1036,15 +1036,15 @@ With user context and authorization in place, Phase 8 is complete. You now have:
 
 This concludes Phase 8. Here's the full documentation series:
 
-1. **[01-auth-overview.md](./01-auth-overview.md)** - Architecture overview, design decisions, OpenIddict introduction
-2. **[02-openiddict-setup.md](./02-openiddict-setup.md)** - OpenIddict configuration, database migrations, dev data seeding
-3. **[03-infrastructure-auth.md](./03-infrastructure-auth.md)** - BuildingBlocks.Infrastructure.Auth library, cookie authentication, middleware setup
-4. **[04-webapi-integration.md](./04-webapi-integration.md)** - Integrating auth into WebAPI projects, controllers, Swagger UI
+1. **[01-auth-overview.md](./01-auth-overview.md)** - Architecture overview, design decisions, Duende IdentityServer introduction
+2. **[02-authorization-server-setup.md](./02-authorization-server-setup.md)** - Duende IdentityServer configuration, database migrations, dev data seeding
+3. **[03-shared-auth-infrastructure.md](./03-shared-auth-infrastructure.md)** - BuildingBlocks.Infrastructure.Auth library, cookie authentication, middleware setup
+4. **[04-api-resource-protection.md](./04-api-resource-protection.md)** - Integrating auth into WebAPI projects, controllers, Swagger UI
 5. **[05-angular-auth.md](./05-angular-auth.md)** - Angular frontend authentication, OIDC client, guards, interceptors
 6. **[06-user-context-and-authorization.md](./06-user-context-and-authorization.md)** *(this document)* - ICurrentUser abstraction, UserValidator activation, role-based authorization
 
 **What you've learned**:
-- How to implement enterprise authentication with OpenIddict
+- How to implement enterprise authentication with Duende IdentityServer
 - Cookie-based authentication for both SPA and Blazor frontends
 - Clean separation of concerns (abstraction in Application, implementation in Infrastructure)
 - Flexible role-based authorization with AND/OR logic

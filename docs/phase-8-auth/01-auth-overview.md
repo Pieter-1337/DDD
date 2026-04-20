@@ -24,7 +24,8 @@ With Auth:
                             +-------------------+
                             | Authorization     |
                             | Server            |
-                            | (OpenIddict)      |
+                            | (Duende           |
+                            | IdentityServer)   |
                             +-------------------+
     Only authenticated users
     Claims-based authorization
@@ -66,10 +67,10 @@ With Authentication Server:
          v
 +-------------------+     +-----------------------+     +-------------------+
 | Scheduling API    | <-- | Authorization Server  | --> | Billing API       |
-| (port 7001)       |     | (OpenIddict)          |     | (port 7002)       |
-|                   |     | (port 7010)           |     |                   |
-| [Authorize]       |     +-----------------------+     | [Authorize]       |
-| HttpContext.User  |                                   | HttpContext.User  |
+| (port 7001)       |     | (Duende               |     | (port 7002)       |
+|                   |     | IdentityServer)       |     |                   |
+| [Authorize]       |     | (port 7010)           |     | [Authorize]       |
+| HttpContext.User  |     +-----------------------+     | HttpContext.User  |
 +-------------------+                                   +-------------------+
 
 Now we know:
@@ -94,7 +95,7 @@ OAuth 2.0 defines four roles that interact during authentication:
 |------|-------------|-----------------|
 | **Resource Owner** | The user who owns the data | Pieter (or any logged-in user) |
 | **Client** | Application requesting access on behalf of the user | Angular SPA, Blazor Server |
-| **Authorization Server** | Issues access tokens after authenticating the user | `Identity.WebApi` (OpenIddict) |
+| **Authorization Server** | Issues access tokens after authenticating the user | `Identity.WebApi` (Duende IdentityServer) |
 | **Resource Server** | Hosts protected resources (APIs) | `Scheduling.WebApi`, `Billing.WebApi` |
 
 ### Example Flow
@@ -295,29 +296,29 @@ fetch('/api/patients', { credentials: 'include' })
 
 ---
 
-## Why OpenIddict?
+## Why Duende IdentityServer?
 
 There are several options for implementing an authorization server in .NET. Here's how they compare:
 
 | Option | Pros | Cons | Why Not? |
 |--------|------|------|---------|
-| **OpenIddict** | Free, open source, self-hosted, .NET native, great for learning | More setup than cloud solutions | **CHOSEN** - Maximum learning value, full control |
-| **Duende IdentityServer** | Feature-rich, mature, well-documented | Commercial license required ($$$) for production | License cost for a learning project |
+| **Duende IdentityServer** | Industry standard, mature, excellent docs, .NET native, built-in middleware, batteries-included | Commercial license for larger production (free Community Edition for learning/small apps) | **CHOSEN** - Industry leader, maximum learning value |
 | **Keycloak** | Feature-rich, free, battle-tested | Java-based, heavy, non-.NET ecosystem | Not .NET native, abstracts internals |
 | **Azure AD / Entra ID** | Cloud-managed, zero infrastructure | Abstracts OIDC internals, vendor lock-in | Less learning value (too much magic) |
 | **Auth0 / Okta** | Full-featured IDaaS, low maintenance | SaaS pricing, vendor lock-in | Cost and learning abstraction |
 
-### Why OpenIddict for This Project
+### Why Duende IdentityServer for This Project
 
-1. **Learning-focused** - You see and control every piece of the OIDC flow
-2. **Self-hosted** - Runs as a .NET service, no external dependencies
-3. **Open source** - Free for all use cases
-4. **ASP.NET Identity integration** - Works seamlessly with Identity for user management
-5. **.NET ecosystem** - Uses familiar patterns (middleware, DI, EF Core)
-6. **Production-ready** - Used by real applications, not just a toy
-7. **Well-documented** - Extensive samples and documentation
+1. **Industry standard** - Successor to the legendary IdentityServer4, built by the original team
+2. **Mature and well-documented** - Comprehensive official documentation and large community
+3. **Free Community Edition** - Free for learning, development, and production with revenue < $1M USD
+4. **.NET native** - Built specifically for .NET, leverages ASP.NET Core middleware
+5. **Batteries-included** - Built-in OIDC endpoints (no custom controllers needed), UI templates, admin tools
+6. **ASP.NET Identity integration** - Seamless integration with ASP.NET Identity for user management
+7. **Learning-focused** - You see the full OIDC flow with less boilerplate than DIY solutions
+8. **Production-ready** - Used by thousands of real applications worldwide
 
-**Trade-off:** More initial setup compared to cloud providers, but the learning value is significant.
+**Trade-off:** Commercial license required for larger production use (revenue > $1M), but the learning experience and developer productivity are exceptional.
 
 ---
 
@@ -479,8 +480,8 @@ public static IServiceCollection AddSharedDataProtection(
 
 | Concept | What It Is | Where It Lives |
 |---------|-----------|----------------|
-| **Scopes** | Define what information the client can access (e.g., `openid`, `profile`, `scheduling_api`) | Authorization Server configuration (OpenIddict) |
-| **Client Registration** | Registered applications that can use OIDC (e.g., `scheduling_webapi`) | Authorization Server seed data (DbContext) |
+| **Scopes** | Define what information the client can access (e.g., `openid`, `profile`, `scheduling_api`) | Authorization Server configuration (Duende IdentityServer) |
+| **Client Registration** | Registered applications that can use OIDC (e.g., `scheduling_webapi`) | Authorization Server seed data (DbContext or in-memory config) |
 | **Authorization Policies** | Rules for endpoint access (e.g., `[Authorize(Policy = "AdminOnly")]`) | API `Program.cs` (AddAuthorization) |
 | **Data Protection Keys** | Shared encryption keys for cookies across APIs | File system, Azure Key Vault, Redis, or SQL Server |
 | **Claims** | User information embedded in the cookie (email, roles, scopes) | Cookie (encrypted), read via `HttpContext.User.Claims` |
@@ -515,7 +516,7 @@ Step 5: API's /auth/login triggers OIDC challenge
         return Challenge(new AuthenticationProperties
         {
             RedirectUri = "https://localhost:7003/patients"
-        }, OpenIddictClientAspNetCoreDefaults.AuthenticationScheme);
+        }, "oidc");
 
     Middleware generates redirect:
         Location: https://localhost:7010/connect/authorize?
@@ -693,7 +694,7 @@ This phase implements authentication and authorization step-by-step:
 | Doc | Title | Description |
 |-----|-------|-------------|
 | **01** | **01-auth-overview.md** | This file - concepts, flows, and architecture |
-| **02** | **02-authorization-server-setup.md** | Create Identity.WebApi with OpenIddict + ASP.NET Identity |
+| **02** | **02-authorization-server-setup.md** | Create Identity.WebApi with Duende IdentityServer + ASP.NET Identity |
 | **03** | **03-api-authentication.md** | Configure Scheduling/Billing APIs to validate cookies |
 | **04** | **04-shared-data-protection.md** | Share Data Protection keys across APIs for cookie decryption |
 | **05** | **05-authorization-policies.md** | Implement role-based and claims-based authorization |
@@ -706,9 +707,9 @@ This phase implements authentication and authorization step-by-step:
 By the end of this phase:
 
 1. **Authorization Server (Identity.WebApi)**
-   - OpenIddict configuration
+   - Duende IdentityServer configuration
    - ASP.NET Identity for user management
-   - Razor Pages for login/register
+   - Razor Pages for login/register (via IdentityServer UI templates)
    - Client and scope registration
    - Token issuance (authorization code flow)
 
@@ -778,15 +779,16 @@ Angular SPA (port 7003)
 │                                                                       │
 │  Identity.WebApi (port 7010)                                         │
 │  ┌────────────────────────────────────────────────────────────────┐  │
-│  │ OpenIddict                                                      │  │
+│  │ Duende IdentityServer                                          │  │
 │  │ - Client registration (scheduling_webapi, billing_webapi)      │  │
 │  │ - Scope definition (openid, profile, email, scheduling_api)    │  │
 │  │ - Token issuance (authorization code flow)                     │  │
 │  │ - Discovery endpoint (/.well-known/openid-configuration)       │  │
+│  │ - Built-in OIDC endpoints (/connect/authorize, /connect/token) │  │
 │  │                                                                 │  │
 │  │ ASP.NET Identity                                                │  │
 │  │ - User storage (IdentityDb)                                    │  │
-│  │ - Login/register (Razor Pages)                                 │  │
+│  │ - Login/register (Razor Pages via IdentityServer templates)   │  │
 │  │ - Role management                                              │  │
 │  └────────────────────────────────────────────────────────────────┘  │
 └──────────────────────────────────────────────────────────────────────┘
@@ -812,7 +814,7 @@ Angular SPA (port 7003)
 2. **OIDC extends OAuth 2.0** - Adds identity layer with ID tokens and standard scopes
 3. **Authorization Code Flow** - Secure flow where tokens never reach the browser
 4. **Cookie-based auth** - HttpOnly cookies prevent XSS token theft
-5. **OpenIddict** - Self-hosted, .NET-native authorization server with maximum learning value
+5. **Duende IdentityServer** - Industry-standard, .NET-native authorization server with excellent learning experience
 6. **Shared Data Protection keys** - Required for multiple APIs to decrypt the same cookie
 7. **Claims-based authorization** - User identity and permissions flow via claims in cookies
 
@@ -826,8 +828,8 @@ Angular SPA (port 7003)
 
 ### What's Next
 
-In the next doc, you'll set up the Authorization Server with OpenIddict and ASP.NET Identity.
+In the next doc, you'll set up the Authorization Server with Duende IdentityServer and ASP.NET Identity.
 
 ---
 
-> Next: [02-authorization-server-setup.md](./02-authorization-server-setup.md) - Setting up the Authorization Server with OpenIddict
+> Next: [02-authorization-server-setup.md](./02-authorization-server-setup.md) - Setting up the Authorization Server with Duende IdentityServer

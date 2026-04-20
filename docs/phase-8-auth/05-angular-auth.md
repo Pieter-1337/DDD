@@ -128,7 +128,7 @@ export class AuthService {
          │ OIDC protocol
          ▼
 ┌─────────────────────────────────────────────────────────────────┐
-│                  Auth0 / Auth Server (Port 7010)                │
+│    Duende IdentityServer / Auth Server (Port 7010)             │
 │  - Login UI                                                      │
 │  - User management                                              │
 │  - Token issuance                                               │
@@ -737,11 +737,11 @@ checkAuth(): Observable<UserInfo | null> {
        │
        ├─> Browser redirects to API's /auth/login endpoint
        │   │
-       │   └─> API redirects to Auth0
+       │   └─> API redirects to Duende IdentityServer
        │
-       ├─> User authenticates with Auth0
+       ├─> User authenticates with IdentityServer
        │
-       ├─> Auth0 redirects back to /auth/callback
+       ├─> IdentityServer redirects back to /auth/callback
        │   │
        │   └─> API validates token, creates cookie, redirects to returnUrl
        │
