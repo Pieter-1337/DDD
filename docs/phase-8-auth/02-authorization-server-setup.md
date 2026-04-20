@@ -66,7 +66,7 @@ Our authorization server acts as the centralized identity provider for all bound
 - **ASP.NET Core Identity**: Handles user registration, password hashing, role management
 - **Duende IdentityServer**: Implements OAuth 2.0 and OpenID Connect protocol on top of Identity
 - **Authorization Code Flow**: Most secure flow for server-side applications and SPAs with PKCE
-- **Reference Tokens**: Tokens are opaque identifiers stored in the database (not self-contained JWTs). This allows instant revocation and better security
+- **JWT Access Tokens** (default): Self-contained tokens validated locally by each API — no call to the auth server needed. Industry standard for most applications
 - **Separate Database**: Identity has its own bounded context with its own database (IdentityDb)
 
 ---
@@ -302,9 +302,6 @@ public static class IdentityServerConfig
             AllowedGrantTypes = GrantTypes.Code,
             RequirePkce = true,
 
-            // Use reference tokens for this client (opaque tokens stored in DB)
-            AccessTokenType = AccessTokenType.Reference,
-
             RedirectUris = { "https://localhost:7001/signin-oidc" },
             PostLogoutRedirectUris = { "https://localhost:7001/signout-callback-oidc" },
 
@@ -330,9 +327,6 @@ public static class IdentityServerConfig
             AllowedGrantTypes = GrantTypes.Code,
             RequirePkce = true,
 
-            // Use reference tokens for this client (opaque tokens stored in DB)
-            AccessTokenType = AccessTokenType.Reference,
-
             RedirectUris = { "https://localhost:7002/signin-oidc" },
             PostLogoutRedirectUris = { "https://localhost:7002/signout-callback-oidc" },
 
@@ -357,9 +351,6 @@ public static class IdentityServerConfig
             AllowedGrantTypes = GrantTypes.Code,
             RequirePkce = true,
             RequireClientSecret = false, // Public client (SPA can't keep secrets)
-
-            // Use reference tokens for better security
-            AccessTokenType = AccessTokenType.Reference,
 
             RedirectUris =
             {
@@ -517,16 +508,28 @@ app.Run();
    - **Authorization Code Flow**: Most secure flow. Client redirects user to login, user authenticates, server returns authorization code, client exchanges code for token
    - **Refresh Token Flow**: Allows clients to get new access tokens without re-authenticating (via `AllowOfflineAccess = true`)
 
-3. **Reference Tokens:**
-   - Configured per-client via `AccessTokenType = AccessTokenType.Reference`
-   - Tokens are stored in `PersistedGrants` table as opaque identifiers
-   - APIs validate tokens by calling back to the authorization server
-   - Allows instant revocation (just delete from database)
-   - Better security than self-contained JWTs (can't be decoded)
+3. **Access Token Types — JWT vs Reference:**
+
+   By default, Duende IdentityServer issues **JWT access tokens** (self-contained). This is the industry standard because:
+   - APIs validate tokens locally (check signature + expiry) — no network call to the auth server
+   - The auth server doesn't become a bottleneck or single point of failure
+   - Scales effortlessly — works even if the auth server is temporarily down
+
+   The trade-off is that JWTs can't be instantly revoked — they remain valid until they expire. Mitigate this with short lifetimes (5-15 minutes) paired with refresh tokens.
+
+   | Concern | JWT (default) | Reference Token |
+   |---------|--------------|-----------------|
+   | Validation | Local (signature + expiry check) | Network call to introspection endpoint on every request |
+   | Auth server load | None after issuing | Hit on every API request |
+   | Auth server availability | API works independently | Auth server down = all APIs down |
+   | Revocation | Wait for expiry (use short lifetimes) | Instant (delete from DB) |
+   | Scalability | Excellent | Auth server becomes bottleneck |
+
+   > **When to use reference tokens:** High-security environments where instant revocation is non-negotiable, low-traffic internal APIs, or when token size is a concern. Configure per-client with `AccessTokenType = AccessTokenType.Reference`.
 
 4. **Database Stores:**
    - **ConfigurationStore**: Stores clients, identity resources, API scopes
-   - **OperationalStore**: Stores tokens, authorization codes, refresh tokens, user consents
+   - **OperationalStore**: Stores refresh tokens, authorization codes, device codes, user consents (and reference access tokens if configured per-client)
    - Both use EF Core with separate DbContexts
 
 ---
@@ -1222,9 +1225,9 @@ This creates three sets of tables:
 - ApiResources, ApiResourceScopes, ApiResourceClaims
 
 **Operational Tables (PersistedGrantDbContext):**
-- PersistedGrants (stores reference tokens, refresh tokens, authorization codes)
+- PersistedGrants (stores refresh tokens, authorization codes, device codes, user consents — and reference access tokens if configured per-client)
 - DeviceCodes
-- Keys (signing keys)
+- Keys (signing keys for JWT signature validation)
 - ServerSideSessions
 
 ### 2. Run the Application
@@ -1328,8 +1331,8 @@ Check the `IdentityDb` database for:
 - **ApiScopes**: Should contain 2 API scopes (scheduling_api, billing_api)
 
 **Operational Tables:**
-- **PersistedGrants**: Will populate as tokens are issued
-- **Keys**: Contains signing keys
+- **PersistedGrants**: Stores refresh tokens, authorization codes, device codes, user consents (and reference access tokens if configured per-client)
+- **Keys**: Contains signing keys for JWT signature validation
 
 ---
 

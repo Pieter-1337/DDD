@@ -499,6 +499,17 @@ public class CreateAppointmentCommandHandler : IRequestHandler<CreateAppointment
 
 ## 5. Shared Data Protection Keys
 
+> **When do you need shared Data Protection keys?**
+>
+> | Scenario | Shared keys needed? | Why |
+> |----------|-------------------|-----|
+> | **Multiple APIs, no gateway** (this phase) | Yes | Each API must decrypt the same cookie |
+> | **Single app, scaled horizontally** | Yes | Multiple instances must share the same key ring |
+> | **BFF gateway** (Phase 9) | No (across APIs) | Only the BFF handles cookies; downstream APIs receive JWTs |
+> | **Machine-to-machine** (Client Credentials) | No | No cookies involved — bearer tokens only |
+>
+> In this phase we don't have a BFF yet, so shared keys are required across APIs. Once a BFF is introduced (Phase 9), this shared key setup can be removed from the individual APIs — only the BFF itself needs key persistence if scaled horizontally.
+
 ### The Problem
 
 ASP.NET Core's cookie authentication uses **Data Protection** to encrypt cookies. By default:

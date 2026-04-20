@@ -431,6 +431,17 @@ Angular SPA (display patients)
 
 ## Data Protection and Shared Keys
 
+> **When do you need shared Data Protection keys?**
+>
+> | Scenario | Shared keys needed? | Why |
+> |----------|-------------------|-----|
+> | **Multiple APIs, no gateway** (Phase 8) | Yes | Each API must decrypt the same cookie |
+> | **Single app, scaled horizontally** | Yes | Multiple instances must share the same key ring |
+> | **BFF gateway** (Phase 9) | No (across APIs) | Only the BFF handles cookies; downstream APIs receive JWTs |
+> | **Machine-to-machine** (Client Credentials) | No | No cookies involved — bearer tokens only |
+>
+> In Phase 8 we don't have a BFF yet, so shared keys are required. Once a BFF is introduced in Phase 9, shared Data Protection keys across APIs become unnecessary — only the BFF itself needs key persistence if scaled horizontally.
+
 When multiple APIs need to read the same authentication cookie, they must share **Data Protection keys**.
 
 ### The Problem
