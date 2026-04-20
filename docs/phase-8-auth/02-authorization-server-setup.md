@@ -1341,10 +1341,12 @@ Navigate to:
 https://localhost:7010/Account/Login
 ```
 
-You should see the login form. Try logging in with the seeded users:
+You should see the login form. You can verify it renders correctly and even log in with the seeded users:
 - **admin@test.com** / **Admin123!**
 - **user@test.com** / **User123!**
 - **doctor@test.com** / **Doctor123!**
+
+> **Note:** Logging in directly on the IdentityServer works (it creates a session cookie on the auth server), but you won't be redirected anywhere useful. In a real flow, the login page is reached via an OIDC redirect from a client (e.g., Angular or Blazor). The client passes a `ReturnUrl` so IdentityServer knows where to send the user after login. The full end-to-end flow is wired up in docs 03-05.
 
 ### 5. Verify Database
 
