@@ -347,9 +347,6 @@ app.MapControllers();
 
 app.Run();
 ```
-
-**Note**: Billing has its own policies (`BillingStaffOrAdmin`) tailored to its domain.
-
 ---
 
 ## Protecting Controllers with [Authorize]
@@ -360,98 +357,76 @@ Now that authentication middleware is configured, we add `[Authorize]` attribute
 
 ```csharp
 // File: WebApplications/Scheduling.WebApi/Controllers/PatientsController.cs
-using BuildingBlocks.Application.Queries;
-using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Scheduling.Application.Commands;
-using Scheduling.Application.Queries;
+using MediatR;
+using Scheduling.Application.Patients.Commands;
+using Scheduling.Application.Patients.Dtos;
+using Scheduling.Application.Patients.Queries;
+using BuildingBlocks.Application.Interfaces;
 
 namespace Scheduling.WebApi.Controllers;
 
-[ApiController]
 [Route("api/[controller]")]
+[ApiController]
 [Authorize]  // Authentication gate: all endpoints require a valid user
-public class PatientsController(ISender sender) : ControllerBase
+public class PatientsController(IMediator mediator) : ControllerBase
 {
     // Role-based authorization is enforced by UserValidator<T> in each command's validator.
     // See doc 06 (user-context-and-authorization.md) for the UserValidator pattern.
 
-    /// <summary>
-    /// Get all patients (paginated).
-    /// </summary>
-    [HttpGet]
-    public async Task<IActionResult> GetPatientsAsync(
-        [FromQuery] int pageNumber = 1,
-        [FromQuery] int pageSize = 20,
-        CancellationToken cancellationToken = default)
+    [HttpGet("{patientId}")]
+    [ProducesResponseType<PatientDto>(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> GetPatientAsync(Guid patientId)
     {
-        var query = new GetPatientsQuery(pageNumber, pageSize);
-        var result = await sender.Send(query, cancellationToken);
-
-        return Ok(new PagedResponse<PatientDto>(result));
+        var response = await mediator.Send(new GetPatientQuery { Id = patientId });
+        return Ok(response);
     }
 
-    /// <summary>
-    /// Get patient by ID.
-    /// </summary>
-    [HttpGet("{id:guid}")]
-    public async Task<IActionResult> GetPatientByIdAsync(Guid id, CancellationToken cancellationToken = default)
+    [HttpGet("")]
+    [ProducesResponseType<IEnumerable<PatientDto>>(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> GetAllPatientsAsync(string? status)
     {
-        var query = new GetPatientByIdQuery(id);
-        var result = await sender.Send(query, cancellationToken);
-
-        if (result is null)
-            return NotFound();
-
-        return Ok(result);
+        var response = await mediator.Send(new GetAllPatientsQuery { Status = status });
+        return Ok(response);
     }
 
-    /// <summary>
-    /// Create a new patient.
-    /// </summary>
-    [HttpPost]
-    public async Task<IActionResult> CreatePatientAsync(
-        [FromBody] CreatePatientCommand command,
-        CancellationToken cancellationToken = default)
+    [HttpPost("")]
+    [ProducesResponseType<CreatePatientCommandResponse>(StatusCodes.Status201Created)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> CreatePatientAsync(CreatePatientRequest request)
     {
-        var result = await sender.Send(command, cancellationToken);
-
-        return CreatedAtAction(
-            nameof(GetPatientByIdAsync),
-            new { id = result.Id },
-            result);
+        var response = await mediator.Send(new CreatePatientCommand(request));
+        return CreatedAtAction(nameof(GetPatientAsync), new { patientId = response.PatientId }, response);
     }
 
-    /// <summary>
-    /// Update patient contact info.
-    /// </summary>
-    [HttpPut("{id:guid}/contact-info")]
-    public async Task<IActionResult> UpdatePatientContactInfoAsync(
-        Guid id,
-        [FromBody] UpdatePatientContactInfoCommand command,
-        CancellationToken cancellationToken = default)
+    [HttpPost("{patientId}/suspend")]
+    [ProducesResponseType<bool>(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> SuspendPatientAsync(Guid patientId)
     {
-        if (id != command.PatientId)
-            return BadRequest("ID in URL does not match ID in body.");
-
-        await sender.Send(command, cancellationToken);
-
-        return NoContent();
+        var response = await mediator.Send(new SuspendPatientCommand { Id = patientId });
+        return Ok(response);
     }
 
-    /// <summary>
-    /// Deactivate a patient (soft delete).
-    /// </summary>
-    [HttpDelete("{id:guid}")]
-    public async Task<IActionResult> DeactivatePatientAsync(
-        Guid id,
-        CancellationToken cancellationToken = default)
+    [HttpPost("{patientId}/activate")]
+    [ProducesResponseType<bool>(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> ActivatePatientAsync(Guid patientId)
     {
-        var command = new DeactivatePatientCommand(id);
-        await sender.Send(command, cancellationToken);
+        var response = await mediator.Send(new ActivatePatientCommand { Id = patientId });
+        return Ok(response);
+    }
 
-        return NoContent();
+    [HttpDelete("{patientId}")]
+    [ProducesResponseType<bool>(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> DeletePatientAsync(Guid patientId)
+    {
+        var response = await mediator.Send(new DeletePatientCommand { Id = patientId });
+        return Ok(response);
     }
 }
 ```
@@ -460,11 +435,12 @@ public class PatientsController(ISender sender) : ControllerBase
 
 | Endpoint | Role Check (UserValidator) | Reasoning |
 |----------|---------------------------|-----------|
-| `GET /api/patients` | Any authenticated user | Read-only, safe |
-| `GET /api/patients/{id}` | Any authenticated user | Read-only, safe |
-| `POST /api/patients` | Nurse, Doctor, or Admin | Data entry operation |
-| `PUT /api/patients/{id}/contact-info` | Nurse, Doctor, or Admin | Data modification |
-| `DELETE /api/patients/{id}` | Admin only | Destructive operation |
+| `GET /api/patients` | Any authenticated user | Read-only, listing patients |
+| `GET /api/patients/{id}` | Any authenticated user | Read-only, viewing a patient |
+| `POST /api/patients` | Nurse, Doctor, or Admin | Front desk / clinical staff register patients |
+| `POST /api/patients/{id}/suspend` | Doctor or Admin | Clinical decision to suspend a patient record |
+| `POST /api/patients/{id}/activate` | Doctor or Admin | Reactivate a suspended patient |
+| `DELETE /api/patients/{id}` | Admin only | Destructive administrative action |
 
 **Note**: Role checks are enforced by `UserValidator<T>` in each command's validator (see [doc 06](./06-user-context-and-authorization.md)). The controller only has `[Authorize]` for authentication — it does not specify roles. This keeps authorization logic testable and centralized in the application layer.
 

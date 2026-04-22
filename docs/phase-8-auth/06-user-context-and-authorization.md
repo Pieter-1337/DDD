@@ -356,12 +356,11 @@ public class DeletePatientCommandValidator : UserValidator<DeletePatientCommand>
     public DeletePatientCommandValidator(
         ICurrentUser currentUser,
         IUnitOfWork unitOfWork)
-        : base(currentUser, new[] { AppRoles.Admin })  // Single role group with one role
+        : base(currentUser, new[] { AppRoles.Admin })  // Single role group: Admin only
     {
         RuleForUserValidation();  // Enforce role check
 
-        RuleFor(x => x.PatientId)
-            .NotEmpty()
+        RuleFor(x => x.Id)
             .MustAsync(async (id, ct) => await unitOfWork.RepositoryFor<Patient>().ExistsAsync(id, ct))
             .WithMessage("Patient not found.");
     }
@@ -384,8 +383,9 @@ public class SuspendPatientCommandValidator : UserValidator<SuspendPatientComman
     {
         RuleForUserValidation();
 
-        RuleFor(x => x.PatientId).NotEmpty();
-        RuleFor(x => x.Reason).NotEmpty().MaximumLength(500);
+        RuleFor(x => x.Id)
+            .MustAsync(async (id, ct) => await unitOfWork.RepositoryFor<Patient>().ExistsAsync(id, ct))
+            .WithMessage("Patient not found.");
     }
 }
 ```
@@ -420,7 +420,7 @@ Logic: User must have Admin OR (both Doctor AND NurseManager).
 > public const string NurseManager = "NurseManager";
 > ```
 
-**Scenario 4: Any authenticated user (no role restrictions)**
+**Scenario 4: Nurse, Doctor, or Admin can create patients**
 
 ```csharp
 using Shared.Auth;
@@ -429,24 +429,19 @@ public class CreatePatientCommandValidator : UserValidator<CreatePatientCommand>
 {
     public CreatePatientCommandValidator(
         ICurrentUser currentUser,
-        IUnitOfWork unitOfWork)
-        : base(currentUser)  // Parameterless constructor, no role groups
+        IValidator<CreatePatientRequest> requestValidator)
+        : base(currentUser, new[] { AppRoles.Nurse }, new[] { AppRoles.Doctor }, new[] { AppRoles.Admin })
     {
-        // Don't call RuleForUserValidation() — no role check needed
+        RuleForUserValidation();  // Enforce role check: Nurse OR Doctor OR Admin
 
-        RuleFor(x => x.FirstName).NotEmpty().MaximumLength(100);
-        RuleFor(x => x.LastName).NotEmpty().MaximumLength(100);
-        RuleFor(x => x.Email)
-            .NotEmpty()
-            .EmailAddress()
-            .MustAsync(async (email, ct) =>
-                !await unitOfWork.RepositoryFor<Patient>().AnyAsync(p => p.Email == email, ct))
-            .WithMessage("A patient with this email already exists.");
+        RuleFor(c => c.Patient).Cascade(CascadeMode.Stop)
+            .NotNull()
+            .SetValidator(requestValidator);
     }
 }
 ```
 
-Logic: Any authenticated user can create patients. Authentication is enforced by the `[Authorize]` attribute on the controller, but no specific role is required.
+Logic: User must have Nurse, Doctor, or Admin role. Front desk and clinical staff can register patients. The existing `CreatePatientRequestValidator` handles field-level validation (names, email, date of birth).
 
 ### Validation Flow Diagram
 
@@ -794,36 +789,43 @@ All existing validators in the project extend `UserValidator<T>` but don't curre
 ### Before (Existing Code)
 
 ```csharp
-public class CreatePatientCommandValidator : UserValidator<CreatePatientCommand>
+public class SuspendPatientCommandValidator : UserValidator<SuspendPatientCommand>
 {
-    public CreatePatientCommandValidator(IUnitOfWork unitOfWork)
+    private readonly IUnitOfWork _uow;
+
+    public SuspendPatientCommandValidator(IUnitOfWork uow)
     {
-        RuleFor(x => x.FirstName).NotEmpty().MaximumLength(100);
-        RuleFor(x => x.LastName).NotEmpty().MaximumLength(100);
-        // ... other rules
+        _uow = uow;
+
+        RuleFor(c => c.Id)
+            .MustAsync(BeAValidPatientAsync)
+            .WithErrorCode(ErrorCode.NotFound.Value)
+            .WithMessage(ErrorCode.NotFound.Message);
     }
+    // ...
 }
 ```
 
 ### After (With ICurrentUser)
 
 ```csharp
-public class CreatePatientCommandValidator : UserValidator<CreatePatientCommand>
+public class SuspendPatientCommandValidator : UserValidator<SuspendPatientCommand>
 {
-    public CreatePatientCommandValidator(ICurrentUser currentUser, IUnitOfWork unitOfWork)
-        : base(currentUser)  // No role restrictions, any authenticated user
-    {
-        // Don't call RuleForUserValidation() — authentication is handled by [Authorize]
+    private readonly IUnitOfWork _uow;
 
-        RuleFor(x => x.FirstName).NotEmpty().MaximumLength(100);
-        RuleFor(x => x.LastName).NotEmpty().MaximumLength(100);
-        RuleFor(x => x.Email)
-            .NotEmpty()
-            .EmailAddress()
-            .MustAsync(async (email, ct) =>
-                !await unitOfWork.RepositoryFor<Patient>().AnyAsync(p => p.Email == email, ct))
-            .WithMessage("A patient with this email already exists.");
+    public SuspendPatientCommandValidator(ICurrentUser currentUser, IUnitOfWork uow)
+        : base(currentUser, new[] { AppRoles.Admin }, new[] { AppRoles.Doctor })  // Doctor or Admin
+    {
+        _uow = uow;
+
+        RuleForUserValidation();  // Enforce role check
+
+        RuleFor(c => c.Id)
+            .MustAsync(BeAValidPatientAsync)
+            .WithErrorCode(ErrorCode.NotFound.Value)
+            .WithMessage(ErrorCode.NotFound.Message);
     }
+    // ...
 }
 ```
 
