@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.Extensions.Configuration;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace BuildingBlocks.Infrastructure.Auth
@@ -145,6 +146,15 @@ namespace BuildingBlocks.Infrastructure.Auth
                 };
                 //options.GetClaimsFromUserInfoEndpoint = true; //Get additional claims from the user info endpoint
             });
+
+            // 3. Configure Data Protection for shared cookie encryption
+            var dataProtection = services.AddDataProtection()
+                .SetApplicationName("DDD.WebApis"); // MUST be same across all APIs
+
+            if (!string.IsNullOrEmpty(sharedKeysPath))
+            {
+                dataProtection.PersistKeysToFileSystem(new DirectoryInfo(sharedKeysPath));
+            }
 
             // Register ICurrentUser for accessing current user information
             services.AddHttpContextAccessor();
