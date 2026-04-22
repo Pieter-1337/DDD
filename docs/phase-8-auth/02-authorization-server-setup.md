@@ -141,9 +141,9 @@ Add the authentication packages to the centralized package management file:
     <!-- Existing packages... -->
 
     <!-- Authentication & Authorization -->
-    <PackageVersion Include="Duende.IdentityServer" Version="7.0.7" />
-    <PackageVersion Include="Duende.IdentityServer.AspNetIdentity" Version="7.0.7" />
-    <PackageVersion Include="Duende.IdentityServer.EntityFramework" Version="7.0.7" />
+    <PackageVersion Include="Duende.IdentityServer" Version="7.4.7" />
+    <PackageVersion Include="Duende.IdentityServer.AspNetIdentity" Version="7.4.7" />
+    <PackageVersion Include="Duende.IdentityServer.EntityFramework" Version="7.4.7" />
     <PackageVersion Include="Microsoft.AspNetCore.Identity.EntityFrameworkCore" Version="9.0.3" />
     <PackageVersion Include="Microsoft.AspNetCore.DataProtection.EntityFrameworkCore" Version="9.0.3" />
     <PackageVersion Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="9.0.3" />

@@ -91,9 +91,9 @@ The following packages need to be added to `Directory.Packages.props`:
     <PackageVersion Include="Aspire.Hosting.JavaScript" Version="13.1.1" />
 
     <!-- Authentication & Authorization -->
-    <PackageVersion Include="Duende.IdentityServer" Version="7.0.8" />
-    <PackageVersion Include="Duende.IdentityServer.AspNetIdentity" Version="7.0.8" />
-    <PackageVersion Include="Duende.IdentityServer.EntityFramework" Version="7.0.8" />
+    <PackageVersion Include="Duende.IdentityServer" Version="7.4.7" />
+    <PackageVersion Include="Duende.IdentityServer.AspNetIdentity" Version="7.4.7" />
+    <PackageVersion Include="Duende.IdentityServer.EntityFramework" Version="7.4.7" />
     <PackageVersion Include="Microsoft.AspNetCore.Identity.EntityFrameworkCore" Version="9.0.3" />
     <PackageVersion Include="Microsoft.AspNetCore.DataProtection.EntityFrameworkCore" Version="9.0.3" />
   </ItemGroup>
