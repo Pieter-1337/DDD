@@ -4,10 +4,12 @@ using Scheduling.Application.Patients.Commands;
 using Scheduling.Application.Patients.Dtos;
 using Scheduling.Application.Patients.Queries;
 using BuildingBlocks.Application.Interfaces;
+using Microsoft.AspNetCore.Authorization;
 
 namespace Scheduling.WebApi.Controllers
 {
     [Route("api/[controller]")]
+    [Authorize]
     [ApiController]
     public class PatientsController : ControllerBase
     {

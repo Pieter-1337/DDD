@@ -1,4 +1,5 @@
-﻿using Duende.IdentityServer.EntityFramework.DbContexts;
+﻿using Auth;
+using Duende.IdentityServer.EntityFramework.DbContexts;
 using Duende.IdentityServer.EntityFramework.Mappers;
 using Identity.WebApi.Config;
 using Identity.WebApi.Data;
@@ -52,7 +53,7 @@ public class IdentitySeedData : IHostedService
     {
         var roleManager = serviceProvider.GetRequiredService<RoleManager<IdentityRole>>();
 
-        string[] roles = { "Admin", "User", "Doctor", "Nurse" };
+        string[] roles = { AppRoles.Admin, AppRoles.Doctor, AppRoles.Nurse };
 
         foreach (var role in roles)
         {

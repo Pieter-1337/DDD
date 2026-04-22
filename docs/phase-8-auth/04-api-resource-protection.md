@@ -494,92 +494,6 @@ builder.Services.AddCors(options =>
 **Security Note**: When using `AllowCredentials()`, you **cannot** use `AllowAnyOrigin()`. You must explicitly list allowed origins.
 
 ---
-
-## Testing the Protected API
-
-### 1. Test Without Authentication (401 Unauthorized)
-
-```bash
-# Request without cookie
-curl -X GET https://localhost:7001/api/patients \
-  -H "Content-Type: application/json" \
-  --insecure
-
-# Response: 401 Unauthorized
-{
-  "type": "https://tools.ietf.org/html/rfc7235#section-3.1",
-  "title": "Unauthorized",
-  "status": 401
-}
-```
-
-### 2. Login via Auth Server
-
-```bash
-# Login to get authentication cookie
-curl -X POST https://localhost:7010/auth/login \
-  -H "Content-Type: application/json" \
-  -d '{
-    "username": "admin@hospital.local",
-    "password": "Admin@123"
-  }' \
-  --cookie-jar cookies.txt \
-  --insecure
-
-# Response: 200 OK with Set-Cookie header
-```
-
-### 3. Test With Authentication (200 OK)
-
-```bash
-# Request with cookie
-curl -X GET https://localhost:7001/api/patients \
-  -H "Content-Type: application/json" \
-  --cookie cookies.txt \
-  --insecure
-
-# Response: 200 OK with patient data
-{
-  "items": [
-    {
-      "id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
-      "firstName": "John",
-      "lastName": "Doe",
-      ...
-    }
-  ],
-  "pageNumber": 1,
-  "pageSize": 20,
-  "totalCount": 1
-}
-```
-
-### 4. Test Authorization Policy (403 Forbidden)
-
-```bash
-# Login as a Nurse
-curl -X POST https://localhost:7010/auth/login \
-  -H "Content-Type: application/json" \
-  -d '{
-    "username": "nurse@hospital.local",
-    "password": "Nurse@123"
-  }' \
-  --cookie-jar cookies.txt \
-  --insecure
-
-# Try to delete a patient (AdminOnly policy)
-curl -X DELETE https://localhost:7001/api/patients/3fa85f64-5717-4562-b3fc-2c963f66afa6 \
-  --cookie cookies.txt \
-  --insecure
-
-# Response: 403 Forbidden
-{
-  "type": "https://tools.ietf.org/html/rfc7231#section-6.5.3",
-  "title": "Forbidden",
-  "status": 403
-}
-```
-
 ---
 
 ## Testing in Scalar (OpenAPI UI)
@@ -634,10 +548,8 @@ Both WebApi projects need the same `Auth` configuration section added to `appset
   },
   "Auth": {
     "Authority": "https://localhost:7010",
-    "Audiences": [
-      "scheduling-api",
-      "billing-api"
-    ],
+    "ClientId": "scheduling-api",
+    "ClientSecret": "scheduling-secret-change-in-production",
     "SharedKeysPath": "C:\\SharedKeys\\DDD"
   }
 }
@@ -658,18 +570,18 @@ Both WebApi projects need the same `Auth` configuration section added to `appset
   },
   "Auth": {
     "Authority": "https://localhost:7010",
-    "Audiences": [
-      "scheduling-api",
-      "billing-api"
-    ],
+    "ClientId": "billing-api",
+    "ClientSecret": "billing-secret-change-in-production",
     "SharedKeysPath": "C:\\SharedKeys\\DDD"
   }
 }
 ```
 
 **Why this config matters**:
-- `Authority`: The Auth Server that issued the cookie (must match for validation)
-- `Audiences`: The APIs that can accept this cookie (both APIs trust cookies for both audiences)
+- `Authority`: The Auth Server URL — used for OIDC discovery (redirect URIs, token endpoint, signing keys)
+- `ClientId`: The OIDC client ID registered in IdentityServer's `Config.cs` (see doc 02)
+- `ClientSecret`: The OIDC client secret for the authorization code exchange
+- `SharedKeysPath`: Data Protection keys directory so both APIs can decrypt each other's cookies
 
 ---
 
