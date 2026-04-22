@@ -82,25 +82,25 @@ public class IdentitySeedData : IHostedService
             var result = await userManager.CreateAsync(admin, "Admin123!");
             if (result.Succeeded)
             {
-                await userManager.AddToRoleAsync(admin, "Admin");
+                await userManager.AddToRoleAsync(admin, AppRoles.Admin);
             }
         }
 
-        // Regular user
-        var userEmail = "user@test.com";
-        if (await userManager.FindByEmailAsync(userEmail) == null)
+        // Nurse user
+        var nurseEmail = "nurse@test.com";
+        if (await userManager.FindByEmailAsync(nurseEmail) == null)
         {
-            var user = new ApplicationUser
+            var nurse = new ApplicationUser
             {
-                UserName = userEmail,
-                Email = userEmail,
+                UserName = nurseEmail,
+                Email = nurseEmail,
                 EmailConfirmed = true
             };
 
-            var result = await userManager.CreateAsync(user, "User123!");
+            var result = await userManager.CreateAsync(nurse, "Nurse123!");
             if (result.Succeeded)
             {
-                await userManager.AddToRoleAsync(user, "User");
+                await userManager.AddToRoleAsync(nurse, AppRoles.Nurse);
             }
         }
 
@@ -118,7 +118,7 @@ public class IdentitySeedData : IHostedService
             var result = await userManager.CreateAsync(doctor, "Doctor123!");
             if (result.Succeeded)
             {
-                await userManager.AddToRoleAsync(doctor, "Doctor");
+                await userManager.AddToRoleAsync(doctor, AppRoles.Doctor);
             }
         }
     }

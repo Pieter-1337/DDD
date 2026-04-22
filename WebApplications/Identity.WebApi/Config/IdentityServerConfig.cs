@@ -38,30 +38,6 @@ namespace Identity.WebApi.Config
             {
                 ClientId = "billing-api",
                 ClientName = "Billing API",
-                ClientSecrets = { new Secret("scheduling-secret".Sha256()) },
-
-                AllowedGrantTypes = GrantTypes.Code,
-                RequirePkce = true,
-
-                RedirectUris = { "https://localhost:7001/signin-oidc" },
-                PostLogoutRedirectUris = { "https://localhost:7001/signout-callback-oidc" },
-
-                AllowedScopes =
-                {
-                    IdentityServerConstants.StandardScopes.OpenId,
-                    IdentityServerConstants.StandardScopes.Profile,
-                    IdentityServerConstants.StandardScopes.Email,
-                    "roles",
-                    "scheduling_api"
-                },
-
-                AllowOfflineAccess = true // Enable refresh tokens
-            },
-            new Client
-            {
-                ClientId = "scheduling-api",
-                ClientName = "Scheduling API",
-
                 ClientSecrets = { new Secret("billing-secret".Sha256()) },
 
                 AllowedGrantTypes = GrantTypes.Code,
@@ -77,6 +53,30 @@ namespace Identity.WebApi.Config
                     IdentityServerConstants.StandardScopes.Email,
                     "roles",
                     "billing_api"
+                },
+
+                AllowOfflineAccess = true // Enable refresh tokens
+            },
+            new Client
+            {
+                ClientId = "scheduling-api",
+                ClientName = "Scheduling API",
+
+                ClientSecrets = { new Secret("scheduling-secret".Sha256()) },
+
+                AllowedGrantTypes = GrantTypes.Code,
+                RequirePkce = true,
+
+                RedirectUris = { "https://localhost:7001/signin-oidc" },
+                PostLogoutRedirectUris = { "https://localhost:7001/signout-callback-oidc" },
+
+                AllowedScopes =
+                {
+                    IdentityServerConstants.StandardScopes.OpenId,
+                    IdentityServerConstants.StandardScopes.Profile,
+                    IdentityServerConstants.StandardScopes.Email,
+                    "roles",
+                    "scheduling_api"
                 },
 
                 AllowOfflineAccess = true // Enable refresh tokens
