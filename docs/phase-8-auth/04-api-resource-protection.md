@@ -553,17 +553,21 @@ Both WebApi projects need the same `Auth` configuration section added to `appset
 
 ## Testing in Scalar (OpenAPI UI)
 
-When you navigate to `https://localhost:7001/scalar/v1`, you'll notice that protected endpoints return 401.
+When you navigate to `https://localhost:7001/scalar/v1`, you'll notice that protected endpoints return **401 Unauthorized** (thanks to the `OnRedirectToLogin` handler that returns 401 for API requests instead of redirecting).
 
-### Option 1: Login First in Browser
+### Login First in the Same Browser
 
-1. Open `https://localhost:7010/auth/login` in the same browser
-2. POST credentials via a tool like Postman or curl
-3. The cookie is set in your browser
-4. Refresh Scalar at `https://localhost:7001/scalar/v1`
-5. Now requests include the cookie automatically
+1. Open a new tab and navigate to `https://localhost:7001/auth/login`
+2. This triggers the OIDC flow — you'll be redirected to the Auth Server login page
+3. Enter your credentials (e.g., `admin@test.com` / `Admin123!`)
+4. After login, the Auth Server redirects back to the Scheduling API's `/signin-oidc` callback
+5. The `DDD.Auth` cookie is now set in your browser for `localhost`
+6. Return to the Scalar tab at `https://localhost:7001/scalar/v1`
+7. Requests now include the cookie automatically
 
-### Option 2: Use [AllowAnonymous] for Development
+**Important**: You must go through the API's `/auth/login` endpoint — not the Auth Server directly. The cookie is created by the API's OIDC callback, not by IdentityServer.
+
+### Alternative: Use [AllowAnonymous] for Development
 
 Temporarily add `[AllowAnonymous]` to specific endpoints during development:
 
@@ -574,13 +578,6 @@ public async Task<IActionResult> GetPatientsAsync(...) { ... }
 ```
 
 **Warning**: Remove `[AllowAnonymous]` before deploying to production.
-
-### Option 3: Use Scalar's Cookie Support
-
-Scalar supports sending cookies if they're already set in the browser. The easiest flow:
-1. Use a separate tab to POST to `/auth/login`
-2. Return to Scalar tab
-3. Requests now include the cookie
 
 ---
 
