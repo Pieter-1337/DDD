@@ -1,4 +1,5 @@
 using BuildingBlocks.Application;
+using BuildingBlocks.Infrastructure.Auth;
 using BuildingBlocks.Infrastructure.MassTransit.Configuration;
 using BuildingBlocks.WebApplications.Filters;
 using BuildingBlocks.WebApplications.Json;
@@ -45,15 +46,23 @@ builder.Services.AddMassTransitEventBus<SchedulingDbContext>(builder.Configurati
     configure.AddConsumers(typeof(Scheduling.Infrastructure.ServiceCollectionExtensions).Assembly);
 });
 
+// Add cookie auth
+builder.Services.AddOidcCookieAuth(builder.Configuration);
+
 // Add cors
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("Angular", policy => policy
-        .WithOrigins("https://localhost:7003")
+        .WithOrigins(
+        "https://localhost:7003", // Angular SPA 
+        "https://localhost:7010") // Auth Server (for redirect flows)
         .AllowAnyHeader()
-        .AllowAnyMethod());
+        .AllowAnyMethod()
+        .AllowCredentials());
 });
 
+
+//Mind the order here!
 var app = builder.Build();
 
 // Map Aspire default endpoints (health checks)
@@ -64,6 +73,7 @@ if (app.Environment.IsDevelopment())
     app.UseOpenApiWithScalar("Scheduling API");
 }
 app.UseHttpsRedirection();
+app.UseAuthentication();
 app.UseAuthorization();
 app.UseCors("Angular");
 app.MapControllers();

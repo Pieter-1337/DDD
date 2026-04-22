@@ -64,7 +64,7 @@ export class AuthService {
 export class AuthService {
   checkAuth() {
     // API handles OIDC, Angular just checks if user is authenticated
-    return this.http.get<UserInfo>('/auth/me');
+    return this.http.get<UserInfo>('/auth/current-user');
   }
 
   login() {
@@ -97,7 +97,7 @@ export class AuthService {
 │  │  - logout()      │      └─────────────────────────────────┘ │
 │  └──────────────────┘                                           │
 │         │                                                        │
-│         │ GET /auth/me                                          │
+│         │ GET /auth/current-user                                          │
 │         │ (with cookie)                                         │
 │         ▼                                                        │
 └─────────────────────────────────────────────────────────────────┘
@@ -109,7 +109,7 @@ export class AuthService {
 │                                                                  │
 │  ┌──────────────────────────────────────────────────────────┐  │
 │  │ Auth Endpoints (from doc 03)                             │  │
-│  │ - GET  /auth/me        → returns user info from cookie  │  │
+│  │ - GET  /auth/current-user        → returns user info from cookie  │  │
 │  │ - GET  /auth/login     → redirects to Auth0             │  │
 │  │ - GET  /auth/callback  → handles OIDC callback          │  │
 │  │ - POST /auth/logout    → clears cookie                  │  │
@@ -145,7 +145,7 @@ Angular has three simple responsibilities:
 |---------------|----------------|-----|
 | **Send cookies with requests** | `withCredentials: true` on HttpClient | Browser sends authentication cookie to API |
 | **Handle 401 responses** | Interceptor redirects to `/auth/login` | Session expired or not logged in |
-| **Check auth state** | Call `/auth/me` endpoint | Get current user info and roles |
+| **Check auth state** | Call `/auth/current-user` endpoint | Get current user info and roles |
 
 That's it. No token management, no PKCE flow, no refresh logic.
 
@@ -182,9 +182,9 @@ export const authInterceptor: HttpInterceptorFn = (req, next) => {
     catchError((error: HttpErrorResponse) => {
       // If we get a 401 (Unauthorized) response
       if (error.status === 401) {
-        // Don't redirect for /auth/me endpoint
+        // Don't redirect for /auth/current-user endpoint
         // (401 is expected when user is not logged in)
-        if (!req.url.includes('/auth/me')) {
+        if (!req.url.includes('/auth/current-user')) {
           // Redirect to login with current URL as return URL
           authService.login(window.location.pathname);
         }
@@ -251,7 +251,7 @@ import { Observable, of } from 'rxjs';
 import { tap, catchError } from 'rxjs/operators';
 
 /**
- * User information returned from /auth/me endpoint
+ * User information returned from /auth/current-user endpoint
  */
 export interface UserInfo {
   userId: string;
@@ -266,7 +266,7 @@ export interface UserInfo {
  *
  * This service does NOT manage tokens or implement OIDC flow.
  * The API handles all authentication. Angular just:
- * 1. Checks auth state via /auth/me
+ * 1. Checks auth state via /auth/current-user
  * 2. Redirects to /auth/login for login
  * 3. Calls /auth/logout for logout
  */
@@ -288,7 +288,7 @@ export class AuthService {
   constructor(private http: HttpClient) {}
 
   /**
-   * Check authentication status by calling /auth/me
+   * Check authentication status by calling /auth/current-user
    * This is called on app initialization and after login
    *
    * The API returns user info if cookie is valid, 401 if not
@@ -296,7 +296,7 @@ export class AuthService {
   checkAuth(): Observable<UserInfo | null> {
     this.loading.set(true);
 
-    return this.http.get<UserInfo>('/auth/me').pipe(
+    return this.http.get<UserInfo>('/auth/current-user').pipe(
       tap(user => {
         this.currentUser.set(user);
         this.loading.set(false);
@@ -368,7 +368,7 @@ const authReq = req.clone({
 
 ```typescript
 catchError((error: HttpErrorResponse) => {
-  if (error.status === 401 && !req.url.includes('/auth/me')) {
+  if (error.status === 401 && !req.url.includes('/auth/current-user')) {
     authService.login(window.location.pathname);
   }
   return throwError(() => error);
@@ -377,7 +377,7 @@ catchError((error: HttpErrorResponse) => {
 
 **Why:** 401 means the cookie is invalid or expired. Redirect to login to re-authenticate.
 
-**Special case:** Don't redirect for `/auth/me` - a 401 there just means "not logged in" and is expected.
+**Special case:** Don't redirect for `/auth/current-user` - a 401 there just means "not logged in" and is expected.
 
 ---
 
@@ -520,7 +520,7 @@ export const appConfig: ApplicationConfig = {
 **What happens:**
 1. App starts to load
 2. `APP_INITIALIZER` calls `authService.checkAuth()`
-3. Request to `/auth/me` is sent
+3. Request to `/auth/current-user` is sent
 4. If cookie is valid → user info is returned and stored in signal
 5. If cookie is invalid → 401 response, user remains null
 6. App finishes loading and routes are activated
@@ -704,7 +704,7 @@ Update HTTP calls to use environment:
 import { environment } from '../../../environments/environment';
 
 checkAuth(): Observable<UserInfo | null> {
-  return this.http.get<UserInfo>(`${environment.apiUrl}/auth/me`);
+  return this.http.get<UserInfo>(`${environment.apiUrl}/auth/current-user`);
 }
 ```
 
@@ -721,7 +721,7 @@ checkAuth(): Observable<UserInfo | null> {
    │
    ├─> APP_INITIALIZER calls authService.checkAuth()
    │   │
-   │   ├─> GET /auth/me (no cookie)
+   │   ├─> GET /auth/current-user (no cookie)
    │   │   │
    │   │   └─> 401 Unauthorized
    │   │
@@ -749,7 +749,7 @@ checkAuth(): Observable<UserInfo | null> {
            │
            ├─> APP_INITIALIZER calls authService.checkAuth()
            │   │
-           │   ├─> GET /auth/me (with cookie)
+           │   ├─> GET /auth/current-user (with cookie)
            │   │   │
            │   │   └─> 200 OK with UserInfo
            │   │
@@ -902,7 +902,7 @@ Always show loading state during auth checks:
 ### What Angular Does
 
 1. **Sends cookies** with every request (`withCredentials: true`)
-2. **Checks auth state** via `/auth/me` endpoint
+2. **Checks auth state** via `/auth/current-user` endpoint
 3. **Redirects to login** when not authenticated
 4. **Protects routes** with guards
 5. **Shows/hides UI** based on auth state

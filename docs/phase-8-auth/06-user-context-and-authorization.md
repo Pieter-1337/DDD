@@ -15,6 +15,8 @@ This document completes Phase 8 by implementing the **user context abstraction**
 - How to integrate user context into command handlers for audit trails
 - Testing strategies for role-based validation
 
+> **Important**: This is where role-based authorization lives in our architecture. Controllers use `[Authorize]` for authentication only (see [doc 04](./04-api-resource-protection.md)). All role checks are handled here in the application layer by `UserValidator<T>`, keeping authorization logic testable and centralized.
+
 **Architecture principle**: The Application layer depends on abstractions. Domain logic should never directly depend on HTTP or authentication concepts. Infrastructure provides concrete implementations of these abstractions.
 
 ---
@@ -54,8 +56,9 @@ In a Clean Architecture/DDD application, layers have specific responsibilities:
 Create the interface in the BuildingBlocks Application layer:
 
 ```csharp
-// BuildingBlocks/BuildingBlocks.Application/Abstractions/ICurrentUser.cs
-namespace BuildingBlocks.Application.Abstractions;
+// File: BuildingBlocks/BuildingBlocks.Application/Auth/ICurrentUser.cs
+
+namespace BuildingBlocks.Application.Auth;
 
 /// <summary>
 /// Abstraction for accessing the current authenticated user's information.
@@ -346,12 +349,14 @@ params IEnumerable<string>[] allowedRoleGroups
 **Scenario 1: Only Admins can delete patients**
 
 ```csharp
+using Shared.Auth;
+
 public class DeletePatientCommandValidator : UserValidator<DeletePatientCommand>
 {
     public DeletePatientCommandValidator(
         ICurrentUser currentUser,
         IUnitOfWork unitOfWork)
-        : base(currentUser, new[] { "Admin" })  // Single role group with one role
+        : base(currentUser, new[] { AppRoles.Admin })  // Single role group with one role
     {
         RuleForUserValidation();  // Enforce role check
 
@@ -363,17 +368,19 @@ public class DeletePatientCommandValidator : UserValidator<DeletePatientCommand>
 }
 ```
 
-Logic: User must have "Admin" role.
+Logic: User must have Admin role.
 
 **Scenario 2: Admins OR Doctors can suspend patients**
 
 ```csharp
+using Shared.Auth;
+
 public class SuspendPatientCommandValidator : UserValidator<SuspendPatientCommand>
 {
     public SuspendPatientCommandValidator(
         ICurrentUser currentUser,
         IUnitOfWork unitOfWork)
-        : base(currentUser, new[] { "Admin" }, new[] { "Doctor" })  // Two role groups
+        : base(currentUser, new[] { AppRoles.Admin }, new[] { AppRoles.Doctor })  // Two role groups
     {
         RuleForUserValidation();
 
@@ -383,19 +390,21 @@ public class SuspendPatientCommandValidator : UserValidator<SuspendPatientComman
 }
 ```
 
-Logic: User must have "Admin" OR "Doctor" role.
+Logic: User must have Admin OR Doctor role.
 
 **Scenario 3: Complex - Admin OR (Doctor AND NurseManager)**
 
 ```csharp
+using Shared.Auth;
+
 public class CriticalActionCommandValidator : UserValidator<CriticalActionCommand>
 {
     public CriticalActionCommandValidator(
         ICurrentUser currentUser,
         IUnitOfWork unitOfWork)
         : base(currentUser,
-               new[] { "Admin" },                    // Group 1: Admin alone
-               new[] { "Doctor", "NurseManager" })   // Group 2: Doctor AND NurseManager
+               new[] { AppRoles.Admin },                    // Group 1: Admin alone
+               new[] { AppRoles.Doctor, "NurseManager" })   // Group 2: Doctor AND NurseManager
     {
         RuleForUserValidation();
         // ... other rules
@@ -403,11 +412,19 @@ public class CriticalActionCommandValidator : UserValidator<CriticalActionComman
 }
 ```
 
-Logic: User must have "Admin" OR (both "Doctor" AND "NurseManager").
+Logic: User must have Admin OR (both Doctor AND NurseManager).
+
+> **Note**: The "NurseManager" role is not currently defined in `AppRoles`. You can add it if needed:
+> ```csharp
+> // Shared/Auth/AppRoles.cs
+> public const string NurseManager = "NurseManager";
+> ```
 
 **Scenario 4: Any authenticated user (no role restrictions)**
 
 ```csharp
+using Shared.Auth;
+
 public class CreatePatientCommandValidator : UserValidator<CreatePatientCommand>
 {
     public CreatePatientCommandValidator(
@@ -564,6 +581,7 @@ Testing validators with role logic requires mocking `ICurrentUser`. Here's how t
 // Scheduling/Scheduling.Domain.Tests/Validators/DeletePatientCommandValidatorTests.cs
 using BuildingBlocks.Application.Abstractions;
 using BuildingBlocks.Infrastructure.EfCore;
+using Shared.Auth;
 using Moq;
 using Scheduling.Application.Commands.DeletePatient;
 using Scheduling.Domain.Aggregates.Patients;
@@ -589,8 +607,8 @@ public class DeletePatientCommandValidatorTests
         _mockCurrentUser.Setup(u => u.UserId).Returns("test-user-id");
         _mockCurrentUser.Setup(u => u.Email).Returns("admin@test.com");
         _mockCurrentUser.Setup(u => u.Name).Returns("Test Admin");
-        _mockCurrentUser.Setup(u => u.Roles).Returns(new List<string> { "Admin" });
-        _mockCurrentUser.Setup(u => u.HasRole("Admin")).Returns(true);
+        _mockCurrentUser.Setup(u => u.Roles).Returns(new List<string> { AppRoles.Admin });
+        _mockCurrentUser.Setup(u => u.HasRole(AppRoles.Admin)).Returns(true);
 
         _validator = new DeletePatientCommandValidator(_mockCurrentUser.Object, _mockUow.Object);
     }
@@ -623,7 +641,7 @@ public class DeletePatientCommandValidatorTests
 
         // Reconfigure mock to be a non-admin user
         _mockCurrentUser.Setup(u => u.Roles).Returns(new List<string> { "User" });
-        _mockCurrentUser.Setup(u => u.HasRole("Admin")).Returns(false);
+        _mockCurrentUser.Setup(u => u.HasRole(AppRoles.Admin)).Returns(false);
         _mockCurrentUser.Setup(u => u.HasRole(It.IsAny<string>()))
             .Returns((string role) => role == "User");
 
@@ -850,6 +868,8 @@ The `ValidationBehavior` (from BuildingBlocks.Application) will:
 2. Call `ValidateAsync()` on each validator
 3. If any validator fails (including role check), throw `ValidationException`
 4. The exception is caught by the global error handler and returned as 400 Bad Request (or 403 Forbidden if you inspect error codes)
+
+> **This replaces `[Authorize(Roles = ...)]`**: Instead of scattering role checks across controller attributes, all authorization logic flows through the MediatR validation pipeline. This makes role requirements explicit in each validator, testable with unit tests, and independent of the HTTP layer.
 
 ---
 

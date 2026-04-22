@@ -34,7 +34,7 @@ BuildingBlocks/
   BuildingBlocks.Infrastructure.Auth/
     BuildingBlocks.Infrastructure.Auth.csproj
     AuthExtensions.cs                    # AddOidcCookieAuth() extension
-    AuthController.cs                    # /auth/login, /auth/logout, /auth/me
+    AuthController.cs                    # /auth/login, /auth/logout, /auth/current-user
     HttpContextCurrentUser.cs            # ICurrentUser implementation
     DataProtection/
       DataProtectionDbContext.cs          # Shared Data Protection key store (optional)
@@ -70,8 +70,10 @@ dotnet sln ../DDD.sln add BuildingBlocks.Infrastructure.Auth/BuildingBlocks.Infr
   <ItemGroup>
     <!-- Data Protection for shared cookie encryption keys -->
     <PackageReference Include="Microsoft.AspNetCore.DataProtection.EntityFrameworkCore" />
+    <!-- OIDC client middleware for AddOpenIdConnect -->
+    <PackageReference Include="Microsoft.AspNetCore.Authentication.OpenIdConnect" />
 
-    <!-- Required for controller endpoints (/auth/login, /auth/logout, /auth/me) -->
+    <!-- Required for controller endpoints (/auth/login, /auth/logout, /auth/current-user) -->
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
   </ItemGroup>
 
@@ -85,7 +87,7 @@ dotnet sln ../DDD.sln add BuildingBlocks.Infrastructure.Auth/BuildingBlocks.Infr
 
 **Why these dependencies?**
 
-- **No OIDC-specific packages needed**: ASP.NET Core's built-in `Microsoft.AspNetCore.Authentication.OpenIdConnect` middleware (included in `Microsoft.AspNetCore.App`) works with any OIDC-compliant server, including Duende IdentityServer
+- **Microsoft.AspNetCore.Authentication.OpenIdConnect**: Provides `AddOpenIdConnect()` for the OIDC client middleware. Works with any OIDC-compliant server, including Duende IdentityServer
 - **Microsoft.AspNetCore.DataProtection.EntityFrameworkCore**: Allows storing Data Protection keys in SQL Server so both APIs can decrypt the same cookies
 - **BuildingBlocks.Application**: Contains the `ICurrentUser` interface that domain handlers depend on
 
@@ -115,13 +117,11 @@ public static class AuthExtensions
     /// Adds cookie authentication with OpenID Connect (OIDC) client configured for any OIDC-compliant authorization server (e.g., Duende IdentityServer).
     /// </summary>
     /// <param name="services">The service collection.</param>
-    /// <param name="configuration">Configuration containing Auth:Authority, Auth:ClientId, Auth:ClientSecret.</param>
-    /// <param name="sharedKeysPath">Optional file path for shared Data Protection keys. If null, uses ephemeral keys (dev only).</param>
+    /// <param name="configuration">Configuration containing Auth:Authority, Auth:ClientId, Auth:ClientSecret, Auth:SharedKeysPath.</param>
     /// <returns>The service collection for chaining.</returns>
     public static IServiceCollection AddOidcCookieAuth(
         this IServiceCollection services,
-        IConfiguration configuration,
-        string? sharedKeysPath = null)
+        IConfiguration configuration)
     {
         // Read auth configuration
         var authority = configuration["Auth:Authority"]
@@ -130,6 +130,7 @@ public static class AuthExtensions
             ?? throw new InvalidOperationException("Auth:ClientId is required in configuration");
         var clientSecret = configuration["Auth:ClientSecret"]
             ?? throw new InvalidOperationException("Auth:ClientSecret is required in configuration");
+        var sharedKeysPath = configuration["Auth:SharedKeysPath"];
 
         // 1. Configure cookie authentication as the default scheme
         services.AddAuthentication(options =>
@@ -146,7 +147,7 @@ public static class AuthExtensions
             options.ExpireTimeSpan = TimeSpan.FromHours(8);
             options.SlidingExpiration = true;    // Refresh cookie on activity
 
-            // Redirect unauthenticated requests to login
+            // Redirect paths — these map to AuthController endpoints (see section 3 below)
             options.LoginPath = "/auth/login";
             options.LogoutPath = "/auth/logout";
             options.AccessDeniedPath = "/auth/access-denied";
@@ -178,11 +179,33 @@ public static class AuthExtensions
             options.ClaimActions.MapJsonKey("email", "email");
             options.ClaimActions.MapJsonKey("sub", "sub"); // Subject (user ID)
 
-            // Handle post-authentication events
-            options.Events.OnTokenValidated = context =>
+            // OIDC event hooks — listed in execution order, uncomment as needed
+            options.Events = new OpenIdConnectEvents
             {
-                // Can inspect/transform claims here if needed
-                return Task.CompletedTask;
+                // 1. Before redirecting to the Identity Provider login page
+                // OnRedirectToIdentityProvider = context => { ... },
+
+                // 2. After receiving the auth code, before exchanging it for tokens
+                // OnAuthorizationCodeReceived = context => { ... },
+
+                // 3. After receiving tokens from the token endpoint
+                // OnTokenResponseReceived = context => { ... },
+
+                // 4. After ID token is validated, before claims are saved to cookie
+                OnTokenValidated = context =>
+                {
+                    // Claims transformation can happen here if needed
+                    return Task.CompletedTask;
+                },
+
+                // 5. After calling the userinfo endpoint (if enabled)
+                // OnUserInformationReceived = context => { ... },
+
+                // Error handler — fires when something goes wrong at any point
+                // OnRemoteFailure = context => { ... },
+
+                // Logout flow — after the logout callback redirect from auth server
+                // OnSignedOutCallbackRedirect = context => { ... },
             };
         });
 
@@ -206,6 +229,22 @@ public static class AuthExtensions
 }
 ```
 
+### OIDC Event Hooks Reference
+
+The `OpenIdConnectEvents` provide hooks into the OIDC authentication flow. Listed here in **execution order** during a login flow:
+
+| # | Event | When it fires | Common use |
+|---|-------|--------------|------------|
+| 1 | **OnRedirectToIdentityProvider** | Before redirecting to login page | Add extra parameters, change redirect URI |
+| 2 | **OnAuthorizationCodeReceived** | After receiving the auth code, before exchanging it for tokens | Inspect or modify the code exchange |
+| 3 | **OnTokenResponseReceived** | After receiving tokens from the token endpoint | Store tokens, log token metadata |
+| 4 | **OnTokenValidated** | After ID token is validated, before claims are saved to cookie | Transform/add/remove claims |
+| 5 | **OnUserInformationReceived** | After calling the userinfo endpoint (if enabled) | Merge additional claims |
+| | **OnRemoteFailure** | When something goes wrong at any point in the flow | Custom error handling, redirect to error page |
+| | **OnSignedOutCallbackRedirect** | After logout callback from auth server (logout flow only) | Custom post-logout redirect |
+
+`OnTokenValidated` (#4) is the most commonly used — it's where you'd map IdentityServer claims to your app's claim structure (e.g., renaming claim types or adding claims from your own database).
+
 ### Configuration in appsettings.json
 
 Each API needs its own client configuration:
@@ -216,7 +255,8 @@ Each API needs its own client configuration:
   "Auth": {
     "Authority": "https://localhost:7010",
     "ClientId": "scheduling-api",
-    "ClientSecret": "scheduling-secret-change-in-production"
+    "ClientSecret": "scheduling-secret-change-in-production",
+    "SharedKeysPath": "C:\\SharedKeys\\DDD"
   }
 }
 ```
@@ -227,7 +267,8 @@ Each API needs its own client configuration:
   "Auth": {
     "Authority": "https://localhost:7010",
     "ClientId": "billing-api",
-    "ClientSecret": "billing-secret-change-in-production"
+    "ClientSecret": "billing-secret-change-in-production",
+    "SharedKeysPath": "C:\\SharedKeys\\DDD"
   }
 }
 ```
@@ -252,7 +293,7 @@ using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using System.Security.Claims;
+using BuildingBlocks.Application.Abstractions;
 
 namespace BuildingBlocks.Infrastructure.Auth;
 
@@ -266,6 +307,7 @@ public class AuthController : ControllerBase
     /// <summary>
     /// Initiates OIDC login flow by redirecting to the Auth Server.
     /// </summary>
+    /// Invoked by the cookie middleware's LoginPath (configured in AddOidcCookieAuth).
     /// <param name="returnUrl">URL to redirect to after successful authentication.</param>
     /// <returns>Challenge result that redirects to Auth Server login page.</returns>
     [HttpGet("login")]
@@ -289,55 +331,32 @@ public class AuthController : ControllerBase
 
     /// <summary>
     /// Signs out the user locally and from the Auth Server.
+    /// Redirects to the Auth Server's end session endpoint, which then redirects
+    /// back to the PostLogoutRedirectUri configured per-client in IdentityServer's Config.cs.
     /// </summary>
-    /// <returns>Sign out result that clears cookie and redirects to Auth Server logout.</returns>
-    [HttpPost("logout")]
+    /// Invoked by the cookie middleware's LogoutPath (configured in AddOidcCookieAuth).
+    [HttpGet("logout")]
     [Authorize] // Must be authenticated to log out
-    public async Task<IActionResult> Logout()
+    public IActionResult Logout()
     {
-        // Sign out of cookie authentication
-        await HttpContext.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
-
-        // Sign out of OIDC (triggers redirect to Auth Server logout endpoint)
-        await HttpContext.SignOutAsync("oidc");
-
-        return Ok(new { message = "Logged out successfully" });
+        // Signs out of both cookie and OIDC (redirects to Auth Server logout endpoint)
+        return SignOut(new AuthenticationProperties(), CookieAuthenticationDefaults.AuthenticationScheme, "oidc");
     }
 
     /// <summary>
     /// Returns current authenticated user information from cookie claims.
     /// </summary>
-    /// <returns>User info (userId, email, name, roles) or 401 if not authenticated.</returns>
-    [HttpGet("me")]
-    public IActionResult GetCurrentUser()
+    [HttpGet("current-user")]
+    [Authorize]
+    public IActionResult GetCurrentUser(
+        [FromServices] ICurrentUser currentUser)
     {
-        if (User.Identity?.IsAuthenticated != true)
-        {
-            return Unauthorized();
-        }
-
-        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier) // "sub" claim
-            ?? User.FindFirstValue("sub");
-        var email = User.FindFirstValue(ClaimTypes.Email)
-            ?? User.FindFirstValue("email");
-        var name = User.FindFirstValue(ClaimTypes.Name)
-            ?? User.FindFirstValue("name");
-        var roles = User.FindAll(ClaimTypes.Role)
-            .Select(c => c.Value)
-            .ToList();
-
-        return Ok(new
-        {
-            userId,
-            email,
-            name,
-            roles,
-            isAuthenticated = true
-        });
+        return Ok(new { currentUser.UserId, currentUser.Name, currentUser.Email, currentUser.Roles });
     }
 
     /// <summary>
     /// Fallback endpoint for access denied scenarios.
+    /// Invoked by the cookie middleware's AccessDeniedPath (configured in AddOidcCookieAuth).
     /// </summary>
     [HttpGet("access-denied")]
     public IActionResult AccessDenied()
@@ -354,7 +373,7 @@ public class AuthController : ControllerBase
 class AuthService {
   // Check if user is logged in
   getCurrentUser() {
-    return this.http.get('/auth/me');
+    return this.http.get('/auth/current-user');
   }
 
   // Redirect to login
@@ -377,7 +396,7 @@ Domain handlers need access to the current user (e.g., "Who is creating this app
 
 ```csharp
 // BuildingBlocks/BuildingBlocks.Infrastructure.Auth/HttpContextCurrentUser.cs
-using BuildingBlocks.Application.Abstractions;
+using BuildingBlocks.Application.Auth;
 using Microsoft.AspNetCore.Http;
 using System.Security.Claims;
 
@@ -386,7 +405,7 @@ namespace BuildingBlocks.Infrastructure.Auth;
 /// <summary>
 /// Provides access to the current authenticated user from the HTTP context.
 /// </summary>
-public class HttpContextCurrentUser : ICurrentUser
+internal sealed class HttpContextCurrentUser : ICurrentUser
 {
     private readonly IHttpContextAccessor _httpContextAccessor;
 
@@ -478,10 +497,8 @@ public class CreateAppointmentCommandHandler : IRequestHandler<CreateAppointment
 
     public async Task<Result<Guid>> Handle(CreateAppointmentCommand request, CancellationToken cancellationToken)
     {
-        // Access current user information
-        if (!_currentUser.IsAuthenticated)
-            return Result<Guid>.Failure("User not authenticated");
-
+        // No auth check needed — [Authorize] on the endpoint already guarantees authentication.
+        // By the time a handler executes, the user is always authenticated.
         var createdBy = _currentUser.UserId; // For audit logging
 
         // ... rest of handler logic
@@ -549,16 +566,16 @@ if (!string.IsNullOrEmpty(sharedKeysPath))
 
 ```csharp
 // WebApplications/Scheduling.WebApi/Program.cs
-var sharedKeysPath = builder.Configuration["DataProtection:SharedKeysPath"];
-builder.Services.AddOidcCookieAuth(
-    builder.Configuration,
-    sharedKeysPath: sharedKeysPath);
+builder.Services.AddOidcCookieAuth(builder.Configuration);
 ```
 
 ```json
 // WebApplications/Scheduling.WebApi/appsettings.Development.json
 {
-  "DataProtection": {
+  "Auth": {
+    "Authority": "https://localhost:7010",
+    "ClientId": "scheduling-api",
+    "ClientSecret": "scheduling-secret-change-in-production",
     "SharedKeysPath": "C:\\SharedKeys\\DDD"
   }
 }
@@ -652,7 +669,7 @@ Run migrations to create the `DataProtectionKeys` table. Both APIs connect to th
 ```
 Angular SPA                  Scheduling API              Auth Server
     │                             │                           │
-    │  GET /auth/me               │                           │
+    │  GET /auth/current-user               │                           │
     ├────────────────────────────>│                           │
     │  401 Unauthorized            │                           │
     │<────────────────────────────┤                           │
@@ -682,7 +699,7 @@ Angular SPA                  Scheduling API              Auth Server
     │  Set-Cookie: DDD.Auth=...   │                           │
     │<────────────────────────────┤                           │
     │                             │                           │
-    │  GET /auth/me (with cookie) │                           │
+    │  GET /auth/current-user (with cookie) │                           │
     ├────────────────────────────>│                           │
     │  200 { userId, email, ... } │                           │
     │<────────────────────────────┤                           │
@@ -715,12 +732,6 @@ var builder = WebApplication.CreateBuilder(args);
 builder.AddServiceDefaults();
 builder.Services.AddControllers();
 
-// Add authentication (NEW)
-var sharedKeysPath = builder.Configuration["DataProtection:SharedKeysPath"];
-builder.Services.AddOidcCookieAuth(
-    builder.Configuration,
-    sharedKeysPath: sharedKeysPath);
-
 // Existing infrastructure
 builder.Services.AddSchedulingInfrastructure(connectionString);
 builder.Services.AddSchedulingApplication();
@@ -729,6 +740,9 @@ builder.Services.AddMassTransitEventBus(builder.Configuration, configurator =>
 {
     // ... consumers
 });
+
+// Add authentication (NEW)
+builder.Services.AddOidcCookieAuth(builder.Configuration);
 
 builder.Services.AddCors(options =>
 {
@@ -764,9 +778,7 @@ app.Run();
   "Auth": {
     "Authority": "https://localhost:7010",
     "ClientId": "scheduling-api",
-    "ClientSecret": "scheduling-secret-change-in-production"
-  },
-  "DataProtection": {
+    "ClientSecret": "scheduling-secret-change-in-production",
     "SharedKeysPath": "C:\\SharedKeys\\DDD"
   }
 }
@@ -774,13 +786,9 @@ app.Run();
 
 Repeat for `Billing.WebApi` with `ClientId: "billing-api"` and a different secret.
 
-### Create the Shared Keys Directory
+### Shared Keys Directory
 
-```bash
-mkdir C:\SharedKeys\DDD
-```
-
-Both APIs will write/read Data Protection keys here.
+The Data Protection framework automatically creates the `SharedKeysPath` directory on first startup if it doesn't exist. No manual `mkdir` needed — both APIs will write/read key files here.
 
 ---
 
@@ -793,8 +801,8 @@ Both APIs will write/read Data Protection keys here.
 | **Storage** | HttpOnly cookie (browser) | localStorage/sessionStorage |
 | **Security** | XSS-safe, CSRF risk (mitigated by SameSite) | CSRF-safe, XSS risk |
 | **Cross-API** | Requires shared Data Protection keys | Stateless (any API can validate) |
-| **Mobile** | Hard to use (cookies not standard) | Easy (just Authorization header) |
-| **Use Case** | Browser-based SPAs with same-domain APIs | Mobile apps, third-party APIs |
+| **Native mobile apps** | No browser cookie jar available | Easy (just Authorization header) |
+| **Use Case** | Browser-based SPAs (desktop + mobile) | Native mobile apps, third-party APIs |
 
 We use cookies because:
 - Angular SPA and APIs are on the same domain (localhost)
@@ -846,7 +854,7 @@ dotnet run
 
 ```bash
 # Should return 401 (not authenticated)
-curl https://localhost:7001/auth/me
+curl https://localhost:7001/auth/current-user
 
 # Trigger login (will redirect to Auth Server)
 curl -L https://localhost:7001/auth/login
@@ -861,7 +869,7 @@ You'll be redirected to the Auth Server login page. After entering credentials, 
 curl -c cookies.txt https://localhost:7001/auth/login
 
 # Use cookie for subsequent requests
-curl -b cookies.txt https://localhost:7001/auth/me
+curl -b cookies.txt https://localhost:7001/auth/current-user
 # Should return: { "userId": "...", "email": "...", "isAuthenticated": true }
 ```
 
@@ -896,7 +904,7 @@ Start Billing API and verify it uses the same key (no new key generated).
 
 **Cause**: User doesn't have required role for `[Authorize(Roles = "Admin")]`.
 
-**Fix**: Check user's roles in `/auth/me` response. Grant roles in Auth Server (doc 02).
+**Fix**: Check user's roles in `/auth/current-user` response. Grant roles in Auth Server (doc 02).
 
 ### Cookies Not Sent from Angular
 
@@ -912,7 +920,7 @@ You've built a reusable authentication infrastructure in `BuildingBlocks.Infrast
 
 - ✅ Provides a single extension method (`AddOidcCookieAuth`) following the project's BuildingBlock pattern
 - ✅ Configures cookie authentication with standard OIDC client middleware for any OIDC-compliant authorization server (Duende IdentityServer in this project)
-- ✅ Exposes `/auth/login`, `/auth/logout`, `/auth/me` endpoints for Angular integration
+- ✅ Exposes `/auth/login`, `/auth/logout`, `/auth/current-user` endpoints for Angular integration
 - ✅ Implements `ICurrentUser` for domain handlers to access authenticated user information
 - ✅ Shares Data Protection keys across APIs so cookies work universally
 - ✅ Maps OIDC claims to .NET claims for consistent access

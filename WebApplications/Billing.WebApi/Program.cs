@@ -9,6 +9,7 @@ using Billing.Infrastructure;
 using Billing.Infrastructure.Persistence;
 using IntegrationEvents.Scheduling;
 using MassTransit;
+using BuildingBlocks.Infrastructure.Auth;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -59,6 +60,9 @@ else
     });
 }
 
+// Add cookie auth
+builder.Services.AddOidcCookieAuth(builder.Configuration);
+
 // Add cors
 builder.Services.AddCors(options =>
 {
@@ -68,6 +72,7 @@ builder.Services.AddCors(options =>
         .AllowAnyMethod());
 });
 
+//Mind the order here!
 var app = builder.Build();
 
 // Map Aspire default endpoints (health checks)
@@ -79,6 +84,7 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseHttpsRedirection();
+app.UseAuthentication();
 app.UseAuthorization();
 app.UseCors("Angular");
 app.MapControllers();

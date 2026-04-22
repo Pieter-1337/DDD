@@ -69,7 +69,7 @@ Response returned
 
 ## NuGet Packages Required
 
-The following packages need to be added to `Directory.Packages.props` (add them when implementing, not before):
+The following packages need to be added to `Directory.Packages.props`:
 
 ```xml
 <!-- File: Directory.Packages.props -->
@@ -90,7 +90,7 @@ The following packages need to be added to `Directory.Packages.props` (add them 
     <PackageVersion Include="Aspire.Hosting.RabbitMQ" Version="13.1.1" />
     <PackageVersion Include="Aspire.Hosting.JavaScript" Version="13.1.1" />
 
-    <!-- Authentication & Authorization (NEW) -->
+    <!-- Authentication & Authorization -->
     <PackageVersion Include="Duende.IdentityServer" Version="7.0.8" />
     <PackageVersion Include="Duende.IdentityServer.AspNetIdentity" Version="7.0.8" />
     <PackageVersion Include="Duende.IdentityServer.EntityFramework" Version="7.0.8" />
@@ -161,21 +161,8 @@ builder.Services.AddMassTransitEventBus(builder.Configuration, configure =>
 // Add OIDC cookie authentication (validates cookies issued by Auth Server)
 builder.Services.AddOidcCookieAuth(builder.Configuration);
 
-// Add authorization policies
-builder.Services.AddAuthorization(options =>
-{
-    // AdminOnly: Only users with "Admin" role
-    options.AddPolicy("AdminOnly", policy =>
-        policy.RequireRole("Admin"));
-
-    // DoctorOrAdmin: Users with "Doctor" OR "Admin" role
-    options.AddPolicy("DoctorOrAdmin", policy =>
-        policy.RequireRole("Doctor", "Admin"));
-
-    // NurseOrHigher: Users with "Nurse", "Doctor", OR "Admin" role
-    options.AddPolicy("NurseOrHigher", policy =>
-        policy.RequireRole("Nurse", "Doctor", "Admin"));
-});
+// No authorization policies needed!
+// Role-based authorization is handled by UserValidator<T> in the application layer (see doc 06)
 
 // ==================== CORS (UPDATED) ====================
 
@@ -224,9 +211,38 @@ app.Run();
 
 1. **New using**: `BuildingBlocks.Infrastructure.Auth` for the shared auth extension method
 2. **Authentication**: `AddOidcCookieAuth(builder.Configuration)` registers cookie validation
-3. **Authorization policies**: Three policies for role-based access control
+3. **No policy registration**: Role-based authorization is handled by `UserValidator<T>` in the application layer (see doc 06)
 4. **CORS update**: Added `AllowCredentials()` and Auth Server origin
 5. **Middleware order**: Added `UseAuthentication()` before `UseAuthorization()`
+
+---
+
+## AppRoles Constants Class (Shared Layer)
+
+Role constants are defined in the `Shared/Auth` project so all bounded contexts can reference them. `AppRoles` lives in `Shared` (not `BuildingBlocks`) because these roles are domain-specific to our healthcare system, not reusable infrastructure.
+
+```csharp
+// File: Shared/Auth/AppRoles.cs
+namespace Shared.Auth;
+
+/// <summary>
+/// Centralized role constants used across all bounded contexts.
+/// These roles must match the roles configured in IdentityServer (see doc 02).
+/// Used by UserValidator&lt;T&gt; in the application layer for role-based authorization (see doc 06).
+/// </summary>
+public static class AppRoles
+{
+    public const string Admin = "Admin";
+    public const string Doctor = "Doctor";
+    public const string Nurse = "Nurse";
+    public const string Patient = "Patient";
+    public const string BillingStaff = "BillingStaff";
+}
+```
+
+**Why Shared and not BuildingBlocks?** `BuildingBlocks` contains domain-agnostic, reusable infrastructure (validators, pipeline behaviors, EF Core base classes). `AppRoles` defines healthcare-specific roles — it belongs with other cross-cutting domain concepts in `Shared`.
+
+**How roles are enforced**: Role-based authorization is handled by `UserValidator<T>` in the application layer (see [06-user-context-and-authorization.md](./06-user-context-and-authorization.md)). Controllers use `[Authorize]` for authentication only — no `[Authorize(Roles = ...)]` on endpoints.
 
 ---
 
@@ -286,17 +302,8 @@ builder.Services.AddMassTransitEventBus(builder.Configuration, configure =>
 // Add OIDC cookie authentication (validates cookies issued by Auth Server)
 builder.Services.AddOidcCookieAuth(builder.Configuration);
 
-// Add authorization policies
-builder.Services.AddAuthorization(options =>
-{
-    // AdminOnly: Only users with "Admin" role
-    options.AddPolicy("AdminOnly", policy =>
-        policy.RequireRole("Admin"));
-
-    // BillingStaffOrAdmin: Users with "BillingStaff" OR "Admin" role
-    options.AddPolicy("BillingStaffOrAdmin", policy =>
-        policy.RequireRole("BillingStaff", "Admin"));
-});
+// No authorization policies needed!
+// Role-based authorization is handled by UserValidator<T> in the application layer (see doc 06)
 
 // ==================== CORS (UPDATED) ====================
 
@@ -355,7 +362,7 @@ Now that authentication middleware is configured, we add `[Authorize]` attribute
 // File: WebApplications/Scheduling.WebApi/Controllers/PatientsController.cs
 using BuildingBlocks.Application.Queries;
 using MediatR;
-using Microsoft.AspNetCore.Authorization;  // NEW
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Scheduling.Application.Commands;
 using Scheduling.Application.Queries;
@@ -364,9 +371,12 @@ namespace Scheduling.WebApi.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
-[Authorize]  // NEW: All endpoints require authentication
+[Authorize]  // Authentication gate: all endpoints require a valid user
 public class PatientsController(ISender sender) : ControllerBase
 {
+    // Role-based authorization is enforced by UserValidator<T> in each command's validator.
+    // See doc 06 (user-context-and-authorization.md) for the UserValidator pattern.
+
     /// <summary>
     /// Get all patients (paginated).
     /// </summary>
@@ -401,7 +411,6 @@ public class PatientsController(ISender sender) : ControllerBase
     /// Create a new patient.
     /// </summary>
     [HttpPost]
-    [Authorize(Policy = "NurseOrHigher")]  // NEW: Only Nurse, Doctor, or Admin can create
     public async Task<IActionResult> CreatePatientAsync(
         [FromBody] CreatePatientCommand command,
         CancellationToken cancellationToken = default)
@@ -418,7 +427,6 @@ public class PatientsController(ISender sender) : ControllerBase
     /// Update patient contact info.
     /// </summary>
     [HttpPut("{id:guid}/contact-info")]
-    [Authorize(Policy = "NurseOrHigher")]  // NEW: Only Nurse, Doctor, or Admin can update
     public async Task<IActionResult> UpdatePatientContactInfoAsync(
         Guid id,
         [FromBody] UpdatePatientContactInfoCommand command,
@@ -436,7 +444,6 @@ public class PatientsController(ISender sender) : ControllerBase
     /// Deactivate a patient (soft delete).
     /// </summary>
     [HttpDelete("{id:guid}")]
-    [Authorize(Policy = "AdminOnly")]  // NEW: Only Admin can deactivate
     public async Task<IActionResult> DeactivatePatientAsync(
         Guid id,
         CancellationToken cancellationToken = default)
@@ -449,15 +456,17 @@ public class PatientsController(ISender sender) : ControllerBase
 }
 ```
 
-### Authorization Policy Summary
+### Authorization Summary
 
-| Endpoint | Policy | Allowed Roles | Reasoning |
-|----------|--------|---------------|-----------|
-| `GET /api/patients` | *(default)* | Any authenticated user | Read-only, safe |
-| `GET /api/patients/{id}` | *(default)* | Any authenticated user | Read-only, safe |
-| `POST /api/patients` | `NurseOrHigher` | Nurse, Doctor, Admin | Data entry operation |
-| `PUT /api/patients/{id}/contact-info` | `NurseOrHigher` | Nurse, Doctor, Admin | Data modification |
-| `DELETE /api/patients/{id}` | `AdminOnly` | Admin only | Destructive operation |
+| Endpoint | Role Check (UserValidator) | Reasoning |
+|----------|---------------------------|-----------|
+| `GET /api/patients` | Any authenticated user | Read-only, safe |
+| `GET /api/patients/{id}` | Any authenticated user | Read-only, safe |
+| `POST /api/patients` | Nurse, Doctor, or Admin | Data entry operation |
+| `PUT /api/patients/{id}/contact-info` | Nurse, Doctor, or Admin | Data modification |
+| `DELETE /api/patients/{id}` | Admin only | Destructive operation |
+
+**Note**: Role checks are enforced by `UserValidator<T>` in each command's validator (see [doc 06](./06-user-context-and-authorization.md)). The controller only has `[Authorize]` for authentication — it does not specify roles. This keeps authorization logic testable and centralized in the application layer.
 
 ---
 
@@ -466,7 +475,7 @@ public class PatientsController(ISender sender) : ControllerBase
 The `AuthController` from `BuildingBlocks.Infrastructure.Auth` (doc 03) provides:
 - `POST /auth/login` - Issues authentication cookie
 - `POST /auth/logout` - Clears cookie
-- `GET /auth/me` - Returns current user info
+- `GET /auth/current-user` - Returns current user info
 
 These endpoints are **intentionally not protected** because:
 - `/login` must be accessible to unauthenticated users
@@ -676,7 +685,8 @@ Both WebApi projects need the same `Auth` configuration section added to `appset
     "Audiences": [
       "scheduling-api",
       "billing-api"
-    ]
+    ],
+    "SharedKeysPath": "C:\\SharedKeys\\DDD"
   }
 }
 ```
@@ -699,7 +709,8 @@ Both WebApi projects need the same `Auth` configuration section added to `appset
     "Audiences": [
       "scheduling-api",
       "billing-api"
-    ]
+    ],
+    "SharedKeysPath": "C:\\SharedKeys\\DDD"
   }
 }
 ```
@@ -805,7 +816,7 @@ In this document, we:
 2. **Added authorization middleware** (`UseAuthorization()`) in the correct order
 3. **Configured CORS** to allow credentials (`AllowCredentials()`)
 4. **Applied `[Authorize]` attributes** to controllers and methods
-5. **Defined authorization policies** for role-based access control
+5. **Defined `AppRoles` constants** for use with `UserValidator<T>` role-based authorization (see doc 06)
 6. **Updated `appsettings.json`** with Auth configuration
 7. **Tested protected endpoints** with and without authentication
 
@@ -833,7 +844,8 @@ In this document, we:
     │                         │         │                      │
     │ Controllers:            │         │ Controllers:         │
     │ - [Authorize]           │         │ - [Authorize]        │
-    │ - [Authorize("Admin")]  │         │ - [Authorize("...")]│
+    │ - Role checks via       │         │ - Role checks via   │
+    │   UserValidator<T>      │         │   UserValidator<T>  │
     └─────────────────────────┘         └──────────────────────┘
                  │                                   │
                  └───────────────┬───────────────────┘
