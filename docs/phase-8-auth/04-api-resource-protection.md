@@ -494,40 +494,6 @@ builder.Services.AddCors(options =>
 **Security Note**: When using `AllowCredentials()`, you **cannot** use `AllowAnyOrigin()`. You must explicitly list allowed origins.
 
 ---
----
-
-## Testing in Scalar (OpenAPI UI)
-
-When you navigate to `https://localhost:7001/scalar/v1`, you'll notice that protected endpoints return 401.
-
-### Option 1: Login First in Browser
-
-1. Open `https://localhost:7010/auth/login` in the same browser
-2. POST credentials via a tool like Postman or curl
-3. The cookie is set in your browser
-4. Refresh Scalar at `https://localhost:7001/scalar/v1`
-5. Now requests include the cookie automatically
-
-### Option 2: Use [AllowAnonymous] for Development
-
-Temporarily add `[AllowAnonymous]` to specific endpoints during development:
-
-```csharp
-[HttpGet]
-[AllowAnonymous]  // TEMP: For Scalar testing
-public async Task<IActionResult> GetPatientsAsync(...) { ... }
-```
-
-**Warning**: Remove `[AllowAnonymous]` before deploying to production.
-
-### Option 3: Use Scalar's Cookie Support
-
-Scalar supports sending cookies if they're already set in the browser. The easiest flow:
-1. Use a separate tab to POST to `/auth/login`
-2. Return to Scalar tab
-3. Requests now include the cookie
-
----
 
 ## Configuration: appsettings.json
 
@@ -582,6 +548,39 @@ Both WebApi projects need the same `Auth` configuration section added to `appset
 - `ClientId`: The OIDC client ID registered in IdentityServer's `Config.cs` (see doc 02)
 - `ClientSecret`: The OIDC client secret for the authorization code exchange
 - `SharedKeysPath`: Data Protection keys directory so both APIs can decrypt each other's cookies
+
+---
+
+## Testing in Scalar (OpenAPI UI)
+
+When you navigate to `https://localhost:7001/scalar/v1`, you'll notice that protected endpoints return 401.
+
+### Option 1: Login First in Browser
+
+1. Open `https://localhost:7010/auth/login` in the same browser
+2. POST credentials via a tool like Postman or curl
+3. The cookie is set in your browser
+4. Refresh Scalar at `https://localhost:7001/scalar/v1`
+5. Now requests include the cookie automatically
+
+### Option 2: Use [AllowAnonymous] for Development
+
+Temporarily add `[AllowAnonymous]` to specific endpoints during development:
+
+```csharp
+[HttpGet]
+[AllowAnonymous]  // TEMP: For Scalar testing
+public async Task<IActionResult> GetPatientsAsync(...) { ... }
+```
+
+**Warning**: Remove `[AllowAnonymous]` before deploying to production.
+
+### Option 3: Use Scalar's Cookie Support
+
+Scalar supports sending cookies if they're already set in the browser. The easiest flow:
+1. Use a separate tab to POST to `/auth/login`
+2. Return to Scalar tab
+3. Requests now include the cookie
 
 ---
 
@@ -653,14 +652,7 @@ options.UseCookies(cookieOptions =>
 
 **Tradeoff**: `SameSite.Strict` can break legitimate cross-site flows (e.g., OAuth redirects).
 
-### 4. Role-Based Access Control (RBAC)
-
-Define granular policies:
-- **AdminOnly**: Destructive operations (delete, archive)
-- **StaffOrHigher**: Write operations (create, update)
-- **Authenticated**: Read-only operations
-
-### 5. Avoid Overly Permissive CORS
+### 4. Avoid Overly Permissive CORS
 
 Never use:
 ```csharp
