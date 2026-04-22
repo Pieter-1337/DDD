@@ -221,6 +221,17 @@ app.Run();
 
 Role constants are defined in the `Shared/Auth` project so all bounded contexts can reference them. `AppRoles` lives in `Shared` (not `BuildingBlocks`) because these roles are domain-specific to our healthcare system, not reusable infrastructure.
 
+### Create the Shared.Auth Class Library
+
+```bash
+cd Shared
+dotnet new classlib -n Auth -f net9.0
+rm Auth/Class1.cs
+dotnet sln ../DDD.sln add Auth/Auth.csproj --solution-folder Shared
+```
+
+Then add the `AppRoles` class:
+
 ```csharp
 // File: Shared/Auth/AppRoles.cs
 namespace Shared.Auth;
