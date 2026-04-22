@@ -151,6 +151,23 @@ public static class AuthExtensions
             options.LoginPath = "/auth/login";
             options.LogoutPath = "/auth/logout";
             options.AccessDeniedPath = "/auth/access-denied";
+
+            // Return 401 for API requests instead of redirecting to login
+            // API clients (Angular HttpClient, Scalar) send Accept: application/json
+            // Browser navigation sends Accept: text/html — redirect to login as normal
+            options.Events = new CookieAuthenticationEvents
+            {
+                OnRedirectToLogin = context =>
+                {
+                    if (context.Request.Headers.Accept.Any(h => h.Contains("application/json")))
+                    {
+                        context.Response.StatusCode = StatusCodes.Status401Unauthorized;
+                        return Task.CompletedTask;
+                    }
+                    context.Response.Redirect(context.RedirectUri);
+                    return Task.CompletedTask;
+                }
+            };
         })
         // 2. Configure OpenID Connect client (talks to Auth Server)
         .AddOpenIdConnect("oidc", options =>

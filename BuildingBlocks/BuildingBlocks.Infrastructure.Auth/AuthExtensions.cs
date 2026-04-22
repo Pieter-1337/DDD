@@ -2,6 +2,7 @@
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.Extensions.Configuration;
+using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace BuildingBlocks.Infrastructure.Auth
@@ -46,6 +47,21 @@ namespace BuildingBlocks.Infrastructure.Auth
                 options.LoginPath = "/auth/login";
                 options.LogoutPath = "/auth/logout";
                 options.AccessDeniedPath = "/auth/access-denied";
+
+                // Return 401 for API requests instead of redirecting to login page
+                options.Events = new CookieAuthenticationEvents
+                {
+                    OnRedirectToLogin = context =>
+                    {
+                        if (context.Request.Headers.Accept.Any(h => h.Contains("application/json")))
+                        {
+                            context.Response.StatusCode = StatusCodes.Status401Unauthorized;
+                            return Task.CompletedTask;
+                        }
+                        context.Response.Redirect(context.RedirectUri);
+                        return Task.CompletedTask;
+                    }
+                };
             })
             //2. Configure OIDC handler for authentication challenges
             .AddOpenIdConnect("oidc", options =>

@@ -586,6 +586,16 @@ Scalar supports sending cookies if they're already set in the browser. The easie
 
 ## Common Issues and Troubleshooting
 
+### Issue: CORS Error Instead of 401 When Not Logged In
+
+**Symptoms**: API call from Angular or Scalar gets a CORS error instead of 401 when there's no authentication cookie.
+
+**Cause**: Without the `OnRedirectToLogin` handler, the cookie middleware converts the 401 into a 302 redirect to IdentityServer's login page. When the browser follows this redirect via `fetch`, it hits a different origin (IdentityServer on port 7010) that doesn't have CORS configured for your app's origin.
+
+**Fix**: The `OnRedirectToLogin` handler in `AuthExtensions.cs` (see doc 03) checks the `Accept` header:
+- `application/json` requests (API calls) → returns 401 so the client can handle it
+- `text/html` requests (browser navigation) → redirects to login as normal
+
 ### Issue: 401 Unauthorized Even After Login
 
 **Symptoms**: Cookie is set, but API still returns 401.
