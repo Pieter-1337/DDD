@@ -217,41 +217,11 @@ app.Run();
 
 ---
 
-## AppRoles Constants Class (Shared Layer)
+## AppRoles Constants (Shared Layer)
 
-Role constants are defined in the `Shared/Auth` project so all bounded contexts can reference them. `AppRoles` lives in `Shared` (not `BuildingBlocks`) because these roles are domain-specific to our healthcare system, not reusable infrastructure.
+The `AppRoles` constants class was created in [doc 02](./02-authorization-server-setup.md#approles-constants-shared-layer) as part of the Identity seed data setup. It defines Admin, Doctor, and Nurse as the application's role constants in `Shared/Auth/AppRoles.cs`.
 
-### Create the Shared.Auth Class Library
-
-```bash
-cd Shared
-dotnet new classlib -n Auth -f net9.0
-rm Auth/Class1.cs
-dotnet sln ../DDD.sln add Auth/Auth.csproj --solution-folder Shared
-```
-
-Then add the `AppRoles` class:
-
-```csharp
-// File: Shared/Auth/AppRoles.cs
-namespace Shared.Auth;
-
-/// <summary>
-/// Centralized role constants used across all bounded contexts.
-/// These roles must match the roles configured in IdentityServer (see doc 02).
-/// Used by UserValidator&lt;T&gt; in the application layer for role-based authorization (see doc 06).
-/// </summary>
-public static class AppRoles
-{
-    public const string Admin = "Admin";
-    public const string Doctor = "Doctor";
-    public const string Nurse = "Nurse";
-}
-```
-
-**Why Shared and not BuildingBlocks?** `BuildingBlocks` contains domain-agnostic, reusable infrastructure (validators, pipeline behaviors, EF Core base classes). `AppRoles` defines healthcare-specific roles — it belongs with other cross-cutting domain concepts in `Shared`.
-
-**How roles are enforced**: Role-based authorization is handled by `UserValidator<T>` in the application layer (see [06-user-context-and-authorization.md](./06-user-context-and-authorization.md)). Controllers use `[Authorize]` for authentication only — no `[Authorize(Roles = ...)]` on endpoints.
+These same constants are used by `UserValidator<T>` in the application layer for role-based authorization (see [doc 06](./06-user-context-and-authorization.md)). Controllers use `[Authorize]` for authentication only — no `[Authorize(Roles = ...)]` on endpoints.
 
 ---
 

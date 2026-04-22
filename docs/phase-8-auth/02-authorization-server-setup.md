@@ -889,8 +889,8 @@ public class RegisterModel : PageModel
             {
                 _logger.LogInformation("User created a new account with password.");
 
-                // Assign default "User" role
-                await _userManager.AddToRoleAsync(user, "User");
+                // New registrations don't get a role by default.
+                // An admin can assign roles later.
 
                 // Auto sign-in after registration
                 await _signInManager.SignInAsync(user, isPersistent: false);
@@ -964,9 +964,56 @@ public class LogoutModel : PageModel
 
 ---
 
+## AppRoles Constants (Shared Layer)
+
+Before seeding roles, we define them as constants in a shared class library. This gives us a single source of truth — the same constants are used by the seed data here and by `UserValidator<T>` for authorization checks in the application layer (see [doc 06](./06-user-context-and-authorization.md)).
+
+### Create the Shared.Auth Class Library
+
+```bash
+cd Shared
+dotnet new classlib -n Auth -f net9.0
+rm Auth/Class1.cs
+dotnet sln ../DDD.sln add Auth/Auth.csproj --solution-folder Shared
+```
+
+### Add the AppRoles Class
+
+```csharp
+// File: Shared/Auth/AppRoles.cs
+namespace Shared.Auth;
+
+/// <summary>
+/// Centralized role constants used across all bounded contexts.
+/// Used by Identity seed data and by UserValidator<T> for role-based authorization.
+/// </summary>
+public static class AppRoles
+{
+    public const string Admin = "Admin";
+    public const string Doctor = "Doctor";
+    public const string Nurse = "Nurse";
+}
+```
+
+**Why Shared and not BuildingBlocks?** `BuildingBlocks` contains domain-agnostic, reusable infrastructure (validators, pipeline behaviors, EF Core base classes). `AppRoles` defines healthcare-specific roles — it belongs with other cross-cutting domain concepts in `Shared`, alongside `IntegrationEvents`.
+
+### Add Project Reference to Identity.WebApi
+
+Add a reference to `Shared.Auth` so the seed data can use the `AppRoles` constants:
+
+```xml
+<!-- WebApplications/Identity.WebApi/Identity.WebApi.csproj -->
+<ItemGroup>
+  <ProjectReference Include="..\..\ServiceDefaults\Aspire.ServiceDefaults.csproj" />
+  <ProjectReference Include="..\..\Shared\Auth\Auth.csproj" />
+</ItemGroup>
+```
+
+---
+
 ## Seed Data
 
-Create test users, roles, and register OAuth clients for development. With Duende, we seed configuration data directly into the EF stores:
+Create test users, roles, and register OAuth clients for development. With Duende, we seed configuration data directly into the EF stores. The seed data uses `AppRoles` constants to ensure role names stay in sync with the rest of the application:
 
 ```csharp
 // C:\projects\DDD\DDD\WebApplications\Identity.WebApi\SeedData\IdentitySeedData.cs
@@ -979,6 +1026,7 @@ using Identity.WebApi.Data;
 using Identity.WebApi.Models;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using Shared.Auth;
 
 /// <summary>
 /// Seeds the identity database with test users, roles, and OAuth clients.
@@ -1026,7 +1074,7 @@ public class IdentitySeedData : IHostedService
     {
         var roleManager = serviceProvider.GetRequiredService<RoleManager<IdentityRole>>();
 
-        string[] roles = { "Admin", "User", "Doctor", "Nurse" };
+        string[] roles = { AppRoles.Admin, AppRoles.Doctor, AppRoles.Nurse };
 
         foreach (var role in roles)
         {
@@ -1055,25 +1103,25 @@ public class IdentitySeedData : IHostedService
             var result = await userManager.CreateAsync(admin, "Admin123!");
             if (result.Succeeded)
             {
-                await userManager.AddToRoleAsync(admin, "Admin");
+                await userManager.AddToRoleAsync(admin, AppRoles.Admin);
             }
         }
 
-        // Regular user
-        var userEmail = "user@test.com";
-        if (await userManager.FindByEmailAsync(userEmail) == null)
+        // Nurse user
+        var nurseEmail = "nurse@test.com";
+        if (await userManager.FindByEmailAsync(nurseEmail) == null)
         {
-            var user = new ApplicationUser
+            var nurse = new ApplicationUser
             {
-                UserName = userEmail,
-                Email = userEmail,
+                UserName = nurseEmail,
+                Email = nurseEmail,
                 EmailConfirmed = true
             };
 
-            var result = await userManager.CreateAsync(user, "User123!");
+            var result = await userManager.CreateAsync(nurse, "Nurse123!");
             if (result.Succeeded)
             {
-                await userManager.AddToRoleAsync(user, "User");
+                await userManager.AddToRoleAsync(nurse, AppRoles.Nurse);
             }
         }
 
@@ -1091,7 +1139,7 @@ public class IdentitySeedData : IHostedService
             var result = await userManager.CreateAsync(doctor, "Doctor123!");
             if (result.Succeeded)
             {
-                await userManager.AddToRoleAsync(doctor, "Doctor");
+                await userManager.AddToRoleAsync(doctor, AppRoles.Doctor);
             }
         }
     }
@@ -1342,9 +1390,9 @@ https://localhost:7010/Account/Login
 ```
 
 You should see the login form. You can verify it renders correctly and even log in with the seeded users:
-- **admin@test.com** / **Admin123!**
-- **user@test.com** / **User123!**
-- **doctor@test.com** / **Doctor123!**
+- **admin@test.com** / **Admin123!** (Admin role)
+- **doctor@test.com** / **Doctor123!** (Doctor role)
+- **nurse@test.com** / **Nurse123!** (Nurse role)
 
 > **Note:** Logging in directly on the IdentityServer works (it creates a session cookie on the auth server), but you won't be redirected anywhere useful. In a real flow, the login page is reached via an OIDC redirect from a client (e.g., Angular or Blazor). The client passes a `ReturnUrl` so IdentityServer knows where to send the user after login. The full end-to-end flow is wired up in docs 03-05.
 
@@ -1356,7 +1404,7 @@ Check the `IdentityDb` database for:
 
 **Identity Tables:**
 - **AspNetUsers**: Should contain 3 users
-- **AspNetRoles**: Should contain 4 roles (Admin, User, Doctor, Nurse)
+- **AspNetRoles**: Should contain 3 roles (Admin, Doctor, Nurse — defined in `AppRoles`)
 - **AspNetUserRoles**: Should link users to their roles
 
 **Configuration Tables:**
