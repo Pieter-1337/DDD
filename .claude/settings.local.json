@@ -133,7 +133,11 @@
       "WebFetch(domain:api.github.com)",
       "WebFetch(domain:www.milanjovanovic.tech)",
       "WebFetch(domain:docs.duendesoftware.com)",
-      "WebFetch(domain:nestenius.se)"
+      "WebFetch(domain:nestenius.se)",
+      "Bash(gh api:*)",
+      "Bash(git check-ignore:*)",
+      "Bash(/c/Program\\\\ Files/Microsoft\\\\ SQL\\\\ Server/Client\\\\ SDK/ODBC/170/Tools/Binn/SQLCMD.exe:*)",
+      "Bash(/c/Program Files/Microsoft SQL Server/Client SDK/ODBC/170/Tools/Binn/SQLCMD.exe -S MSI -d IdentityDb -Q \"SET QUOTED_IDENTIFIER ON; DELETE FROM AspNetUserRoles WHERE RoleId IN \\(SELECT Id FROM AspNetRoles WHERE Name = ''User''\\); DELETE FROM AspNetRoles WHERE Name = ''User''; PRINT ''Removed User role'';\" -E)"
     ]
   }
 }
