@@ -67,9 +67,12 @@ builder.Services.AddOidcCookieAuth(builder.Configuration);
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("Angular", policy => policy
-        .WithOrigins("https://localhost:7003")
+        .WithOrigins(
+        "https://localhost:7003", // Angular SPA 
+        "https://localhost:7010") // Auth Server (for redirect flows)
         .AllowAnyHeader()
-        .AllowAnyMethod());
+        .AllowAnyMethod()
+        .AllowCredentials());
 });
 
 //Mind the order here!
