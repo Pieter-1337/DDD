@@ -17,6 +17,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\..\BuildingBlocks\BuildingBlocks.Infrastructure.Auth\BuildingBlocks.Infrastructure.Auth.csproj" />
     <ProjectReference Include="..\..\BuildingBlocks\BuildingBlocks.Infrastructure.Wolverine\BuildingBlocks.Infrastructure.Wolverine.csproj" />
     <ProjectReference Include="..\..\BuildingBlocks\BuildingBlocks.Infrastructure.MassTransit\BuildingBlocks.Infrastructure.MassTransit.csproj" />
     <ProjectReference Include="..\..\Core\Billing\Billing.Infrastructure\Billing.Infrastructure.csproj" />
