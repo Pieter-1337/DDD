@@ -44,7 +44,6 @@ namespace BuildingBlocks.Infrastructure.Auth
         /// Invoked by the cookie middleware's LogoutPath (configured in AddOidcCookieAuth).
         /// <returns>Sign out result that clears cookie and redirects to Auth Server logout.</returns>
         [HttpPost("logout")]
-        [Authorize] //Only authenticated users can log out
         public IActionResult Logout()
         {
             // Signs out of both cookie and OIDC (redirects to Auth Server logout endpoint)

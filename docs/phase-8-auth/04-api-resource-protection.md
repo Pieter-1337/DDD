@@ -425,36 +425,33 @@ public class PatientsController(IMediator mediator) : ControllerBase
 
 ---
 
-## Auth Endpoints Are Not Protected
+## Auth Endpoint Protection
 
 The `AuthController` from `BuildingBlocks.Infrastructure.Auth` (doc 03) provides:
-- `POST /auth/login` - Issues authentication cookie
-- `POST /auth/logout` - Clears cookie
-- `GET /auth/current-user` - Returns current user info
+- `GET /auth/login` — Initiates OIDC login flow (redirect to Auth Server)
+- `POST /auth/logout` — Signs out of cookie and OIDC
+- `GET /auth/current-user` — Returns current user info
+- `GET /auth/access-denied` — Fallback for 403 scenarios
 
-These endpoints are **intentionally not protected** because:
-- `/login` must be accessible to unauthenticated users
-- `/logout` should work even with expired cookies
-- `/me` needs `[Authorize]` to return user info, but returns 401 if not authenticated (which is fine)
-
-The `AuthController` already has appropriate attributes:
+There is no class-level `[Authorize]` on the controller. Each endpoint opts in explicitly:
 
 ```csharp
 [ApiController]
-[Route("[controller]")]
+[Route("auth")]
 public class AuthController : ControllerBase
 {
-    [HttpPost("login")]
-    [AllowAnonymous]  // Explicitly allow anonymous
-    public async Task<IActionResult> LoginAsync(...) { ... }
+    [HttpGet("login")]
+    public IActionResult Login(...) { ... }          // No attribute — must be accessible to unauthenticated users
 
     [HttpPost("logout")]
-    [AllowAnonymous]  // Allow logout even with expired cookie
-    public IActionResult Logout(...) { ... }
+    public IActionResult Logout() { ... }            // No attribute — must work even with expired cookies
 
-    [HttpGet("me")]
-    [Authorize]  // Requires authentication
-    public IActionResult GetCurrentUser() { ... }
+    [HttpGet("current-user")]
+    [Authorize]                                      // Requires authentication — returns 401 if not logged in
+    public IActionResult GetCurrentUser(...) { ... }
+
+    [HttpGet("access-denied")]
+    public IActionResult AccessDenied() { ... }      // No attribute — must be accessible when authorization fails
 }
 ```
 

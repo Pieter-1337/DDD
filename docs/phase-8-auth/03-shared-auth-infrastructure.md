@@ -336,7 +336,6 @@ public class AuthController : ControllerBase
     /// </summary>
     /// Invoked by the cookie middleware's LogoutPath (configured in AddOidcCookieAuth).
     [HttpGet("logout")]
-    [Authorize] // Must be authenticated to log out
     public IActionResult Logout()
     {
         // Signs out of both cookie and OIDC (redirects to Auth Server logout endpoint)
