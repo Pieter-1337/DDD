@@ -1,0 +1,24 @@
+<mat-toolbar color="primary">
+  <a mat-button routerLink="/">Patient Scheduling</a>
+
+  <span class="spacer"></span>
+
+  @if (authService.isAuthenticated()) {
+    <a mat-button routerLink="/patients" routerLinkActive="active">Patients</a>
+
+    @if (authService.hasRole(AppRoles.Admin)) {
+      <a mat-button routerLink="/admin" routerLinkActive="active">Admin</a>
+    }
+  }
+
+  <span class="spacer"></span>
+
+  @if (authService.isLoading()) {
+    <mat-spinner diameter="20" />
+  } @else if (authService.isAuthenticated()) {
+    <span>{{ authService.user()?.name }}</span>
+    <button mat-button (click)="logout()">Logout</button>
+  } @else {
+    <button mat-flat-button (click)="authService.login()">Login</button>
+  }
+</mat-toolbar>

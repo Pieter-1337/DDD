@@ -3,7 +3,7 @@
 } @else if(patient(); as p) {
   <div class="detail-header">
     <h1>{{p.firstName}} {{p.lastName}}</h1>
-    @if(!isDeleted()){
+    @if(!isDeleted() && canDelete()){
       <button mat-icon-button color="warn" (click)="delete()" aria-label="Delete patient">
         <mat-icon>delete</mat-icon>
       </button>
@@ -17,7 +17,7 @@
       <p><strong>Date of birth</strong> {{p.dateOfBirth | date}}</p>
     </mat-card-content>
     <mat-card-actions>
-      @if(!isDeleted()){
+      @if(!isDeleted() && canSuspend()){
         <button mat-flat-button color="warn" (click)="isSuspended() ? activate() : suspend()">{{isSuspended() ? 'Activate' : 'Suspend'}}</button>
       }
       <button mat-button (click)="router.navigate(['/patients'])">Back to list</button>

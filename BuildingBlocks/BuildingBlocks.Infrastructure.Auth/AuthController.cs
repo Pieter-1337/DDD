@@ -43,11 +43,17 @@ namespace BuildingBlocks.Infrastructure.Auth
         /// </summary>
         /// Invoked by the cookie middleware's LogoutPath (configured in AddOidcCookieAuth).
         /// <returns>Sign out result that clears cookie and redirects to Auth Server logout.</returns>
-        [HttpPost("logout")]
-        public IActionResult Logout()
+        [HttpGet("logout")]
+        public IActionResult Logout([FromQuery] string? returnUrl = null)
         {
             // Signs out of both cookie and OIDC (redirects to Auth Server logout endpoint)
-            return SignOut(new AuthenticationProperties(), CookieAuthenticationDefaults.AuthenticationScheme, "oidc");
+            // This must be a GET because it triggers a redirect chain to IdentityServer,
+            // which doesn't work via AJAX (CORS). Called via window.location.href from Angular.
+            // After the OIDC logout chain completes, the user is redirected back to returnUrl.
+            return SignOut(new AuthenticationProperties
+            {
+                RedirectUri = returnUrl ?? "/"
+            }, CookieAuthenticationDefaults.AuthenticationScheme, "oidc");
         }
 
         /// <summary>

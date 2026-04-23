@@ -48,14 +48,14 @@ HTTP Request arrives
 UseHttpsRedirection()      ← Redirects HTTP to HTTPS
     │
     ▼
+UseCors("Angular")         ← Adds CORS headers to response (must be before auth
+    │                        so error responses still include CORS headers)
+    ▼
 UseAuthentication()        ← Reads cookie, validates signature, populates HttpContext.User
     │                        (sets User.Identity.IsAuthenticated = true/false)
     ▼
 UseAuthorization()         ← Checks [Authorize] attributes against HttpContext.User
     │                        (returns 401 if unauthenticated, 403 if unauthorized)
-    ▼
-UseCors("Angular")         ← Adds CORS headers to response
-    │
     ▼
 MapControllers()           ← Executes controller action method
     │
@@ -63,7 +63,7 @@ MapControllers()           ← Executes controller action method
 Response returned
 ```
 
-**Critical Order**: `UseAuthentication()` **must** come before `UseAuthorization()`. Otherwise, `User` will be null and all `[Authorize]` checks fail.
+**Critical Order**: `UseCors()` **must** come before `UseAuthentication()` so that CORS headers are added even on 401/403 responses (otherwise the browser reports a CORS error instead of the actual auth error). `UseAuthentication()` **must** come before `UseAuthorization()` — otherwise, `User` will be null and all `[Authorize]` checks fail.
 
 ---
 
@@ -194,11 +194,11 @@ if (app.Environment.IsDevelopment())
 
 app.UseHttpsRedirection();
 
+app.UseCors("Angular");   // CORS before auth so error responses include CORS headers
+
 // Authentication MUST come before Authorization
 app.UseAuthentication();  // NEW: Validates cookies, populates HttpContext.User
 app.UseAuthorization();   // Enforces [Authorize] attributes
-
-app.UseCors("Angular");
 
 app.MapControllers();
 
@@ -314,11 +314,11 @@ if (app.Environment.IsDevelopment())
 
 app.UseHttpsRedirection();
 
+app.UseCors("Angular");   // CORS before auth so error responses include CORS headers
+
 // Authentication MUST come before Authorization
 app.UseAuthentication();  // NEW: Validates cookies, populates HttpContext.User
 app.UseAuthorization();   // Enforces [Authorize] attributes
-
-app.UseCors("Angular");
 
 app.MapControllers();
 
@@ -553,7 +553,7 @@ Both WebApi projects need the same `Auth` configuration section added to `appset
 
 ## Testing in Scalar (OpenAPI UI)
 
-When you navigate to `https://localhost:7001/scalar/v1`, you'll notice that protected endpoints return **401 Unauthorized** (thanks to the `OnRedirectToLogin` handler that returns 401 for API requests instead of redirecting).
+When you navigate to `https://localhost:7001/scalar/v1`, you'll notice that protected endpoints require authentication. Scalar runs on the same origin as the API, so you can log in first via `/auth/login` and the browser will include the `DDD.Auth` cookie with Scalar's requests automatically.
 
 ### Login First in the Same Browser
 
@@ -587,18 +587,20 @@ public async Task<IActionResult> GetPatientsAsync(...) { ... }
 
 **Symptoms**: API call from Angular or Scalar gets a CORS error instead of 401 when there's no authentication cookie.
 
-**Cause**: Without the `OnRedirectToLogin` handler, the cookie middleware converts the 401 into a 302 redirect to IdentityServer's login page. When the browser follows this redirect via `fetch`, it hits a different origin (IdentityServer on port 7010) that doesn't have CORS configured for your app's origin.
+**Cause**: Without the `OnRedirectToIdentityProvider` handler, the OIDC middleware redirects to IdentityServer's login page. When the browser follows this redirect via AJAX, it hits a different origin (IdentityServer on port 7010) that doesn't have CORS configured for your app's origin.
 
-**Fix**: The `OnRedirectToLogin` handler in `AuthExtensions.cs` (see doc 03) checks the `Accept` header:
-- `application/json` requests (API calls) → returns 401 so the client can handle it
-- `text/html` requests (browser navigation) → redirects to login as normal
+**Fix**: The `OnRedirectToIdentityProvider` handler in `AuthExtensions.cs` (see doc 03) checks for the `X-Requested-With: XMLHttpRequest` header (set by Angular's auth interceptor on all requests):
+- AJAX requests → returns 401 so the Angular interceptor can handle it
+- Browser navigation (no `X-Requested-With` header) → redirects to IdentityServer as normal
+
+> **Note**: The cookie's `OnRedirectToLogin` does NOT need this check — it redirects to `/auth/login` which is on the same origin as the API, so there's no CORS issue. Only the OIDC redirect to IdentityServer (a different origin) needs interception.
 
 ### Issue: 401 Unauthorized Even After Login
 
 **Symptoms**: Cookie is set, but API still returns 401.
 
 **Causes**:
-1. **Middleware order wrong**: `UseAuthorization()` is before `UseAuthentication()`
+1. **Middleware order wrong**: `UseCors()` must come before `UseAuthentication()` so CORS headers are added even on error responses, and `UseAuthentication()` must come before `UseAuthorization()`
 2. **Missing `AllowCredentials()`**: Browser doesn't send cookie due to CORS
 3. **Authority mismatch**: `appsettings.json` has wrong Authority URL
 4. **Cookie domain mismatch**: Auth Server and API on different domains without proper configuration
@@ -701,9 +703,9 @@ In this document, we:
     │ (https://localhost:7001)│         │(https://localhost:7002)│
     │                         │         │                      │
     │ Middleware Pipeline:    │         │ Middleware Pipeline: │
-    │ 1. UseAuthentication()  │         │ 1. UseAuthentication()│
-    │ 2. UseAuthorization()   │         │ 2. UseAuthorization()│
-    │ 3. UseCors()            │         │ 3. UseCors()         │
+    │ 1. UseCors()            │         │ 1. UseCors()         │
+    │ 2. UseAuthentication()  │         │ 2. UseAuthentication()│
+    │ 3. UseAuthorization()   │         │ 3. UseAuthorization()│
     │                         │         │                      │
     │ Controllers:            │         │ Controllers:         │
     │ - [Authorize]           │         │ - [Authorize]        │

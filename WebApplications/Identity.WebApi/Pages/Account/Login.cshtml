@@ -1,4 +1,4 @@
-﻿@* C:\projects\DDD\DDD\WebApplications\Identity.WebApi\Pages\Account\Login.cshtml *@
+@* C:\projects\DDD\DDD\WebApplications\Identity.WebApi\Pages\Account\Login.cshtml *@
 @page
 @model Identity.WebApi.Pages.Account.LoginModel
 @{
@@ -13,6 +13,7 @@
                 <hr />
 
                 <form method="post">
+                    <input type="hidden" asp-for="ReturnUrl" />
                     <div asp-validation-summary="ModelOnly" class="text-danger"></div>
 
                     <div class="mb-3">
@@ -34,7 +35,13 @@
                         </div>
                     </div>
 
-                    <button type="submit" class="btn btn-primary w-100">Log in</button>
+                    <div class="d-flex gap-2">
+                        <button type="submit" name="button" value="login" class="btn btn-primary flex-fill">Log in</button>
+                        @if (Model.AllowCancel)
+                        {
+                            <button type="submit" name="button" value="cancel" class="btn btn-secondary flex-fill">Cancel</button>
+                        }
+                    </div>
 
                     <div class="mt-3 text-center">
                         <a asp-page="./Register" asp-route-returnUrl="@Model.ReturnUrl">Register as a new user</a>

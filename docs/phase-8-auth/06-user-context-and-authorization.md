@@ -975,7 +975,424 @@ if (context.Exception is ForbiddenException forbiddenEx)
 
 ---
 
-## 10. Summary
+## 10. Angular: Role-Based UI
+
+While backend authorization prevents unauthorized API calls, the frontend should hide unavailable actions for better UX. This section shows how to implement role-based UI in Angular using the `AuthService` and role guards created in [doc 05](./05-angular-auth.md).
+
+### Role Matrix Reference
+
+Here's the authorization matrix for patient management actions:
+
+| Action | Nurse | Doctor | Admin |
+|--------|-------|--------|-------|
+| View patients | Yes | Yes | Yes |
+| Create patient | Yes | Yes | Yes |
+| Suspend/Activate | No | Yes | Yes |
+| Delete patient | No | No | Yes |
+
+**Implementation strategy**:
+- **Backend enforcement**: Validators reject unauthorized commands (403 Forbidden)
+- **Frontend guidance**: UI hides buttons users can't use (better UX)
+- **Defense in depth**: Frontend restrictions don't replace backend validation
+
+> **Note**: Frontend role checks are for UX only. A determined user can still call the API directly. The backend validators (using `UserValidator<T>`) are the authoritative gatekeepers.
+
+---
+
+### Forbidden Component
+
+Create a dedicated page for access denied scenarios:
+
+```typescript
+// File: Frontend/Angular/Scheduling.AngularApp/src/app/features/forbidden/forbidden.ts
+
+import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
+import { Router } from '@angular/router';
+import { MatCardModule } from '@angular/material/card';
+import { MatButtonModule } from '@angular/material/button';
+import { MatIconModule } from '@angular/material/icon';
+
+@Component({
+  selector: 'app-forbidden',
+  standalone: true,
+  imports: [MatCardModule, MatButtonModule, MatIconModule],
+  templateUrl: './forbidden.html',
+  styleUrl: './forbidden.scss',
+  changeDetection: ChangeDetectionStrategy.OnPush
+})
+export class Forbidden {
+  private router = inject(Router);
+
+  goBack(): void {
+    this.router.navigate(['/patients']);
+  }
+}
+```
+
+```html
+<!-- File: Frontend/Angular/Scheduling.AngularApp/src/app/features/forbidden/forbidden.html -->
+
+<div class="forbidden-container">
+  <mat-card>
+    <mat-card-header>
+      <mat-icon mat-card-avatar color="warn">block</mat-icon>
+      <mat-card-title>Access Denied</mat-card-title>
+      <mat-card-subtitle>403 Forbidden</mat-card-subtitle>
+    </mat-card-header>
+    <mat-card-content>
+      <p>You do not have permission to access this page.</p>
+      <p>If you believe this is an error, contact your administrator.</p>
+    </mat-card-content>
+    <mat-card-actions>
+      <button mat-flat-button (click)="goBack()">
+        <mat-icon>arrow_back</mat-icon>
+        Back to patients
+      </button>
+    </mat-card-actions>
+  </mat-card>
+</div>
+```
+
+```scss
+// File: Frontend/Angular/Scheduling.AngularApp/src/app/features/forbidden/forbidden.scss
+
+.forbidden-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 60vh;
+
+  mat-card {
+    max-width: 480px;
+    text-align: center;
+  }
+}
+```
+
+**Design notes**:
+- **Naming convention**: `Forbidden` (no "Component" suffix), matches existing `PatientList`, `PatientDetail`, `CreatePatient` naming
+- **OnPush change detection**: Performance optimization (component only updates when inputs change or events fire)
+- **Material Design**: Uses Material Card for consistent styling
+- **User-friendly**: Clear message + navigation back to safe page
+
+---
+
+### Update app.routes.ts
+
+Add the forbidden route and demonstrate `roleGuard` usage:
+
+```typescript
+// File: Frontend/Angular/Scheduling.AngularApp/src/app/app.routes.ts
+
+import { Routes } from '@angular/core';
+import { authGuard, roleGuard } from '@core/guards/auth.guard';
+import { AppRoles } from '@core/constants/app-roles';
+
+export const routes: Routes = [
+  { path: '', redirectTo: '/patients', pathMatch: 'full' },
+  {
+    path: 'patients',
+    loadComponent: () =>
+      import('./features/patients/patient-list/patient-list')
+        .then(m => m.PatientList),
+    canActivate: [authGuard]
+  },
+  {
+    path: 'patients/:id',
+    loadComponent: () =>
+      import('./features/patients/patient-detail/patient-detail')
+        .then(m => m.PatientDetail),
+    canActivate: [authGuard]
+  },
+  {
+    path: 'patients/create',
+    loadComponent: () =>
+      import('./features/patients/create-patient/create-patient')
+        .then(m => m.CreatePatient),
+    canActivate: [authGuard]
+  },
+  {
+    path: 'admin',
+    loadChildren: () => import('./features/admin/admin.routes').then(m => m.routes),
+    canActivate: [roleGuard(AppRoles.Admin)]  // Admin-only section
+  },
+  {
+    path: 'forbidden',
+    loadComponent: () =>
+      import('./features/forbidden/forbidden')
+        .then(m => m.Forbidden)
+  },
+  {
+    path: '**',
+    redirectTo: ''
+  }
+];
+```
+
+**How `roleGuard` works** (already implemented in `core/guards/auth.guard.ts`):
+
+```typescript
+// File: Frontend/Angular/Scheduling.AngularApp/src/app/core/guards/auth.guard.ts
+
+export function roleGuard(role: string): CanActivateFn {
+  return (route, state) => {
+    const authService = inject(AuthService);
+    const router = inject(Router);
+
+    if (!authService.isAuthenticated()) {
+      authService.login();  // Redirect to IdentityServer
+      return false;
+    }
+
+    if (!authService.hasRole(role)) {
+      router.navigate(['/forbidden']);  // Show access denied page
+      return false;
+    }
+
+    return true;  // User has required role
+  };
+}
+```
+
+**Usage pattern**:
+- `canActivate: [authGuard]` - Any authenticated user can access
+- `canActivate: [roleGuard(AppRoles.Admin)]` - Only admins can access
+- Route guards run before component loads, preventing unauthorized navigation
+
+> **Note**: The `AppRoles` constants are defined in `core/constants/app-roles.ts` (created in doc 05). Example: `AppRoles.Admin = 'Admin'`, `AppRoles.Doctor = 'Doctor'`.
+
+---
+
+### Role-Based UI in Patient Detail
+
+Update the patient detail component to show/hide actions based on user roles.
+
+**Step 1**: Update component class to inject `AuthService` and expose role constants:
+
+```typescript
+// File: Frontend/Angular/Scheduling.AngularApp/src/app/features/patients/patient-detail/patient-detail.ts
+
+import { ChangeDetectionStrategy, Component, inject, OnInit, signal, computed } from '@angular/core';
+import { ActivatedRoute, Router } from '@angular/router';
+import { MatCardModule } from '@angular/material/card';
+import { MatButtonModule } from '@angular/material/button';
+import { MatIconModule } from '@angular/material/icon';
+import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
+import { CommonModule } from '@angular/common';
+
+import { PatientApi } from '@core/services/patient-api';
+import { AuthService } from '@core/services/auth';
+import { NotificationService } from '@core/services/notification.service';
+import { Patient } from '@core/models/patient.model';
+import { AppRoles } from '@core/constants/app-roles';
+
+@Component({
+  selector: 'app-patient-detail',
+  standalone: true,
+  imports: [
+    CommonModule,
+    MatCardModule,
+    MatButtonModule,
+    MatIconModule,
+    MatProgressSpinnerModule
+  ],
+  templateUrl: './patient-detail.html',
+  styleUrl: './patient-detail.scss',
+  changeDetection: ChangeDetectionStrategy.OnPush
+})
+export class PatientDetail implements OnInit {
+  private patientService = inject(PatientApi);
+  private authService = inject(AuthService);
+  private route = inject(ActivatedRoute);
+  router = inject(Router);
+  private notification = inject(NotificationService);
+
+  // Expose AppRoles for template use
+  protected readonly AppRoles = AppRoles;
+
+  patient = signal<Patient | null>(null);
+  isSuspended = computed(() => this.patient()?.status === 'Suspended');
+  isDeleted = computed(() => this.patient()?.status === 'Deleted');
+  isLoading = signal<boolean>(false);
+
+  // Role-based permissions
+  canDelete = computed(() => this.authService.hasRole(AppRoles.Admin));
+  canSuspend = computed(() =>
+    this.authService.hasRole(AppRoles.Doctor) || this.authService.hasRole(AppRoles.Admin)
+  );
+
+  ngOnInit(): void {
+    const id = this.route.snapshot.paramMap.get('id');
+    if (id) {
+      this.loadPatient(id);
+    }
+  }
+
+  private loadPatient(id: string): void {
+    this.isLoading.set(true);
+    this.patientService.getPatientById(id).subscribe({
+      next: (patient) => {
+        this.patient.set(patient);
+        this.isLoading.set(false);
+      },
+      error: (err) => {
+        this.notification.error('Failed to load patient.');
+        this.isLoading.set(false);
+      }
+    });
+  }
+
+  suspend(): void {
+    const id = this.patient()?.id;
+    if (!id) return;
+
+    this.patientService.suspendPatient(id).subscribe({
+      next: () => {
+        this.notification.success('Patient suspended successfully.');
+        this.loadPatient(id);
+      },
+      error: (err) => {
+        if (err.status === 403) {
+          this.notification.error('You do not have permission to suspend patients.');
+        } else {
+          this.notification.error('Failed to suspend patient.');
+        }
+      }
+    });
+  }
+
+  activate(): void {
+    const id = this.patient()?.id;
+    if (!id) return;
+
+    this.patientService.activatePatient(id).subscribe({
+      next: () => {
+        this.notification.success('Patient activated successfully.');
+        this.loadPatient(id);
+      },
+      error: (err) => {
+        if (err.status === 403) {
+          this.notification.error('You do not have permission to activate patients.');
+        } else {
+          this.notification.error('Failed to activate patient.');
+        }
+      }
+    });
+  }
+
+  delete(): void {
+    const id = this.patient()?.id;
+    if (!id) return;
+
+    if (!confirm('Are you sure you want to delete this patient?')) return;
+
+    this.patientService.deletePatient(id).subscribe({
+      next: () => {
+        this.notification.success('Patient deleted successfully.');
+        this.router.navigate(['/patients']);
+      },
+      error: (err) => {
+        if (err.status === 403) {
+          this.notification.error('You do not have permission to delete patients.');
+        } else {
+          this.notification.error('Failed to delete patient.');
+        }
+      }
+    });
+  }
+}
+```
+
+**Key additions**:
+- **AuthService injection**: `private authService = inject(AuthService)`
+- **AppRoles exposure**: `protected readonly AppRoles = AppRoles` allows template access
+- **Computed permissions**: `canDelete` and `canSuspend` signals reactively compute based on current user roles
+- **403 error handling**: Check `err.status === 403` to show user-friendly messages when backend denies action
+
+**Step 2**: Update template to conditionally show actions:
+
+```html
+<!-- File: Frontend/Angular/Scheduling.AngularApp/src/app/features/patients/patient-detail/patient-detail.html -->
+
+@if (isLoading()) {
+  <mat-spinner />
+} @else if (patient(); as p) {
+  <div class="detail-header">
+    <h1>{{ p.firstName }} {{ p.lastName }}</h1>
+    @if (!isDeleted() && canDelete()) {
+      <button mat-icon-button color="warn" (click)="delete()" aria-label="Delete patient">
+        <mat-icon>delete</mat-icon>
+      </button>
+    }
+  </div>
+
+  <mat-card>
+    <mat-card-content>
+      <p><strong>Email:</strong> {{ p.email }}</p>
+      <p><strong>Status:</strong> {{ p.status }}</p>
+      <p><strong>Date of birth:</strong> {{ p.dateOfBirth | date }}</p>
+    </mat-card-content>
+    <mat-card-actions>
+      @if (!isDeleted() && canSuspend()) {
+        <button mat-flat-button color="warn" (click)="isSuspended() ? activate() : suspend()">
+          {{ isSuspended() ? 'Activate' : 'Suspend' }}
+        </button>
+      }
+      <button mat-button (click)="router.navigate(['/patients'])">Back to list</button>
+    </mat-card-actions>
+  </mat-card>
+}
+```
+
+**Template changes**:
+- **Delete button**: Wrapped with `@if (canDelete())` - only admins see this
+- **Suspend/Activate button**: Wrapped with `@if (canSuspend())` - doctors and admins see this
+- **Graceful degradation**: If user lacks permissions, buttons simply don't render (no broken UI state)
+
+> **Pattern**: Angular's `@if` control flow (new in Angular 17+) is used instead of `*ngIf`. Computed signals (`canDelete`, `canSuspend`) automatically update when user roles change (e.g., after re-login with different account).
+
+---
+
+### Handling 403 from API
+
+Even with frontend checks, users might trigger forbidden actions (e.g., via browser DevTools, race conditions, stale UI state). Handle 403 responses gracefully:
+
+**Error handling pattern** (shown in component above):
+
+```typescript
+// In suspend(), activate(), delete() methods
+error: (err) => {
+  if (err.status === 403) {
+    this.notification.error('You do not have permission to perform this action.');
+  } else {
+    this.notification.error('Failed to suspend patient.');
+  }
+}
+```
+
+**Why this matters**:
+- **User sees friendly message**: "You do not have permission..." instead of generic error
+- **Logged for debugging**: Backend logs the 403 attempt with user context
+- **No UI crash**: Error is caught and handled, app remains stable
+
+**Alternative approach**: Global HTTP error interceptor (created in doc 05) could automatically redirect to `/forbidden` on 403:
+
+```typescript
+// File: Frontend/Angular/Scheduling.AngularApp/src/app/core/interceptors/auth.interceptor.ts (modification)
+
+if (err.status === 403) {
+  this.router.navigate(['/forbidden']);  // Automatically redirect on any 403
+  return throwError(() => err);
+}
+```
+
+Choose the approach that fits your UX:
+- **Component-level handling**: Show notification, keep user on page (less disruptive)
+- **Global redirect**: Navigate to Forbidden page (more explicit, better for route guards)
+
+---
+
+## 11. Summary
 
 ### What We Built
 
@@ -986,6 +1403,8 @@ if (context.Exception is ForbiddenException forbiddenEx)
 | `UserValidator<T>` | `BuildingBlocks.Application/Validators` | Base validator with role-based authorization |
 | Role validation | Validators | AND/OR logic for complex role requirements |
 | Testing support | Test projects | Mocking `ICurrentUser` for unit tests |
+| `Forbidden` component | `Frontend/.../features/forbidden/` | Access denied page |
+| Role-based templates | Patient detail, patient list | Show/hide actions by role |
 
 ### Key Concepts
 
@@ -1063,7 +1482,7 @@ This concludes Phase 8. Here's the full documentation series:
 3. **[03-shared-auth-infrastructure.md](./03-shared-auth-infrastructure.md)** - BuildingBlocks.Infrastructure.Auth library, cookie authentication, middleware setup
 4. **[04-api-resource-protection.md](./04-api-resource-protection.md)** - Integrating auth into WebAPI projects, controllers, Swagger UI
 5. **[05-angular-auth.md](./05-angular-auth.md)** - Angular frontend authentication, OIDC client, guards, interceptors
-6. **[06-user-context-and-authorization.md](./06-user-context-and-authorization.md)** *(this document)* - ICurrentUser abstraction, UserValidator activation, role-based authorization
+6. **[06-user-context-and-authorization.md](./06-user-context-and-authorization.md)** *(this document)* - ICurrentUser abstraction, UserValidator activation, role-based authorization, Angular role-based UI
 
 **What you've learned**:
 - How to implement enterprise authentication with Duende IdentityServer

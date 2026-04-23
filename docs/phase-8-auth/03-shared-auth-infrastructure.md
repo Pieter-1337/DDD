@@ -152,22 +152,10 @@ public static class AuthExtensions
             options.LogoutPath = "/auth/logout";
             options.AccessDeniedPath = "/auth/access-denied";
 
-            // Return 401 for API requests instead of redirecting to login
-            // API clients (Angular HttpClient, Scalar) send Accept: application/json
-            // Browser navigation sends Accept: text/html — redirect to login as normal
-            options.Events = new CookieAuthenticationEvents
-            {
-                OnRedirectToLogin = context =>
-                {
-                    if (context.Request.Headers.Accept.Any(h => h.Contains("application/json")))
-                    {
-                        context.Response.StatusCode = StatusCodes.Status401Unauthorized;
-                        return Task.CompletedTask;
-                    }
-                    context.Response.Redirect(context.RedirectUri);
-                    return Task.CompletedTask;
-                }
-            };
+            // options.Events = new CookieAuthenticationEvents
+            // {
+            //     OnRedirectToLogin = context => { ... }
+            // };
         })
         // 2. Configure OpenID Connect client (talks to Auth Server)
         .AddOpenIdConnect("oidc", options =>
@@ -200,7 +188,20 @@ public static class AuthExtensions
             options.Events = new OpenIdConnectEvents
             {
                 // 1. Before redirecting to the Identity Provider login page
-                // OnRedirectToIdentityProvider = context => { ... },
+                // Return 401 for AJAX requests instead of redirecting to IdentityServer.
+                // The DefaultChallengeScheme is "oidc", so [Authorize] failures trigger
+                // this event directly — bypassing the cookie's OnRedirectToLogin.
+                // Angular's auth interceptor sends X-Requested-With: XMLHttpRequest on all requests.
+                OnRedirectToIdentityProvider = context =>
+                {
+                    if (context.Request.Headers.XRequestedWith == "XMLHttpRequest")
+                    {
+                        context.Response.StatusCode = StatusCodes.Status401Unauthorized;
+                        context.HandleResponse();
+                        return Task.CompletedTask;
+                    }
+                    return Task.CompletedTask;
+                },
 
                 // 2. After receiving the auth code, before exchanging it for tokens
                 // OnAuthorizationCodeReceived = context => { ... },
@@ -397,9 +398,9 @@ class AuthService {
     window.location.href = `/auth/login?returnUrl=${encodeURIComponent(returnUrl)}`;
   }
 
-  // Logout
+  // Logout — full page navigation (not AJAX) because OIDC logout involves redirects
   logout() {
-    return this.http.post('/auth/logout', {});
+    window.location.href = `${environment.schedulingApiUrl}/auth/logout`;
   }
 }
 ```
@@ -773,18 +774,21 @@ builder.Services.AddCors(options =>
 
 var app = builder.Build();
 
+// Enable CORS before auth so CORS headers are added even on 401/403 responses
+app.UseCors();
+
 // Enable authentication middleware (NEW)
 app.UseAuthentication(); // MUST come before UseAuthorization
 app.UseAuthorization();
 
-app.UseCors();
 app.MapControllers();
 app.Run();
 ```
 
 **Critical ordering:**
-1. `UseAuthentication()` — reads cookie, populates `HttpContext.User`
-2. `UseAuthorization()` — checks `[Authorize]` attributes against `HttpContext.User`
+1. `UseCors()` — adds CORS headers (must be first so cross-origin error responses still include CORS headers)
+2. `UseAuthentication()` — reads cookie, populates `HttpContext.User`
+3. `UseAuthorization()` — checks `[Authorize]` attributes against `HttpContext.User`
 
 ### appsettings.json
 

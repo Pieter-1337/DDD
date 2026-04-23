@@ -49,20 +49,10 @@ namespace BuildingBlocks.Infrastructure.Auth
                 options.LogoutPath = "/auth/logout";
                 options.AccessDeniedPath = "/auth/access-denied";
 
-                // Return 401 for API requests instead of redirecting to login page
-                options.Events = new CookieAuthenticationEvents
-                {
-                    OnRedirectToLogin = context =>
-                    {
-                        if (context.Request.Headers.Accept.Any(h => h.Contains("application/json")))
-                        {
-                            context.Response.StatusCode = StatusCodes.Status401Unauthorized;
-                            return Task.CompletedTask;
-                        }
-                        context.Response.Redirect(context.RedirectUri);
-                        return Task.CompletedTask;
-                    }
-                };
+                // options.Events = new CookieAuthenticationEvents
+                // {
+                //     OnRedirectToLogin = context => { ... }
+                // };
             })
             //2. Configure OIDC handler for authentication challenges
             .AddOpenIdConnect("oidc", options =>
@@ -81,7 +71,7 @@ namespace BuildingBlocks.Infrastructure.Auth
 
                 // Save tokens in cookie properties (access_token, refresh_token)
                 // Set to false for cookie-only auth (tokens stay on server)
-                options.SaveTokens = false; //Save tokens in the authentication properties
+                options.SaveTokens = false;
 
                 // Map OIDC claims to .NET ClaimTypes
                 options.TokenValidationParameters.NameClaimType = "name";
@@ -95,11 +85,20 @@ namespace BuildingBlocks.Infrastructure.Auth
                 options.Events = new Microsoft.AspNetCore.Authentication.OpenIdConnect.OpenIdConnectEvents
                 {
                     // 1. Before redirecting to the Identity Provider login page
-                    // Use for: adding extra query parameters, modifying the redirect URI
-                    // OnRedirectToIdentityProvider = context =>
-                    // {
-                    //     return Task.CompletedTask;
-                    // },
+                    // Return 401 for AJAX requests instead of redirecting to IdentityServer.
+                    // The DefaultChallengeScheme is "oidc", so [Authorize] failures trigger
+                    // this event directly — bypassing the cookie's OnRedirectToLogin.
+                    // Angular's auth interceptor sends X-Requested-With: XMLHttpRequest on all requests.
+                    OnRedirectToIdentityProvider = context =>
+                    {
+                        if (context.Request.Headers.XRequestedWith == "XMLHttpRequest")
+                        {
+                            context.Response.StatusCode = StatusCodes.Status401Unauthorized;
+                            context.HandleResponse();
+                            return Task.CompletedTask;
+                        }
+                        return Task.CompletedTask;
+                    },
 
                     // 2. After receiving the authorization code, before exchanging it for tokens
                     // Use for: inspecting or modifying the code exchange
@@ -119,7 +118,19 @@ namespace BuildingBlocks.Infrastructure.Auth
                     // Use for: transforming/adding/removing claims (e.g., map IdentityServer claims to your app's claim structure)
                     OnTokenValidated = context =>
                     {
-                        // Claims transformation can happen here if needed
+                        // Store ONLY the id_token in auth properties so it can be used as
+                        // id_token_hint on logout. Duende's end-session validator requires
+                        // id_token_hint to populate the logout context (client_id alone is
+                        // not enough). SaveTokens=false means we skip access/refresh tokens,
+                        // keeping the cookie small.
+                        var idToken = context.TokenEndpointResponse?.IdToken;
+                        if (!string.IsNullOrEmpty(idToken) && context.Properties is not null)
+                        {
+                            context.Properties.StoreTokens(new[]
+                            {
+                                new AuthenticationToken { Name = "id_token", Value = idToken }
+                            });
+                        }
                         return Task.CompletedTask;
                     },
 
@@ -136,6 +147,22 @@ namespace BuildingBlocks.Infrastructure.Auth
                     // {
                     //     return Task.CompletedTask;
                     // },
+
+                    // Before redirecting to the auth server's end-session endpoint for sign-out
+                    // Pull the id_token stored by OnTokenValidated from the cookie and set it
+                    // as id_token_hint. Duende 7.x only populates the logout context (including
+                    // PostLogoutRedirectUri) when id_token_hint is present — client_id alone
+                    // is ignored by EndSessionRequestValidator.
+                    OnRedirectToIdentityProviderForSignOut = async context =>
+                    {
+                        var authResult = await context.HttpContext.AuthenticateAsync(
+                            CookieAuthenticationDefaults.AuthenticationScheme);
+                        var idToken = authResult?.Properties?.GetTokenValue("id_token");
+                        if (!string.IsNullOrEmpty(idToken))
+                        {
+                            context.ProtocolMessage.IdTokenHint = idToken;
+                        }
+                    },
 
                     // Logout flow — after the logout callback redirect from the auth server
                     // Use for: custom post-logout redirect logic

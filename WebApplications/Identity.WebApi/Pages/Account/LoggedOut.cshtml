@@ -1,0 +1,31 @@
+@* C:\projects\DDD\DDD\WebApplications\Identity.WebApi\Pages\Account\LoggedOut.cshtml *@
+@page
+@model Identity.WebApi.Pages.Account.LoggedOutModel
+@{
+    ViewData["Title"] = "Logged out";
+}
+
+<div class="row justify-content-center mt-5">
+    <div class="col-md-6 col-lg-4">
+        <div class="card">
+            <div class="card-body text-center">
+                <h1 class="card-title">@ViewData["Title"]</h1>
+                <p>You have successfully logged out.</p>
+
+                @if (!string.IsNullOrEmpty(Model.PostLogoutRedirectUri))
+                {
+                    <p>
+                        Click <a href="@Model.PostLogoutRedirectUri">here</a> to return to
+                        <span>@(Model.ClientName ?? "the application")</span>.
+                    </p>
+                }
+            </div>
+        </div>
+    </div>
+</div>
+
+@if (Model.AutomaticRedirectAfterSignOut && !string.IsNullOrEmpty(Model.PostLogoutRedirectUri))
+{
+    <script src="~/js/signout-redirect.js"></script>
+    <input type="hidden" id="post-logout-redirect-uri" value="@Model.PostLogoutRedirectUri" />
+}

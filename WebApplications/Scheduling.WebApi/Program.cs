@@ -73,8 +73,8 @@ if (app.Environment.IsDevelopment())
     app.UseOpenApiWithScalar("Scheduling API");
 }
 app.UseHttpsRedirection();
+app.UseCors("Angular");
 app.UseAuthentication();
 app.UseAuthorization();
-app.UseCors("Angular");
 app.MapControllers();
 app.Run();

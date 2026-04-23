@@ -1,11 +1,22 @@
-﻿@* C:\projects\DDD\DDD\WebApplications\Identity.WebApi\Pages\Account\Logout.cshtml *@
+@* C:\projects\DDD\DDD\WebApplications\Identity.WebApi\Pages\Account\Logout.cshtml *@
 @page
 @model Identity.WebApi.Pages.Account.LogoutModel
 @{
-    ViewData["Title"] = "Log out";
+    ViewData["Title"] = "Logout";
 }
 
-<header>
-    <h1>@ViewData["Title"]</h1>
-    <p>You have successfully logged out of the application.</p>
-</header>
+<div class="row justify-content-center mt-5">
+    <div class="col-md-6 col-lg-4">
+        <div class="card">
+            <div class="card-body text-center">
+                <h1 class="card-title">@ViewData["Title"]</h1>
+                <p>Would you like to logout?</p>
+
+                <form method="post">
+                    <input type="hidden" asp-for="LogoutId" />
+                    <button type="submit" class="btn btn-primary">Yes, logout</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>

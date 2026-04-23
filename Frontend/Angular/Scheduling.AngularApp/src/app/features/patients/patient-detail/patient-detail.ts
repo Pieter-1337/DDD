@@ -8,6 +8,8 @@ import { PatientApi } from '@core/services/patient-api';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { NotificationService } from '@core/services/notification';
+import { AuthService } from '@core/services/auth';
+import { AppRoles } from '@core/constants/approles';
 
 @Component({
   selector: 'app-patient-detail',
@@ -22,11 +24,15 @@ export class PatientDetail implements OnInit {
   private route = inject(ActivatedRoute);
   router = inject(Router);
   private notification = inject(NotificationService);
+  private authService = inject(AuthService);
 
   patient = signal<Patient | null>(null);
   isSuspended = computed(() => this.patient()!.status === 'Suspended')
   isDeleted = computed(() => this.patient()!.status === 'Deleted')
   isLoading = signal<boolean>(false);
+
+  canDelete = computed(() => this.authService.hasRole(AppRoles.Admin));
+  canSuspend = computed(() => this.authService.hasRole(AppRoles.Doctor) || this.authService.hasRole(AppRoles.Admin));
 
     ngOnInit(): void {
     const id = this.route.snapshot.paramMap.get('id')!;
@@ -40,7 +46,10 @@ export class PatientDetail implements OnInit {
         this.patient.set(patient)
         this.isLoading.set(false);
       },
-      error: () => this.isLoading.set(false)
+      error: (err) => {
+        this.isLoading.set(false);
+        console.log("Failed to load patient details", err);
+      }
     })
   }
 

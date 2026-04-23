@@ -107,20 +107,23 @@ WebApplications/
     │       ├── Register.cshtml
     │       ├── Register.cshtml.cs
     │       ├── Logout.cshtml
-    │       └── Logout.cshtml.cs
+    │       ├── Logout.cshtml.cs
+    │       ├── LoggedOut.cshtml
+    │       ├── LoggedOut.cshtml.cs
+    │       └── LogoutOptions.cs
     ├── Config/
     │   └── IdentityServerConfig.cs
     ├── SeedData/
     │   └── IdentitySeedData.cs
+    ├── wwwroot/
+    │   └── js/
+    │       └── signout-redirect.js
     └── Identity.WebApi.csproj
 ```
 
-> **Scaffold alternative:** Duende provides a `dotnet new` template that scaffolds this structure for you:
-> ```bash
-> dotnet new install Duende.IdentityServer.Templates
-> dotnet new isaspid -n Identity.WebApi
-> ```
-> The `isaspid` template generates a working IdentityServer with ASP.NET Identity, Razor Pages UI (login, logout, consent), and a `Config.cs` — structurally very similar to what we build below. The template includes extra pages (consent, device flow, grants management) that you can strip out. We build it manually here for learning purposes.
+> **Why follow Duende's patterns?** The Account pages below follow Duende IdentityServer's official quickstart patterns — using `IIdentityServerInteractionService` to bridge the UI and the OIDC protocol. This is the recommended approach. The key difference from a basic ASP.NET Identity scaffold is that login and logout must participate in IdentityServer's authorization and end-session flows, not just manage a cookie.
+>
+> Duende also provides a `dotnet new` template (`dotnet new isaspid`) that scaffolds these pages with extra features (consent, device flow, grants management). Our pages are simplified versions focused on the core flows.
 
 ---
 
@@ -618,6 +621,7 @@ app.Run();
                 <hr />
 
                 <form method="post">
+                    <input type="hidden" asp-for="ReturnUrl" />
                     <div asp-validation-summary="ModelOnly" class="text-danger"></div>
 
                     <div class="mb-3">
@@ -639,7 +643,13 @@ app.Run();
                         </div>
                     </div>
 
-                    <button type="submit" class="btn btn-primary w-100">Log in</button>
+                    <div class="d-flex gap-2">
+                        <button type="submit" name="button" value="login" class="btn btn-primary flex-fill">Log in</button>
+                        @if (Model.AllowCancel)
+                        {
+                            <button type="submit" name="button" value="cancel" class="btn btn-secondary flex-fill">Cancel</button>
+                        }
+                    </div>
 
                     <div class="mt-3 text-center">
                         <a asp-page="./Register" asp-route-returnUrl="@Model.ReturnUrl">Register as a new user</a>
@@ -662,6 +672,8 @@ app.Run();
 namespace Identity.WebApi.Pages.Account;
 
 using System.ComponentModel.DataAnnotations;
+using Duende.IdentityServer.Events;
+using Duende.IdentityServer.Services;
 using Identity.WebApi.Models;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Identity;
@@ -671,11 +683,19 @@ using Microsoft.AspNetCore.Mvc.RazorPages;
 public class LoginModel : PageModel
 {
     private readonly SignInManager<ApplicationUser> _signInManager;
+    private readonly IIdentityServerInteractionService _interaction;
+    private readonly IEventService _events;
     private readonly ILogger<LoginModel> _logger;
 
-    public LoginModel(SignInManager<ApplicationUser> signInManager, ILogger<LoginModel> logger)
+    public LoginModel(
+        SignInManager<ApplicationUser> signInManager,
+        IIdentityServerInteractionService interaction,
+        IEventService events,
+        ILogger<LoginModel> logger)
     {
         _signInManager = signInManager;
+        _interaction = interaction;
+        _events = events;
         _logger = logger;
     }
 
@@ -686,6 +706,8 @@ public class LoginModel : PageModel
 
     [TempData]
     public string? ErrorMessage { get; set; }
+
+    public bool AllowCancel { get; set; }
 
     public class InputModel
     {
@@ -710,20 +732,38 @@ public class LoginModel : PageModel
 
         returnUrl ??= Url.Content("~/");
 
+        // Check if this login was triggered by an OIDC authorization request
+        var context = await _interaction.GetAuthorizationContextAsync(returnUrl);
+        AllowCancel = context != null;
+
         // Clear the existing external cookie to ensure a clean login process
         await HttpContext.SignOutAsync(IdentityConstants.ExternalScheme);
 
         ReturnUrl = returnUrl;
     }
 
-    public async Task<IActionResult> OnPostAsync(string? returnUrl = null)
+    public async Task<IActionResult> OnPostAsync(string? returnUrl = null, string? button = null)
     {
         returnUrl ??= Url.Content("~/");
 
+        // Check OIDC context
+        var context = await _interaction.GetAuthorizationContextAsync(returnUrl);
+
+        // Handle cancel button
+        if (button == "cancel")
+        {
+            if (context != null)
+            {
+                // Deny the authorization request — sends error back to client
+                await _interaction.DenyAuthorizationAsync(context, Duende.IdentityServer.Models.AuthorizationError.AccessDenied);
+                return Redirect(returnUrl);
+            }
+
+            return Redirect("~/");
+        }
+
         if (ModelState.IsValid)
         {
-            // This doesn't count login failures towards account lockout
-            // To enable password failures to trigger account lockout, set lockoutOnFailure: true
             var result = await _signInManager.PasswordSignInAsync(
                 Input.Email,
                 Input.Password,
@@ -732,12 +772,15 @@ public class LoginModel : PageModel
 
             if (result.Succeeded)
             {
-                _logger.LogInformation("User logged in.");
-                return LocalRedirect(returnUrl);
+                var user = await _signInManager.UserManager.FindByEmailAsync(Input.Email);
+                await _events.RaiseAsync(new UserLoginSuccessEvent(
+                    user!.UserName, user.Id, user.UserName, clientId: context?.Client.ClientId));
+
+                _logger.LogInformation("User {Email} logged in.", Input.Email);
+                return Redirect(returnUrl);
             }
             if (result.RequiresTwoFactor)
             {
-                // Future: redirect to 2FA page
                 return RedirectToPage("./LoginWith2fa", new { ReturnUrl = returnUrl, Input.RememberMe });
             }
             if (result.IsLockedOut)
@@ -745,14 +788,15 @@ public class LoginModel : PageModel
                 _logger.LogWarning("User account locked out.");
                 return RedirectToPage("./Lockout");
             }
-            else
-            {
-                ModelState.AddModelError(string.Empty, "Invalid login attempt.");
-                return Page();
-            }
+
+            await _events.RaiseAsync(new UserLoginFailureEvent(
+                Input.Email, "Invalid credentials", clientId: context?.Client.ClientId));
+
+            ModelState.AddModelError(string.Empty, "Invalid login attempt.");
         }
 
-        // If we got this far, something failed, redisplay form
+        // Redisplay form
+        AllowCancel = context != null;
         return Page();
     }
 }
@@ -760,9 +804,11 @@ public class LoginModel : PageModel
 
 **Key Points:**
 
-- **ReturnUrl**: Preserved across the login flow. After successful login, user is redirected back to the OIDC authorization endpoint, which then redirects to the client application
-- **SignInManager**: ASP.NET Core Identity's built-in service for authentication
-- **Lockout**: Disabled for now (set `lockoutOnFailure: true` in production)
+- **`IIdentityServerInteractionService`**: The bridge between your UI and the OIDC protocol. It provides authorization context (which client triggered login), enables cancel/deny, and retrieves logout context with `PostLogoutRedirectUri`. Without it, your pages are just cookie-based — they don't participate in the OIDC flows
+- **`IEventService`**: Raises IdentityServer audit events (`UserLoginSuccessEvent`, `UserLoginFailureEvent`) for observability and compliance
+- **Cancel button**: When a user clicks cancel during an OIDC-triggered login, `DenyAuthorizationAsync()` sends an `access_denied` error back to the client application
+- **`Redirect` vs `LocalRedirect`**: We use `Redirect(returnUrl)` because IdentityServer's return URLs are protocol-relative paths to its own endpoints (e.g., `/connect/authorize/callback?...`). `LocalRedirect` can reject these
+- **ReturnUrl hidden field**: Ensures the return URL survives the form POST — without it, the URL is lost and the user ends up on the IdentityServer home page after login
 
 ### Register Page (Razor)
 
@@ -909,27 +955,69 @@ public class RegisterModel : PageModel
 }
 ```
 
-### Logout Page
+### Logout Flow
+
+The logout flow is the most protocol-sensitive part of the Account UI. IdentityServer's OIDC end-session endpoint redirects to `/Account/Logout?logoutId=xxx`, and the page must:
+1. Check if a confirmation prompt is needed (via `GetLogoutContextAsync`)
+2. Sign the user out of ASP.NET Identity
+3. Redirect to a `LoggedOut` page that reads the `PostLogoutRedirectUri` and auto-redirects
+
+#### LogoutOptions.cs
+
+A simple configuration class controlling logout behavior:
+
+```csharp
+// C:\projects\DDD\DDD\WebApplications\Identity.WebApi\Pages\Account\LogoutOptions.cs
+namespace Identity.WebApi.Pages.Account;
+
+public static class LogoutOptions
+{
+    public static bool ShowLogoutPrompt => false;
+    public static bool AutomaticRedirectAfterSignOut => true;
+}
+```
+
+- **`ShowLogoutPrompt`**: When `false`, the user is signed out immediately without a "Are you sure?" page. In OIDC flows the prompt is typically skipped because the client already confirmed the intent
+- **`AutomaticRedirectAfterSignOut`**: When `true`, JavaScript auto-redirects to the client's `PostLogoutRedirectUri`
+
+#### Logout Page (Razor)
 
 ```cshtml
 @* C:\projects\DDD\DDD\WebApplications\Identity.WebApi\Pages\Account\Logout.cshtml *@
 @page
 @model Identity.WebApi.Pages.Account.LogoutModel
 @{
-    ViewData["Title"] = "Log out";
+    ViewData["Title"] = "Logout";
 }
 
-<header>
-    <h1>@ViewData["Title"]</h1>
-    <p>You have successfully logged out of the application.</p>
-</header>
+<div class="row justify-content-center mt-5">
+    <div class="col-md-6 col-lg-4">
+        <div class="card">
+            <div class="card-body text-center">
+                <h1 class="card-title">@ViewData["Title"]</h1>
+                <p>Would you like to logout?</p>
+
+                <form method="post">
+                    <input type="hidden" asp-for="LogoutId" />
+                    <button type="submit" class="btn btn-primary">Yes, logout</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
 ```
+
+#### Logout Page (Code-Behind)
 
 ```csharp
 // C:\projects\DDD\DDD\WebApplications\Identity.WebApi\Pages\Account\Logout.cshtml.cs
 namespace Identity.WebApi.Pages.Account;
 
+using Duende.IdentityServer.Events;
+using Duende.IdentityServer.Extensions;
+using Duende.IdentityServer.Services;
 using Identity.WebApi.Models;
+using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
@@ -937,29 +1025,163 @@ using Microsoft.AspNetCore.Mvc.RazorPages;
 public class LogoutModel : PageModel
 {
     private readonly SignInManager<ApplicationUser> _signInManager;
+    private readonly IIdentityServerInteractionService _interaction;
+    private readonly IEventService _events;
     private readonly ILogger<LogoutModel> _logger;
 
-    public LogoutModel(SignInManager<ApplicationUser> signInManager, ILogger<LogoutModel> logger)
+    public LogoutModel(
+        SignInManager<ApplicationUser> signInManager,
+        IIdentityServerInteractionService interaction,
+        IEventService events,
+        ILogger<LogoutModel> logger)
     {
         _signInManager = signInManager;
+        _interaction = interaction;
+        _events = events;
         _logger = logger;
     }
 
-    public async Task<IActionResult> OnPost(string? returnUrl = null)
-    {
-        await _signInManager.SignOutAsync();
-        _logger.LogInformation("User logged out.");
+    [BindProperty]
+    public string? LogoutId { get; set; }
 
-        if (returnUrl != null)
+    public async Task<IActionResult> OnGet(string? logoutId)
+    {
+        LogoutId = logoutId;
+
+        // Check if we need to show a confirmation prompt
+        var context = await _interaction.GetLogoutContextAsync(logoutId);
+
+        if (!LogoutOptions.ShowLogoutPrompt || context?.ShowSignoutPrompt == false)
         {
-            return LocalRedirect(returnUrl);
+            // No prompt needed — sign out directly
+            return await OnPost();
         }
-        else
+
+        return Page();
+    }
+
+    public async Task<IActionResult> OnPost()
+    {
+        // Get the logout context before we sign out (we need the user's claims)
+        var logout = await _interaction.GetLogoutContextAsync(LogoutId);
+
+        if (User.Identity?.IsAuthenticated == true)
         {
-            return RedirectToPage();
+            var subjectId = User.GetSubjectId();
+
+            // Sign out of ASP.NET Identity
+            await _signInManager.SignOutAsync();
+
+            // Raise the logout success event
+            await _events.RaiseAsync(new UserLogoutSuccessEvent(subjectId, User.GetDisplayName()));
+
+            _logger.LogInformation("User {SubjectId} logged out.", subjectId);
         }
+
+        return RedirectToPage("/Account/LoggedOut", new { logoutId = LogoutId });
     }
 }
+```
+
+#### LoggedOut Page (Razor)
+
+```cshtml
+@* C:\projects\DDD\DDD\WebApplications\Identity.WebApi\Pages\Account\LoggedOut.cshtml *@
+@page
+@model Identity.WebApi.Pages.Account.LoggedOutModel
+@{
+    ViewData["Title"] = "Logged out";
+}
+
+<div class="row justify-content-center mt-5">
+    <div class="col-md-6 col-lg-4">
+        <div class="card">
+            <div class="card-body text-center">
+                <h1 class="card-title">@ViewData["Title"]</h1>
+                <p>You have successfully logged out.</p>
+
+                @if (!string.IsNullOrEmpty(Model.PostLogoutRedirectUri))
+                {
+                    <p>
+                        Click <a href="@Model.PostLogoutRedirectUri">here</a> to return to
+                        <span>@(Model.ClientName ?? "the application")</span>.
+                    </p>
+                }
+            </div>
+        </div>
+    </div>
+</div>
+
+@if (Model.AutomaticRedirectAfterSignOut && !string.IsNullOrEmpty(Model.PostLogoutRedirectUri))
+{
+    <script src="~/js/signout-redirect.js"></script>
+    <input type="hidden" id="post-logout-redirect-uri" value="@Model.PostLogoutRedirectUri" />
+}
+```
+
+#### LoggedOut Page (Code-Behind)
+
+```csharp
+// C:\projects\DDD\DDD\WebApplications\Identity.WebApi\Pages\Account\LoggedOut.cshtml.cs
+namespace Identity.WebApi.Pages.Account;
+
+using Duende.IdentityServer.Services;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.RazorPages;
+
+[AllowAnonymous]
+public class LoggedOutModel : PageModel
+{
+    private readonly IIdentityServerInteractionService _interaction;
+
+    public LoggedOutModel(IIdentityServerInteractionService interaction)
+    {
+        _interaction = interaction;
+    }
+
+    public string? PostLogoutRedirectUri { get; set; }
+    public string? ClientName { get; set; }
+    public bool AutomaticRedirectAfterSignOut => LogoutOptions.AutomaticRedirectAfterSignOut;
+
+    public async Task<IActionResult> OnGet(string? logoutId)
+    {
+        var context = await _interaction.GetLogoutContextAsync(logoutId);
+
+        PostLogoutRedirectUri = context?.PostLogoutRedirectUri;
+        ClientName = context?.ClientName ?? context?.ClientId;
+
+        // If we have a redirect URI and auto-redirect is on, the JS will handle it
+        return Page();
+    }
+}
+```
+
+#### Auto-Redirect Script
+
+```javascript
+// C:\projects\DDD\DDD\WebApplications\Identity.WebApi\wwwroot\js\signout-redirect.js
+
+// Auto-redirect after sign-out
+window.addEventListener("load", function () {
+    var redirectUri = document.getElementById("post-logout-redirect-uri");
+    if (redirectUri) {
+        window.location.href = redirectUri.value;
+    }
+});
+```
+
+**The complete logout chain:**
+
+```
+1. Angular → window.location.href = '.../auth/logout?returnUrl=https://localhost:7003'
+2. API AuthController → SignOut(cookie, oidc)
+3. OIDC middleware → IdentityServer /connect/endsession
+4. IdentityServer → GET /Account/Logout?logoutId=xxx
+5. Logout.OnGet → ShowLogoutPrompt=false → auto-calls OnPost
+6. OnPost → SignOutAsync → redirect to /Account/LoggedOut?logoutId=xxx
+7. LoggedOut → reads PostLogoutRedirectUri → auto-redirect via JS
+8. → API signout-callback-oidc → Angular origin → login page
 ```
 
 ---
