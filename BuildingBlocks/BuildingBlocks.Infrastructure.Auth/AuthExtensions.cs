@@ -66,7 +66,8 @@ namespace BuildingBlocks.Infrastructure.Auth
                 // Request scopes (must match what Auth server allows for this client)
                 options.Scope.Clear();
                 options.Scope.Add("openid"); // Required for OIDC
-                options.Scope.Add("profile"); // Get name, email claims etc...
+                options.Scope.Add("profile"); // Get name, given_name, family_name, etc.
+                options.Scope.Add("email"); // Get email claim (not included in profile scope)
                 options.Scope.Add("roles"); // Get role claims
 
                 // Save tokens in cookie properties (access_token, refresh_token)
@@ -77,9 +78,15 @@ namespace BuildingBlocks.Infrastructure.Auth
                 options.TokenValidationParameters.NameClaimType = "name";
                 options.TokenValidationParameters.RoleClaimType = "role";
 
-                // Map additional claims from ID token to cookie, Add more if needed
+                // ClaimActions run on the userinfo JSON (called when GetClaimsFromUserInfoEndpoint=true)
+                // and copy claims into the cookie identity. Anything not mapped here is dropped.
+                // MapJsonKey handles arrays — for multi-valued claims like 'role' it emits one
+                // Claim per array element.
+                options.ClaimActions.MapJsonKey("sub", "sub");
+                options.ClaimActions.MapJsonKey("name", "name");
                 options.ClaimActions.MapJsonKey("email", "email");
-                options.ClaimActions.MapJsonKey("sub", "sub"); // Subject (user ID)
+                options.ClaimActions.MapJsonKey("email_verified", "email_verified");
+                options.ClaimActions.MapJsonKey("role", "role");
 
                 // OIDC event hooks — listed in execution order, uncomment as needed
                 options.Events = new Microsoft.AspNetCore.Authentication.OpenIdConnect.OpenIdConnectEvents
@@ -171,7 +178,12 @@ namespace BuildingBlocks.Infrastructure.Auth
                     //     return Task.CompletedTask;
                     // },
                 };
-                //options.GetClaimsFromUserInfoEndpoint = true; //Get additional claims from the user info endpoint
+                // Fetch identity claims (name, email, role, ...) from the userinfo endpoint.
+                // Duende's default for authorization code flow is to keep the id_token lean:
+                // only 'sub' is included when an access_token is also issued. The OIDC middleware
+                // will call /connect/userinfo after the code exchange and merge the claims into
+                // the identity.
+                options.GetClaimsFromUserInfoEndpoint = true;
             });
 
             // 3. Configure Data Protection for shared cookie encryption

@@ -75,9 +75,12 @@ internal sealed class HttpContextCurrentUser : ICurrentUser
             if (user?.Identity?.IsAuthenticated != true)
                 return Array.Empty<string>();
 
-            return user.FindAll(ClaimTypes.Role)
-                .Select(c => c.Value)
-                .ToList();
+            // Check both the SOAP/WS-Fed mapped URI and the raw "role" JWT claim —
+            // .NET 9 uses JsonWebTokenHandler which does NOT remap inbound claim names,
+            // so roles arrive as "role" rather than ClaimTypes.Role.
+            var mapped = user.FindAll(ClaimTypes.Role).Select(c => c.Value);
+            var raw = user.FindAll("role").Select(c => c.Value);
+            return mapped.Concat(raw).Distinct().ToList();
         }
     }
 

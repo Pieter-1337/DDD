@@ -116,13 +116,15 @@ public interface ICurrentUser
 
 The implementation (already created in doc 03) maps OIDC claims to interface properties:
 
-| OIDC Claim | Cookie Claim Type | ICurrentUser Property | Domain Usage |
-|------------|-------------------|----------------------|--------------|
-| `sub` | `ClaimTypes.NameIdentifier` | `UserId` | Audit logging, ownership checks |
-| `email` | `ClaimTypes.Email` | `Email` | Notifications, user identification |
-| `name` | `ClaimTypes.Name` | `Name` | Display in UI, logging |
-| `role` | `ClaimTypes.Role` | `Roles` | Authorization decisions |
+| OIDC Claim | Runtime claim name (.NET 9) | ICurrentUser Property | Domain Usage |
+|------------|----------------------------|----------------------|--------------|
+| `sub` | `"sub"` (fallback from `ClaimTypes.NameIdentifier`) | `UserId` | Audit logging, ownership checks |
+| `email` | `"email"` (fallback from `ClaimTypes.Email`) | `Email` | Notifications, user identification |
+| `name` | `"name"` (fallback from `ClaimTypes.Name`) | `Name` | Display in UI, logging |
+| `role` | `"role"` (checked alongside `ClaimTypes.Role`) | `Roles` | Authorization decisions |
 | N/A | `User.Identity?.IsAuthenticated` | `IsAuthenticated` | Authentication gate |
+
+> **Note**: Under .NET 9's `JsonWebTokenHandler`, claims are stored with their raw JWT names — no remapping to `ClaimTypes` URIs occurs. Each property reads both the mapped URI form and the raw JWT name so the code is forward- and backward-compatible.
 
 ---
 
@@ -152,16 +154,38 @@ public class HttpContextCurrentUser : ICurrentUser
     public string? Name =>
         _httpContextAccessor.HttpContext?.User?.FindFirst(ClaimTypes.Name)?.Value;
 
-    public IReadOnlyList<string> Roles =>
-        _httpContextAccessor.HttpContext?.User?
-            .FindAll(ClaimTypes.Role)
-            .Select(c => c.Value)
-            .ToList() ?? new List<string>();
+    public IReadOnlyList<string> Roles
+    {
+        get
+        {
+            var user = _httpContextAccessor.HttpContext?.User;
+            if (user?.Identity?.IsAuthenticated != true)
+                return Array.Empty<string>();
+
+            // .NET 9 uses JsonWebTokenHandler which does NOT remap JWT claim names to
+            // SOAP/WS-Fed URIs. Claims arrive with raw JWT names ("role"), not as
+            // ClaimTypes.Role ("http://schemas.microsoft.com/ws/2008/06/identity/claims/role").
+            // UserId, Name, and Email already fall back to their raw names; Roles must do
+            // the same or it silently returns an empty list even when the IDP issued roles.
+            // See "Claim naming and JsonWebTokenHandler" below.
+            var mapped = user.FindAll(ClaimTypes.Role).Select(c => c.Value);
+            var raw    = user.FindAll("role").Select(c => c.Value);
+            return mapped.Concat(raw).Distinct().ToList();
+        }
+    }
 
     public bool IsAuthenticated =>
         _httpContextAccessor.HttpContext?.User?.Identity?.IsAuthenticated ?? false;
 }
 ```
+
+> **Claim naming and JsonWebTokenHandler**
+>
+> .NET 9's OIDC middleware uses `JsonWebTokenHandler` instead of the older `JwtSecurityTokenHandler`. The old handler automatically remapped JWT claim names to their SOAP/WS-Fed `ClaimTypes` URIs (e.g., `role` → `ClaimTypes.Role`). `JsonWebTokenHandler` does **not** — claims land in the `ClaimsPrincipal` with the raw JWT names they arrived with: `sub`, `name`, `email`, `role`.
+>
+> `UserId`, `Name`, and `Email` have always fallen back to their raw names (e.g., `user.FindFirstValue(ClaimTypes.Email) ?? user.FindFirstValue("email")`). `Roles` only checked `ClaimTypes.Role` and therefore silently returned an empty list even when the IDP issued `role` claims. The fix above checks both names and de-duplicates.
+>
+> Setting `TokenValidationParameters.NameClaimType = "name"` and `RoleClaimType = "role"` in `AddOpenIdConnect` does **not** trigger claim remapping. It only tells the identity which raw claim to use for `User.Identity.Name` and for `User.IsInRole(...)` lookups. The raw claim name (`"role"`) is still what appears in `ClaimsPrincipal.Claims`, so explicit fallback reads are always necessary.
 
 **Registered as Scoped** in `AddOidcCookieAuth()`:
 ```csharp
@@ -1392,7 +1416,35 @@ Choose the approach that fits your UX:
 
 ---
 
-## 11. Summary
+## 11. Common Issues
+
+### `User.Roles` is empty even though the IDP issued role claims
+
+**Symptom**: `/auth/current-user` returns `"roles": []`, or `User.IsInRole("Admin")` returns `false`, even after the user logs in with an account that has roles assigned.
+
+**Root cause**: .NET 9's `JsonWebTokenHandler` does not remap JWT claim names to their `ClaimTypes` URI equivalents. The `role` claim from the IDP lands in `ClaimsPrincipal.Claims` with the key `"role"`, not `ClaimTypes.Role`. An implementation that only calls `user.FindAll(ClaimTypes.Role)` will find nothing.
+
+**Fix**: Read both forms and de-duplicate, as shown in the `HttpContextCurrentUser.Roles` implementation in section 2 of this document:
+
+```csharp
+var mapped = user.FindAll(ClaimTypes.Role).Select(c => c.Value);
+var raw    = user.FindAll("role").Select(c => c.Value);
+return mapped.Concat(raw).Distinct().ToList();
+```
+
+**Also check**: If `Roles` is still empty after the fix, the `role` claims may not have been included in the cookie at all. This is a separate issue: Duende's lean `id_token` default means only `sub` is returned unless the OIDC middleware is configured to call the userinfo endpoint. Verify that `options.GetClaimsFromUserInfoEndpoint = true` and `options.Scope.Add("roles")` are set in `AuthExtensions.cs`. See doc 03, "Only `sub` claim is present after login".
+
+### `User.Name` or `User.Email` is null
+
+**Symptom**: `ICurrentUser.Name` or `Email` returns null after login.
+
+**Root cause**: Same `JsonWebTokenHandler` naming issue as above. Additionally, the `email` scope must be requested explicitly — it is not part of the `profile` scope.
+
+**Fix**: Confirm `options.Scope.Add("email")` is present alongside `"profile"`, and that `options.GetClaimsFromUserInfoEndpoint = true` is set. See doc 03 for the full scope configuration.
+
+---
+
+## 12. Summary
 
 ### What We Built
 

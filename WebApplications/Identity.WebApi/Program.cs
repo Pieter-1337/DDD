@@ -20,6 +20,11 @@ var migrationsAssembly = typeof(Program).Assembly.GetName().Name;
 builder.Services.AddDbContext<IdentityDbContext>(options =>
 {
     options.UseSqlServer(connectionString);
+    if (builder.Environment.IsDevelopment())
+    {
+        options.EnableDetailedErrors();
+        options.EnableSensitiveDataLogging();
+    }
 });
 
 builder.Services.AddIdentity<ApplicationUser, IdentityRole>(options =>

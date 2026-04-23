@@ -22,7 +22,7 @@ export class AuthService {
 
   // Public readonly signals
   user = this.currentUser.asReadonly();
-  isAuthenticated = computed(() => this.currentUser !== null);
+  isAuthenticated = computed(() => this.currentUser() !== null);
   isLoading = this.loading.asReadonly();
 
   // Computed role checks
@@ -67,7 +67,8 @@ export class AuthService {
    * The API handles the OIDC flow and redirects back to the app.
    */
    login(): void {
-      window.location.href = `${environment.schedulingApiUrl}/auth/login`;
+      const returnUrl = encodeURIComponent(window.location.origin);
+      window.location.href = `${environment.schedulingApiUrl}/auth/login?returnUrl=${returnUrl}`;
    }
 
   /**

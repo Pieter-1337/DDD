@@ -169,20 +169,45 @@ public static class AuthExtensions
             // Request scopes (must match what Auth Server allows for this client)
             options.Scope.Clear();
             options.Scope.Add("openid");         // Required for OIDC
-            options.Scope.Add("profile");        // Get name, email claims
-            options.Scope.Add("roles");          // Get role claims
+            options.Scope.Add("profile");        // name, given_name, family_name, ...
+            options.Scope.Add("email");          // email claim — NOT included in the profile scope
+            options.Scope.Add("roles");          // role claims
 
-            // Save tokens in cookie properties (access_token, refresh_token)
-            // Set to false for cookie-only auth (tokens stay on server)
+            // Duende's default for authorization code flow is to keep the id_token lean:
+            // only 'sub' is included when an access_token is also issued. The OIDC middleware
+            // will call /connect/userinfo after the code exchange and merge the additional
+            // claims (name, email, role, ...) into the identity before writing the cookie.
+            // See "Fetching claims from the userinfo endpoint" below for details.
+            options.GetClaimsFromUserInfoEndpoint = true;
+
+            // SaveTokens controls whether the OIDC middleware persists tokens
+            // (access_token, id_token, refresh_token) inside the auth cookie's properties.
+            //
+            // true  → all three tokens saved → easy to retrieve later, but the cookie
+            //          grows by 2-4 KB per token, which can exceed browser limits.
+            // false → no tokens saved → lean cookie, but the middleware can no longer
+            //          retrieve the id_token during logout — which creates a problem
+            //          explained in the logout section below.
+            //
+            // We choose false and work around the logout problem by manually storing
+            // only the id_token in OnTokenValidated (see event #4 below).
             options.SaveTokens = false;
 
             // Map OIDC claims to .NET ClaimTypes
             options.TokenValidationParameters.NameClaimType = "name";
             options.TokenValidationParameters.RoleClaimType = "role";
 
-            // Map additional claims from ID token to cookie
+            // ClaimActions are the bridge between the userinfo JSON response and the ClaimsIdentity.
+            // When GetClaimsFromUserInfoEndpoint = true, the middleware calls /connect/userinfo
+            // and then runs these actions to copy claims into the cookie identity.
+            // Any claim in the userinfo response that has no matching MapJsonKey is silently dropped.
+            // MapJsonKey handles JSON arrays natively — if the server returns "role": ["Admin", "Doctor"],
+            // it emits one Claim per array element, so no custom handling is needed for multi-valued claims.
+            options.ClaimActions.MapJsonKey("sub", "sub");
+            options.ClaimActions.MapJsonKey("name", "name");
             options.ClaimActions.MapJsonKey("email", "email");
-            options.ClaimActions.MapJsonKey("sub", "sub"); // Subject (user ID)
+            options.ClaimActions.MapJsonKey("email_verified", "email_verified");
+            options.ClaimActions.MapJsonKey("role", "role");
 
             // OIDC event hooks — listed in execution order, uncomment as needed
             options.Events = new OpenIdConnectEvents
@@ -212,7 +237,19 @@ public static class AuthExtensions
                 // 4. After ID token is validated, before claims are saved to cookie
                 OnTokenValidated = context =>
                 {
-                    // Claims transformation can happen here if needed
+                    // Store ONLY the id_token in auth properties so it can be used as
+                    // id_token_hint on logout. Duende's end-session validator requires
+                    // id_token_hint to populate the logout context (client_id alone is
+                    // not enough). SaveTokens=false means we skip access/refresh tokens,
+                    // keeping the cookie small.
+                    var idToken = context.TokenEndpointResponse?.IdToken;
+                    if (!string.IsNullOrEmpty(idToken) && context.Properties is not null)
+                    {
+                        context.Properties.StoreTokens(new[]
+                        {
+                            new AuthenticationToken { Name = "id_token", Value = idToken }
+                        });
+                    }
                     return Task.CompletedTask;
                 },
 
@@ -249,19 +286,203 @@ public static class AuthExtensions
 
 ### OIDC Event Hooks Reference
 
-The `OpenIdConnectEvents` provide hooks into the OIDC authentication flow. Listed here in **execution order** during a login flow:
+The `OpenIdConnectEvents` provide hooks into the OIDC authentication flow. The login-flow events fire in numerical order; the logout events are separate.
 
-| # | Event | When it fires | Common use |
-|---|-------|--------------|------------|
-| 1 | **OnRedirectToIdentityProvider** | Before redirecting to login page | Add extra parameters, change redirect URI |
-| 2 | **OnAuthorizationCodeReceived** | After receiving the auth code, before exchanging it for tokens | Inspect or modify the code exchange |
-| 3 | **OnTokenResponseReceived** | After receiving tokens from the token endpoint | Store tokens, log token metadata |
-| 4 | **OnTokenValidated** | After ID token is validated, before claims are saved to cookie | Transform/add/remove claims |
-| 5 | **OnUserInformationReceived** | After calling the userinfo endpoint (if enabled) | Merge additional claims |
-| | **OnRemoteFailure** | When something goes wrong at any point in the flow | Custom error handling, redirect to error page |
-| | **OnSignedOutCallbackRedirect** | After logout callback from auth server (logout flow only) | Custom post-logout redirect |
+**Login flow (in execution order):**
 
-`OnTokenValidated` (#4) is the most commonly used — it's where you'd map IdentityServer claims to your app's claim structure (e.g., renaming claim types or adding claims from your own database).
+| # | Event | When it fires | Used for in this project |
+|---|-------|--------------|--------------------------|
+| 1 | **OnRedirectToIdentityProvider** | Before redirecting to login page | Return 401 for AJAX requests instead of redirecting |
+| 2 | **OnAuthorizationCodeReceived** | After receiving the auth code, before exchanging for tokens | (not used) |
+| 3 | **OnTokenResponseReceived** | After receiving tokens from the token endpoint | (not used) |
+| 4 | **OnTokenValidated** | After ID token is validated, before claims are saved to cookie | **Store id_token for logout hint** |
+| 5 | **OnUserInformationReceived** | After calling the userinfo endpoint (fires when `GetClaimsFromUserInfoEndpoint = true`) | (not used — claims merged automatically) |
+| | **OnRemoteFailure** | When something goes wrong at any point in the flow | Custom error handling |
+
+**Logout flow:**
+
+| Event | When it fires | Used for in this project |
+|-------|--------------|--------------------------|
+| **OnRedirectToIdentityProviderForSignOut** | Before redirecting to the auth server's end-session endpoint | **Attach id_token_hint to the end-session request** |
+| **OnSignedOutCallbackRedirect** | After the logout callback redirect from the auth server | (not used) |
+
+`OnTokenValidated` (#4) is the most commonly used login-flow event — it's where you'd map IdentityServer claims to your app's claim structure. In this project we also use it to persist the `id_token` so that logout works correctly. The reason why is explained in the next section.
+
+### Fetching Claims from the Userinfo Endpoint
+
+#### Why Duende returns only `sub` in the id_token
+
+Duende IdentityServer follows the OpenID Connect specification: when the authorization code flow issues both an `id_token` **and** an `access_token`, the `id_token` is kept lean — only the `sub` (subject) claim is included. The spec assumes the client will call the `/connect/userinfo` endpoint to retrieve the remaining user claims using the access token.
+
+If you log in and then call `/auth/current-user` and get only `{ "userId": "...", "name": null, "email": null, "roles": [] }`, look for this line in the Duende console output (requires `"Duende": "Debug"` logging):
+
+```
+Duende.IdentityServer.Services.DefaultClaimsService:
+  In addition to an id_token, an access_token was requested.
+  No claims other than sub are included in the id_token.
+  To obtain more user claims, either use the user info endpoint or set
+  AlwaysIncludeUserClaimsInIdToken on the client configuration.
+```
+
+That message is the definitive diagnosis.
+
+#### Our fix: `GetClaimsFromUserInfoEndpoint = true` plus explicit `ClaimActions`
+
+Setting this option on the OIDC middleware tells it to call `/connect/userinfo` automatically after the code exchange and merge the returned claims into the `ClaimsPrincipal` before writing the auth cookie.
+
+```csharp
+options.GetClaimsFromUserInfoEndpoint = true;
+```
+
+This is a necessary first step, but enabling it alone is not sufficient. The middleware uses `ClaimActions` as the bridge between the userinfo JSON response and the `ClaimsIdentity`. **Any claim in the userinfo response that has no matching `MapJsonKey` is silently dropped.** This is a common source of confusion because it behaves differently from the ID token path: claims that arrive via the ID token flow directly into the `ClaimsIdentity` constructor and do not need explicit mapping. Claims that come through the userinfo roundtrip do.
+
+When userinfo returns `{ sub, name, email, email_verified, role }`, you must have a `MapJsonKey` for each claim you want in the cookie:
+
+```csharp
+options.ClaimActions.MapJsonKey("sub", "sub");
+options.ClaimActions.MapJsonKey("name", "name");
+options.ClaimActions.MapJsonKey("email", "email");
+options.ClaimActions.MapJsonKey("email_verified", "email_verified");
+options.ClaimActions.MapJsonKey("role", "role");
+```
+
+`MapJsonKey` handles JSON arrays natively. When the userinfo response has `"role": ["Admin", "Doctor"]`, it emits one `Claim` per array element — no custom serialization is required for multi-valued claims.
+
+When `GetClaimsFromUserInfoEndpoint = true` is set, the **`OnUserInformationReceived`** event (#5 in the table above) also fires, giving you a hook to inspect or transform claims before the actions run. In this project we don't need to override it.
+
+#### Alternative: `AlwaysIncludeUserClaimsInIdToken`
+
+Duende's documentation also mentions setting `AlwaysIncludeUserClaimsInIdToken = true` on the client registration in `IdentityServerConfig.cs`. This embeds all user claims directly in the `id_token`, so the OIDC middleware never needs the extra roundtrip. It sounds simpler, but there is a cost: because we store the `id_token` in the cookie's auth properties (for the logout hint — see below), a fatter `id_token` means a fatter cookie. The userinfo roundtrip is a single extra request at login time; the inflated cookie is paid on every request. We chose the roundtrip.
+
+---
+
+### Logout Flow and Why id_token_hint Is Required
+
+#### The SaveTokens tradeoff
+
+Setting `SaveTokens = false` keeps the auth cookie small — by default the OIDC middleware would store the access token, id_token, and refresh token inside the cookie's encrypted properties, adding several kilobytes. The problem is that "false" also means the middleware has nothing to hand to the auth server when it's time to log out.
+
+Duende IdentityServer's `EndSessionRequestValidator` has a hard rule: **the only way it will identify which client is logging out is via `id_token_hint`**. Passing `client_id` as a query parameter is not enough. Without the hint, the validator skips client lookup entirely. That means:
+
+- `LogoutRequest.ClientId` (singular) stays `null`
+- `LogoutRequest.PostLogoutRedirectUri` stays `null`
+- The auto-redirect JavaScript on the `/Account/LoggedOut` page never fires
+- The user is stranded on the IdentityServer logout page
+
+> **Debugging clue**: `ClientIds` (plural, from the session cookie) still populates, which can be misleading. Look at `LogoutRequest.PostLogoutRedirectUri` — if it is null, the client was not resolved and `id_token_hint` is missing.
+
+#### Our fix: store only the id_token
+
+`OnTokenValidated` fires after the ID token is validated but before claims are written to the cookie. At that point `context.TokenEndpointResponse?.IdToken` is available. We call `context.Properties.StoreTokens(...)` with only the `id_token` — roughly 1 KB — and skip the access and refresh tokens entirely.
+
+Then, when logout is triggered, `OnRedirectToIdentityProviderForSignOut` fires before the browser is sent to the end-session endpoint. We read the stored token back out of the cookie and set `context.ProtocolMessage.IdTokenHint`. The middleware adds it as a query parameter on the end-session URL, which allows Duende to resolve the client and validate `post_logout_redirect_uri`.
+
+```csharp
+// Event fires after ID token is validated, before claims are written to the cookie.
+// We use it to persist just the id_token so logout can attach id_token_hint later.
+OnTokenValidated = context =>
+{
+    var idToken = context.TokenEndpointResponse?.IdToken;
+    if (!string.IsNullOrEmpty(idToken) && context.Properties is not null)
+    {
+        context.Properties.StoreTokens(new[]
+        {
+            new AuthenticationToken { Name = "id_token", Value = idToken }
+        });
+    }
+    return Task.CompletedTask;
+},
+
+// Event fires before the OIDC middleware redirects to the auth server's end-session endpoint.
+// We retrieve the stored id_token and set it as id_token_hint so Duende can
+// resolve the client and honour post_logout_redirect_uri.
+OnRedirectToIdentityProviderForSignOut = async context =>
+{
+    var authResult = await context.HttpContext.AuthenticateAsync(
+        CookieAuthenticationDefaults.AuthenticationScheme);
+    var idToken = authResult?.Properties?.GetTokenValue("id_token");
+    if (!string.IsNullOrEmpty(idToken))
+    {
+        context.ProtocolMessage.IdTokenHint = idToken;
+    }
+},
+```
+
+#### The full logout chain
+
+Understanding the full redirect sequence helps when something breaks at a specific step:
+
+```
+Angular SPA                    Scheduling API                Identity.WebApi
+     │                               │                             │
+     │ GET /auth/logout?returnUrl=.. │                             │
+     ├──────────────────────────────>│                             │
+     │                               │                             │
+     │                    AuthController.Logout calls              │
+     │                    SignOut(cookie, "oidc")                   │
+     │                               │                             │
+     │                    OnRedirectToIdentityProviderForSignOut    │
+     │                    fires — IdTokenHint is attached           │
+     │                               │                             │
+     │         302 → /connect/endsession?id_token_hint=...         │
+     │                    &post_logout_redirect_uri=               │
+     │                    https://api/signout-callback-oidc        │
+     │                    &state=...                               │
+     ├───────────────────────────────────────────────────────────>│
+     │                                                             │
+     │                                         Duende validates    │
+     │                                         id_token_hint →     │
+     │                                         resolves client →   │
+     │                                         validates           │
+     │                                         post_logout_        │
+     │                                         redirect_uri →      │
+     │                                         stores logout msg   │
+     │                                                             │
+     │              302 → /Account/Logout?logoutId=...             │
+     │<───────────────────────────────────────────────────────────┤
+     │                                                             │
+     │              /Account/Logout signs out and redirects        │
+     │              302 → /Account/LoggedOut?logoutId=...          │
+     │<───────────────────────────────────────────────────────────┤
+     │                                                             │
+     │              LoggedOut reads PostLogoutRedirectUri           │
+     │              (now populated because id_token_hint was set)  │
+     │              → auto-redirect JS fires                       │
+     │                                                             │
+     │              302 → https://api/signout-callback-oidc        │
+     │<───────────────────────────────────────────────────────────┤
+     │                               │                             │
+     │ OIDC middleware unpacks state,│                             │
+     │ redirects to Angular returnUrl│                             │
+     │<──────────────────────────────┤                             │
+```
+
+If `PostLogoutRedirectUri` is null at the LoggedOut page, the auto-redirect JS never fires and the chain breaks at step 6. The fix is always tracing back to whether `id_token_hint` reached Duende.
+
+#### Diagnostic tip: enable Duende debug logging
+
+Add this to `WebApplications/Identity.WebApi/appsettings.Development.json` to see `EndSessionRequestValidator` log output:
+
+```json
+{
+  "Logging": {
+    "LogLevel": {
+      "Default": "Information",
+      "Duende": "Debug"
+    }
+  }
+}
+```
+
+With `Duende` at `Debug`, you will see a line from `EndSessionRequestValidator` in the console. If it reads:
+
+```
+Success validating end session request from (null)
+```
+
+the `(null)` means the client was not resolved — `id_token_hint` was not received. Look at the `Raw` dictionary logged alongside it; `id_token_hint` should be present. If it is missing, the `OnRedirectToIdentityProviderForSignOut` event did not set `IdTokenHint`, or the stored token was not found in the cookie.
+
+---
 
 ### Configuration in appsettings.json
 
@@ -932,18 +1153,56 @@ Start Billing API and verify it uses the same key (no new key generated).
 
 **Fix**: Add `.AllowCredentials()` to CORS policy AND set `withCredentials: true` in Angular HTTP requests (doc 04).
 
+### Only `sub` claim is present after login
+
+**Symptom**: `/auth/current-user` returns `{ "userId": "...", "name": null, "email": null, "roles": [] }` — all fields are null except `userId`.
+
+**Root cause (step 1)**: Duende's default behavior for authorization code flow is to issue a lean `id_token` that contains only `sub`. Additional claims (`name`, `email`, `role`) are available at `/connect/userinfo` but the OIDC middleware doesn't call that endpoint unless told to. You will see the Duende log line `No claims other than sub are included in the id_token` confirming this.
+
+**Fix (step 1)**: Set `options.GetClaimsFromUserInfoEndpoint = true` and add `options.Scope.Add("email")` to `AddOpenIdConnect` in `AuthExtensions.cs`.
+
+**Root cause (step 2)**: Even with `GetClaimsFromUserInfoEndpoint = true`, only claims that have a matching `MapJsonKey` entry are copied into the cookie identity. If `name`, `email_verified`, and `role` are missing, the `ClaimActions` configuration is incomplete — each missing claim is silently dropped by the middleware.
+
+**Fix (step 2)**: Add `MapJsonKey` for every claim you want in the cookie:
+
+```csharp
+options.ClaimActions.MapJsonKey("sub", "sub");
+options.ClaimActions.MapJsonKey("name", "name");
+options.ClaimActions.MapJsonKey("email", "email");
+options.ClaimActions.MapJsonKey("email_verified", "email_verified");
+options.ClaimActions.MapJsonKey("role", "role");
+```
+
+Both fixes are already applied in the configuration shown in section 2.
+
+**Alternative**: Set `AlwaysIncludeUserClaimsInIdToken = true` on the client in `IdentityServerConfig.cs`. Avoids the extra HTTP roundtrip but inflates the cookie on every request. Not preferred here — see "Fetching claims from the userinfo endpoint" above.
+
+### Post-logout redirect never fires — user stranded on IdentityServer logout page
+
+**Cause**: `LogoutRequest.PostLogoutRedirectUri` is null because Duende's `EndSessionRequestValidator` did not receive an `id_token_hint`. Without the hint, the validator cannot resolve the client and will not validate the redirect URI, even if `client_id` is supplied separately.
+
+**Symptoms**:
+- User completes logout on IdentityServer but is never redirected back to the Angular app
+- `/Account/LoggedOut` page renders but the auto-redirect JavaScript block does not execute
+- `LogoutRequest.ClientId` is null (note: `ClientIds` plural may still be populated from the session cookie — this is expected and not the fix)
+
+**Fix**: Ensure `OnTokenValidated` stores the `id_token` in auth properties, and that `OnRedirectToIdentityProviderForSignOut` reads it and sets `context.ProtocolMessage.IdTokenHint`. Both events are implemented in `AuthExtensions.cs`. See the "Logout Flow" section above for details.
+
+**Diagnostic**: Set `"Duende": "Debug"` in `Identity.WebApi/appsettings.Development.json`. A log line reading `Success validating end session request from (null)` confirms the client was not resolved — `id_token_hint` was missing from the request.
+
 ---
 
 ## Summary
 
 You've built a reusable authentication infrastructure in `BuildingBlocks.Infrastructure.Auth` that:
 
-- ✅ Provides a single extension method (`AddOidcCookieAuth`) following the project's BuildingBlock pattern
-- ✅ Configures cookie authentication with standard OIDC client middleware for any OIDC-compliant authorization server (Duende IdentityServer in this project)
-- ✅ Exposes `/auth/login`, `/auth/logout`, `/auth/current-user` endpoints for Angular integration
-- ✅ Implements `ICurrentUser` for domain handlers to access authenticated user information
-- ✅ Shares Data Protection keys across APIs so cookies work universally
-- ✅ Maps OIDC claims to .NET claims for consistent access
+- Provides a single extension method (`AddOidcCookieAuth`) following the project's BuildingBlock pattern
+- Configures cookie authentication with standard OIDC client middleware for any OIDC-compliant authorization server (Duende IdentityServer in this project)
+- Exposes `/auth/login`, `/auth/logout`, `/auth/current-user` endpoints for Angular integration
+- Implements `ICurrentUser` for domain handlers to access authenticated user information
+- Shares Data Protection keys across APIs so cookies work universally
+- Maps OIDC claims to .NET claims for consistent access
+- Stores only the `id_token` in the cookie (not access or refresh tokens) so that `id_token_hint` can be sent on logout, satisfying Duende's `EndSessionRequestValidator` and enabling the full redirect chain back to Angular
 
 Both Scheduling and Billing APIs can now call `AddOidcCookieAuth()` in two lines and get full authentication support.
 

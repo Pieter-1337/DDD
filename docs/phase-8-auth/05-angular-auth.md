@@ -18,6 +18,7 @@ This document explains how to integrate authentication into the Angular SPA. Unl
 8. [UI Integration](#ui-integration)
 9. [Complete Authentication Flow](#complete-authentication-flow)
 10. [Security Considerations](#security-considerations)
+11. [Common Issues](#common-issues)
 
 ---
 
@@ -274,6 +275,20 @@ export class AuthService {
 - `isAuthenticated()` computed signal - derived state
 - No manual subscription management
 - Type-safe access to user info
+
+> **Signal pitfall — always invoke with `()`**
+>
+> Inside `computed()`, reading a signal without `()` gives you the signal reference (a function object), not the current value. A reference is always truthy, so comparisons like `!== null` silently lie:
+>
+> ```typescript
+> // Wrong — this.currentUser is the signal reference, never null
+> isAuthenticated = computed(() => this.currentUser !== null);  // always true
+>
+> // Correct — invoke the signal to get its current value
+> isAuthenticated = computed(() => this.currentUser() !== null);
+> ```
+>
+> The same rule applies anywhere you want the value: `computed()`, `effect()`, template expressions. The one exception is `asReadonly()` — that deliberately passes the signal reference through so consumers invoke it themselves. Reading vs. exposing a signal are different operations.
 
 ---
 
@@ -848,6 +863,30 @@ builder.Services.AddCors(options =>
 
 ---
 
+## Common Issues
+
+### Route guards allow unauthenticated access / login endpoint hit twice on startup
+
+**Symptom:** Unauthenticated users can navigate to protected routes (e.g. `/patients`). The API's `/auth/login` endpoint is hit twice on startup — once from `APP_INITIALIZER`'s `checkAuth()` and a second time from the interceptor inside a child component.
+
+**Root cause:** `isAuthenticated` was defined as:
+
+```typescript
+isAuthenticated = computed(() => this.currentUser !== null);  // bug
+```
+
+`this.currentUser` is the signal reference (a function), which is never `null`. So `isAuthenticated()` always returned `true`. `authGuard` trusted that value and let every navigation through. Child components then made their own API calls, received 401s, and the interceptor called `authService.login()` a second time.
+
+**Fix:** Invoke the signal inside `computed()`:
+
+```typescript
+isAuthenticated = computed(() => this.currentUser() !== null);  // correct
+```
+
+**Verify:** After the fix, navigating to a protected route without a valid cookie must redirect to login before any component is instantiated, and only a single `/auth/login` redirect should occur during startup.
+
+---
+
 ## Summary
 
 ### What Angular Does
@@ -895,6 +934,12 @@ Frontend/Angular/Scheduling.AngularApp/src/app/
 ✅ **Maintainable** - Auth logic centralized in API
 ✅ **Reactive** - Signals provide automatic UI updates
 ✅ **User-friendly** - Seamless redirects, forced login on startup
+
+### Key Takeaways
+
+- Inside `computed()` (and anywhere you need the current value), always invoke the signal with `()`. Reading the signal without `()` gives you the function reference — always truthy, never `null`.
+- `asReadonly()` intentionally passes the signal reference through; consumers call it themselves. That is the only correct place to use a signal without `()` in the service.
+- A silent `computed()` bug on `isAuthenticated` breaks route guards and causes double redirects on startup. See [Common Issues](#common-issues) for the full symptom chain.
 
 ---
 
