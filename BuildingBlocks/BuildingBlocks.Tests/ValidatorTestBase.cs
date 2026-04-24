@@ -1,5 +1,4 @@
-using System.Diagnostics;
-using System.Globalization;
+using BuildingBlocks.Application.Auth;
 using BuildingBlocks.Application.Interfaces;
 using FluentValidation;
 using FluentValidation.Results;
@@ -7,6 +6,8 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Moq;
 using Shouldly;
+using System.Diagnostics;
+using System.Globalization;
 
 namespace BuildingBlocks.Tests;
 
@@ -51,6 +52,8 @@ public abstract class ValidatorTestBase
     /// </summary>
     protected abstract void RegisterServices(IServiceCollection services);
 
+    protected Mock<ICurrentUser> CurrentUserMock { get; private set; } = null!;
+
     [TestInitialize]
     public virtual void TestInitialize()
     {
@@ -62,10 +65,34 @@ public abstract class ValidatorTestBase
         UnitOfWorkMock = new Mock<IUnitOfWork>();
         services.AddSingleton(UnitOfWorkMock.Object);
 
+        // NEW: mocked ICurrentUser — authenticated but with no roles by default.
+        // Tests that exercise a role-gated validator call SetupUserRoles(...) in
+        // their Arrange block to give the caller an allowed role.
+        CurrentUserMock = new Mock<ICurrentUser>();
+        CurrentUserMock.Setup(u => u.IsAuthenticated).Returns(true);
+        CurrentUserMock.Setup(u => u.UserId).Returns("test-user-id");
+        CurrentUserMock.Setup(u => u.Name).Returns("Test User");
+        CurrentUserMock.Setup(u => u.Email).Returns("test@test.com");
+        CurrentUserMock.Setup(u => u.Roles).Returns(Array.Empty<string>());
+        CurrentUserMock.Setup(u => u.HasRole(It.IsAny<string>())).Returns(false);
+        services.AddSingleton(CurrentUserMock.Object);
+
         // Let derived class register validators
         RegisterServices(services);
 
         _serviceProvider = services.BuildServiceProvider();
+    }
+
+    /// <summary>
+    /// Configure the mocked ICurrentUser to return the given roles.
+    /// Call this in the Arrange section of any test that exercises a role-gated validator.
+    /// </summary>
+    protected void SetupUserRoles(params string[] roles)
+    {
+        var list = roles.ToList();
+        CurrentUserMock.Setup(u => u.Roles).Returns(list);
+        CurrentUserMock.Setup(u => u.HasRole(It.IsAny<string>()))
+            .Returns((string r) => list.Contains(r));
     }
 
     [TestCleanup]

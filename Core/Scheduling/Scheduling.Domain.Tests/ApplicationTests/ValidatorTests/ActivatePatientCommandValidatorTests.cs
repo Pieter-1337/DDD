@@ -1,3 +1,4 @@
+using Auth;
 using BuildingBlocks.Enumerations;
 using BuildingBlocks.Tests;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
@@ -14,6 +15,7 @@ public class ActivatePatientCommandValidatorTests : SchedulingValidatorTestBase
     {
         // Arrange
         var patientId = Guid.NewGuid();
+        SetupUserRoles(AppRoles.Doctor);
         SetupPatientNotExists(patientId);
 
         var command = new ActivatePatientCommand { Id = patientId };
@@ -34,6 +36,7 @@ public class ActivatePatientCommandValidatorTests : SchedulingValidatorTestBase
     {
         // Arrange
         var patientId = Guid.NewGuid();
+        SetupUserRoles(AppRoles.Doctor);
         SetupPatientExists(patientId);
 
         var command = new ActivatePatientCommand { Id = patientId };
@@ -47,5 +50,53 @@ public class ActivatePatientCommandValidatorTests : SchedulingValidatorTestBase
         result.IsValid.ShouldBeTrue();
         result.Errors.Count.ShouldBe(0);
         ElapsedSeconds().ShouldBeLessThan(0.1M);
+    }
+
+    [TestMethod]
+    public async Task Valid_When_UserIsAdmin()
+    {
+        // Arrange
+        var patientId = Guid.NewGuid();
+        SetupUserRoles(AppRoles.Admin);
+        SetupPatientExists(patientId);
+        var command = new ActivatePatientCommand { Id = patientId };
+
+        // Act
+        var result = await ValidatorFor<ActivatePatientCommand>().ValidateAsync(command);
+
+        // Assert
+        result.IsValid.ShouldBeTrue();
+    }
+
+    [TestMethod]
+    public async Task Valid_When_UserIsDoctor()
+    {
+        // Arrange
+        var patientId = Guid.NewGuid();
+        SetupUserRoles(AppRoles.Doctor);
+        SetupPatientExists(patientId);
+        var command = new ActivatePatientCommand { Id = patientId };
+
+        // Act
+        var result = await ValidatorFor<ActivatePatientCommand>().ValidateAsync(command);
+
+        // Assert
+        result.IsValid.ShouldBeTrue();
+    }
+
+    [TestMethod]
+    public async Task Invalid_When_UserHasNoAllowedRole()
+    {
+        // Arrange
+        var patientId = Guid.NewGuid();
+        SetupPatientExists(patientId);
+        // No SetupUserRoles call — the mock user has no roles by default
+        var command = new ActivatePatientCommand { Id = patientId };
+
+        // Act
+        var result = await ValidatorFor<ActivatePatientCommand>().ValidateAsync(command);
+
+        // Assert
+        result.Errors.ShouldContain(e => e.ErrorCode == ErrorCode.Forbidden.Value);
     }
 }

@@ -1,3 +1,4 @@
+using Auth;
 using BuildingBlocks.Enumerations;
 using BuildingBlocks.Tests;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
@@ -15,6 +16,7 @@ public class CreatePatientCommandValidatorTests : SchedulingValidatorTestBase
     {
         // Arrange
         var command = new CreatePatientCommand(null!);
+        SetupUserRoles(AppRoles.Admin);
 
         // Act
         StartStopwatch();
@@ -31,6 +33,8 @@ public class CreatePatientCommandValidatorTests : SchedulingValidatorTestBase
     public async Task Invalid_When_RequiredFieldsAreEmpty()
     {
         // Arrange
+        SetupUserRoles(AppRoles.Admin);
+
         var command = new CreatePatientCommand(new CreatePatientRequest
         {
             FirstName = "",
@@ -60,6 +64,8 @@ public class CreatePatientCommandValidatorTests : SchedulingValidatorTestBase
     public async Task Invalid_When_EmailIsInvalid()
     {
         // Arrange
+        SetupUserRoles(AppRoles.Admin);
+
         var command = new CreatePatientCommand(new CreatePatientRequest
         {
             FirstName = "John",
@@ -81,6 +87,8 @@ public class CreatePatientCommandValidatorTests : SchedulingValidatorTestBase
     public async Task Invalid_When_StatusIsInvalid()
     {
         // Arrange
+        SetupUserRoles(AppRoles.Admin);
+
         var command = new CreatePatientCommand(new CreatePatientRequest
         {
             FirstName = "John",
@@ -102,6 +110,8 @@ public class CreatePatientCommandValidatorTests : SchedulingValidatorTestBase
     public async Task Valid_When_AllFieldsAreValid()
     {
         // Arrange
+        SetupUserRoles(AppRoles.Admin);
+
         var command = new CreatePatientCommand(new CreatePatientRequest
         {
             FirstName = "John",
@@ -126,6 +136,8 @@ public class CreatePatientCommandValidatorTests : SchedulingValidatorTestBase
     public async Task Valid_When_PhoneNumberIsNull()
     {
         // Arrange - PhoneNumber is optional
+        SetupUserRoles(AppRoles.Admin);
+
         var command = new CreatePatientCommand(new CreatePatientRequest
         {
             FirstName = "John",
@@ -141,5 +153,101 @@ public class CreatePatientCommandValidatorTests : SchedulingValidatorTestBase
 
         // Assert
         result.IsValid.ShouldBeTrue();
+    }
+
+    [TestMethod]
+    public async Task Valid_When_UserIsNurse()
+    {
+        // Arrange
+        var patientId = Guid.NewGuid();
+        SetupUserRoles(AppRoles.Nurse);
+        SetupPatientExists(patientId);
+        var command = new CreatePatientCommand(new CreatePatientRequest
+        {
+            FirstName = "John",
+            LastName = "Doe",
+            Email = "john.doe@example.com",
+            DateOfBirth = new DateTime(1990, 1, 15),
+            PhoneNumber = null,
+            Status = PatientStatus.Active.Name
+        });
+
+        // Act
+        var result = await ValidatorFor<CreatePatientCommand>().ValidateAsync(command);
+
+        // Assert
+        result.IsValid.ShouldBeTrue();
+    }
+
+    [TestMethod]
+    public async Task Valid_When_UserIsAdmin()
+    {
+        // Arrange
+        var patientId = Guid.NewGuid();
+        SetupUserRoles(AppRoles.Admin);
+        SetupPatientExists(patientId);
+        var command = new CreatePatientCommand(new CreatePatientRequest
+        {
+            FirstName = "John",
+            LastName = "Doe",
+            Email = "john.doe@example.com",
+            DateOfBirth = new DateTime(1990, 1, 15),
+            PhoneNumber = null,
+            Status = PatientStatus.Active.Name
+        });
+
+        // Act
+        var result = await ValidatorFor<CreatePatientCommand>().ValidateAsync(command);
+
+        // Assert
+        result.IsValid.ShouldBeTrue();
+    }
+
+    [TestMethod]
+    public async Task Valid_When_UserIsDoctor()
+    {
+        // Arrange
+        var patientId = Guid.NewGuid();
+        SetupUserRoles(AppRoles.Doctor);
+        SetupPatientExists(patientId);
+        var command = new CreatePatientCommand(new CreatePatientRequest
+        {
+            FirstName = "John",
+            LastName = "Doe",
+            Email = "john.doe@example.com",
+            DateOfBirth = new DateTime(1990, 1, 15),
+            PhoneNumber = null,
+            Status = PatientStatus.Active.Name
+        });
+
+        // Act
+        var result = await ValidatorFor<CreatePatientCommand>().ValidateAsync(command);
+
+        // Assert
+        result.IsValid.ShouldBeTrue();
+    }
+
+    [TestMethod]
+    public async Task Invalid_When_UserHasNoAllowedRole()
+    {
+        // Arrange
+        var patientId = Guid.NewGuid();
+        SetupPatientExists(patientId);
+      
+        var command = new CreatePatientCommand(new CreatePatientRequest
+        {
+            FirstName = "John",
+            LastName = "Doe",
+            Email = "john.doe@example.com",
+            DateOfBirth = new DateTime(1990, 1, 15),
+            PhoneNumber = null,
+            Status = PatientStatus.Active.Name
+        });
+
+        // Act
+        var result = await ValidatorFor<CreatePatientCommand>().ValidateAsync(command);
+
+        // Assert
+        result.Errors.ShouldContain(e => e.ErrorCode == ErrorCode.Forbidden.Value);
     }
 }
