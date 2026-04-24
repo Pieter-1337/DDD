@@ -1,0 +1,11 @@
+.forbidden-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 60vh;
+
+  mat-card {
+    max-width: 480px;
+    text-align: center;
+  }
+}

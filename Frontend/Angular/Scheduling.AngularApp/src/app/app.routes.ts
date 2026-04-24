@@ -25,6 +25,12 @@ export const routes: Routes = [
         canActivate: [authGuard]
   },
   {
+    path: 'forbidden',
+    loadComponent: () =>
+      import('./features/forbidden/forbidden')
+        .then(m => m.Forbidden)
+  },
+  {
     path: '**',
     redirectTo: ''
   }

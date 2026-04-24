@@ -1,0 +1,19 @@
+<div class="forbidden-container">
+  <mat-card>
+    <mat-card-header>
+      <mat-icon mat-card-avatar color="warn">block</mat-icon>
+      <mat-card-title>Access Denied</mat-card-title>
+      <mat-card-subtitle>403 Forbidden</mat-card-subtitle>
+    </mat-card-header>
+    <mat-card-content>
+      <p>You do not have permission to access this page.</p>
+      <p>If you believe this is an error, contact your administrator.</p>
+    </mat-card-content>
+    <mat-card-actions>
+      <button mat-flat-button (click)="goBack()">
+        <mat-icon>arrow_back</mat-icon>
+        Back to patients
+      </button>
+    </mat-card-actions>
+  </mat-card>
+</div>

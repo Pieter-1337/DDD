@@ -1166,11 +1166,6 @@ export const routes: Routes = [
     canActivate: [authGuard]
   },
   {
-    path: 'admin',
-    loadChildren: () => import('./features/admin/admin.routes').then(m => m.routes),
-    canActivate: [roleGuard(AppRoles.Admin)]  // Admin-only section
-  },
-  {
     path: 'forbidden',
     loadComponent: () =>
       import('./features/forbidden/forbidden')
@@ -1261,9 +1256,6 @@ export class PatientDetail implements OnInit {
   router = inject(Router);
   private notification = inject(NotificationService);
 
-  // Expose AppRoles for template use
-  protected readonly AppRoles = AppRoles;
-
   patient = signal<Patient | null>(null);
   isSuspended = computed(() => this.patient()?.status === 'Suspended');
   isDeleted = computed(() => this.patient()?.status === 'Deleted');
@@ -1305,13 +1297,7 @@ export class PatientDetail implements OnInit {
         this.notification.success('Patient suspended successfully.');
         this.loadPatient(id);
       },
-      error: (err) => {
-        if (err.status === 403) {
-          this.notification.error('You do not have permission to suspend patients.');
-        } else {
-          this.notification.error('Failed to suspend patient.');
-        }
-      }
+      error: () => this.notification.error('Failed to suspend patient.')
     });
   }
 
@@ -1324,13 +1310,7 @@ export class PatientDetail implements OnInit {
         this.notification.success('Patient activated successfully.');
         this.loadPatient(id);
       },
-      error: (err) => {
-        if (err.status === 403) {
-          this.notification.error('You do not have permission to activate patients.');
-        } else {
-          this.notification.error('Failed to activate patient.');
-        }
-      }
+      error: () => this.notification.error('Failed to activate patient.')
     });
   }
 
@@ -1345,13 +1325,7 @@ export class PatientDetail implements OnInit {
         this.notification.success('Patient deleted successfully.');
         this.router.navigate(['/patients']);
       },
-      error: (err) => {
-        if (err.status === 403) {
-          this.notification.error('You do not have permission to delete patients.');
-        } else {
-          this.notification.error('Failed to delete patient.');
-        }
-      }
+      error: () => this.notification.error('Failed to delete patient.')
     });
   }
 }
@@ -1359,9 +1333,8 @@ export class PatientDetail implements OnInit {
 
 **Key additions**:
 - **AuthService injection**: `private authService = inject(AuthService)`
-- **AppRoles exposure**: `protected readonly AppRoles = AppRoles` allows template access
-- **Computed permissions**: `canDelete` and `canSuspend` signals reactively compute based on current user roles
-- **403 error handling**: Check `err.status === 403` to show user-friendly messages when backend denies action
+- **Computed permissions**: `canDelete` and `canSuspend` signals reactively compute based on current user roles. The template consumes these directly, so there's no need to expose `AppRoles` as a field — the role constants are only referenced inside the computed signal expressions.
+- **Generic error handler**: No special branch for 403. Normal users never see 403 because the UI hides the buttons; anyone who bypasses the UI (DevTools, another client) just gets the generic "Failed to …" message. Backend enforcement is what matters; the frontend doesn't need to gift-wrap the response for people going around the UI.
 
 **Step 2**: Update template to conditionally show actions:
 
@@ -1407,42 +1380,13 @@ export class PatientDetail implements OnInit {
 
 ---
 
-### Handling 403 from API
+### What About 403 Responses?
 
-Even with frontend checks, users might trigger forbidden actions (e.g., via browser DevTools, race conditions, stale UI state). Handle 403 responses gracefully:
+The backend enforces authorization and returns 403 when a user without the right role hits a protected endpoint. But since the UI hides those buttons via `canDelete()` / `canSuspend()`, a properly-behaved user never triggers a 403 in the first place. The only way to hit it from this app is to bypass the UI — DevTools, curl, a different client.
 
-**Error handling pattern** (shown in component above):
+For that reason the component doesn't bother with a special `err.status === 403` branch. The generic `"Failed to …"` error path handles it just fine: whoever bypassed the UI gets a failure message, which is all they're owed. The `auth.interceptor.ts` re-throws 403 untouched, and the component's error callback turns it into a single toast.
 
-```typescript
-// In suspend(), activate(), delete() methods
-error: (err) => {
-  if (err.status === 403) {
-    this.notification.error('You do not have permission to perform this action.');
-  } else {
-    this.notification.error('Failed to suspend patient.');
-  }
-}
-```
-
-**Why this matters**:
-- **User sees friendly message**: "You do not have permission..." instead of generic error
-- **Logged for debugging**: Backend logs the 403 attempt with user context
-- **No UI crash**: Error is caught and handled, app remains stable
-
-**Alternative approach**: Global HTTP error interceptor (created in doc 05) could automatically redirect to `/forbidden` on 403:
-
-```typescript
-// File: Frontend/Angular/Scheduling.AngularApp/src/app/core/interceptors/auth.interceptor.ts (modification)
-
-if (err.status === 403) {
-  this.router.navigate(['/forbidden']);  // Automatically redirect on any 403
-  return throwError(() => err);
-}
-```
-
-Choose the approach that fits your UX:
-- **Component-level handling**: Show notification, keep user on page (less disruptive)
-- **Global redirect**: Navigate to Forbidden page (more explicit, better for route guards)
+Defense-in-depth still matters — the backend is what actually stops the forbidden action. The frontend's role ends at hiding the buttons cleanly.
 
 ---
 
