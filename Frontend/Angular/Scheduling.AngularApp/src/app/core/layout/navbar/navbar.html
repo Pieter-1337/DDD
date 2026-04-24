@@ -1,6 +1,4 @@
 <mat-toolbar color="primary">
-  <span class="spacer"></span>
-
   @if (authService.isAuthenticated()) {
     <a mat-button routerLink="/patients" routerLinkActive="active">Patients</a>
   }
@@ -10,8 +8,18 @@
   @if (authService.isLoading()) {
     <mat-spinner diameter="20" />
   } @else if (authService.isAuthenticated()) {
-    <span>{{ authService.user()?.name }}</span>
-    <button mat-button (click)="logout()">Logout</button>
+    <button mat-button [matMenuTriggerFor]="userMenu">
+      <mat-icon>person</mat-icon>
+      {{ authService.user()?.name }}
+      <mat-icon>arrow_drop_down</mat-icon>
+    </button>
+
+    <mat-menu #userMenu="matMenu">
+      <button mat-menu-item (click)="logout()">
+        <mat-icon>logout</mat-icon>
+        Logout
+      </button>
+    </mat-menu>
   } @else {
     <button mat-flat-button (click)="authService.login()">Login</button>
   }

@@ -520,25 +520,33 @@ Show login/logout UI based on authentication state using signals in templates.
 ```typescript
 // Frontend/Angular/Scheduling.AngularApp/src/app/core/layout/navbar/navbar.ts
 import { Component, inject } from '@angular/core';
-import { RouterLink, RouterLinkActive } from '@angular/router';
-import { MatToolbarModule } from '@angular/material/toolbar';
 import { MatButtonModule } from '@angular/material/button';
+import { MatIconModule } from '@angular/material/icon';
+import { MatMenuModule } from '@angular/material/menu';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
-import { AuthService } from '../../services/auth';
-import { AppRoles } from '../../constants/approles';
+import { MatToolbar } from '@angular/material/toolbar';
+import { RouterLink, RouterLinkActive } from '@angular/router';
+import { AuthService } from '@core/services/auth';
 
 @Component({
   selector: 'app-navbar',
   standalone: true,
-  imports: [RouterLink, RouterLinkActive, MatToolbarModule, MatButtonModule, MatProgressSpinnerModule],
+  imports: [
+    RouterLink,
+    RouterLinkActive,
+    MatToolbar,
+    MatButtonModule,
+    MatIconModule,
+    MatMenuModule,
+    MatProgressSpinnerModule,
+  ],
   templateUrl: './navbar.html',
-  styleUrl: './navbar.scss'
+  styleUrl: './navbar.scss',
 })
 export class Navbar {
   authService = inject(AuthService);
-  protected readonly AppRoles = AppRoles;
 
-  logout(): void {
+  logout() {
     this.authService.logout();
   }
 }
@@ -549,8 +557,6 @@ export class Navbar {
 ```html
 <!-- Frontend/Angular/Scheduling.AngularApp/src/app/core/layout/navbar/navbar.html -->
 <mat-toolbar color="primary">
-  <span class="spacer"></span>
-
   @if (authService.isAuthenticated()) {
     <a mat-button routerLink="/patients" routerLinkActive="active">Patients</a>
   }
@@ -560,12 +566,31 @@ export class Navbar {
   @if (authService.isLoading()) {
     <mat-spinner diameter="20" />
   } @else if (authService.isAuthenticated()) {
-    <span>{{ authService.user()?.name }}</span>
-    <button mat-button (click)="logout()">Logout</button>
+    <button mat-button [matMenuTriggerFor]="userMenu">
+      <mat-icon>person</mat-icon>
+      {{ authService.user()?.name }}
+      <mat-icon>arrow_drop_down</mat-icon>
+    </button>
+
+    <mat-menu #userMenu="matMenu">
+      <button mat-menu-item (click)="logout()">
+        <mat-icon>logout</mat-icon>
+        Logout
+      </button>
+    </mat-menu>
   } @else {
     <button mat-flat-button (click)="authService.login()">Login</button>
   }
 </mat-toolbar>
+```
+
+### Navbar Styles
+
+```scss
+/* Frontend/Angular/Scheduling.AngularApp/src/app/core/layout/navbar/navbar.scss */
+.spacer {
+  flex: 1 1 auto;
+}
 ```
 
 ### Adding the Navbar to the App
