@@ -549,16 +549,10 @@ export class Navbar {
 ```html
 <!-- Frontend/Angular/Scheduling.AngularApp/src/app/core/layout/navbar/navbar.html -->
 <mat-toolbar color="primary">
-  <a mat-button routerLink="/">Patient Scheduling</a>
-
   <span class="spacer"></span>
 
   @if (authService.isAuthenticated()) {
     <a mat-button routerLink="/patients" routerLinkActive="active">Patients</a>
-
-    @if (authService.hasRole(AppRoles.Admin)) {
-      <a mat-button routerLink="/admin" routerLinkActive="active">Admin</a>
-    }
   }
 
   <span class="spacer"></span>

@@ -4,7 +4,6 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatToolbar } from '@angular/material/toolbar';
 import { RouterLink, RouterLinkActive } from '@angular/router';
-import { AppRoles } from '@core/constants/approles';
 import { AuthService } from '@core/services/auth';
 
 @Component({
@@ -16,7 +15,6 @@ import { AuthService } from '@core/services/auth';
 })
 export class Navbar {
   authService = inject(AuthService);
-  protected readonly AppRoles = AppRoles;
 
   logout(){
     this.authService.logout();
