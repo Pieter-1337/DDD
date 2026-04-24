@@ -960,101 +960,72 @@ The `ValidationBehavior` (from BuildingBlocks.Application) will:
 
 ## 9. Error Handling for Authorization Failures
 
-By default, FluentValidation failures return 400 Bad Request. For better UX, you should distinguish authorization failures (403 Forbidden) from validation failures (400 Bad Request).
+We want authorization failures to look exactly like validation failures to the client — same JSON shape, same pipeline — just with a 403 status code instead of 400. No separate exception types, no separate filter, no different response model.
 
-### Option 1: Check Error Code in Global Error Handler
+### The Existing Pipeline
+
+The project already has an `ExceptionToJsonFilter` in `BuildingBlocks.WebApplications.Filters` that catches every `FluentValidation.ValidationException` and wraps it via `ValidationErrorWrapper`. The response body is always:
+
+```json
+{
+  "Errors": [
+    { "Code": "ERR_NOT_FOUND", "Message": "The requested resource was not found" }
+  ],
+  "Warnings": []
+}
+```
+
+The filter sets status code to 400 by default. `ValidationErrorWrapper.TrySetCustomHttpStatusCode` allows a single error with a numeric code (e.g., `"404"`) to override that status.
+
+### The Change: Map `ERR_FORBIDDEN` to 403
+
+The role-gate rule on `UserValidator<T>` fails with `ErrorCode.Forbidden.Value` (`"ERR_FORBIDDEN"`). We extend `TrySetCustomHttpStatusCode` so that if any error in the exception has that code, the wrapper returns 403. Everything else — the response body, the error list, the filter plumbing — stays the same.
 
 ```csharp
-// BuildingBlocks/BuildingBlocks.WebApplications/Filters/GlobalExceptionFilter.cs
-public class GlobalExceptionFilter : IExceptionFilter
+// BuildingBlocks/BuildingBlocks.WebApplications/Filters/ValidationErrorWrapper.cs
+private void TrySetCustomHttpStatusCode(ValidationException exception)
 {
-    public void OnException(ExceptionContext context)
+    // Forbidden takes precedence: if any error is the role-gate failure from
+    // UserValidator<T>, return 403 regardless of what else failed. Response body
+    // still uses the standard ValidationErrorWrapper shape — only status differs.
+    if (exception.Errors.Any(e => e.ErrorCode == ErrorCode.Forbidden.Value))
     {
-        if (context.Exception is ValidationException validationEx)
-        {
-            // Check if any validation error is a forbidden error
-            var hasForbiddenError = validationEx.Errors.Any(e => e.ErrorCode == ErrorCode.Forbidden.Value);
+        HttpStatusCode = StatusCodes.Status403Forbidden;
+        return;
+    }
 
-            if (hasForbiddenError)
-            {
-                context.Result = new ObjectResult(new
-                {
-                    error = "Forbidden",
-                    message = "You do not have permission to perform this action.",
-                    details = validationEx.Errors
-                        .Where(e => e.ErrorCode == ErrorCode.Forbidden.Value)
-                        .Select(e => e.ErrorMessage)
-                })
-                {
-                    StatusCode = StatusCodes.Status403Forbidden
-                };
-            }
-            else
-            {
-                context.Result = new BadRequestObjectResult(new
-                {
-                    error = "Validation failed",
-                    details = validationEx.Errors.Select(e => new
-                    {
-                        property = e.PropertyName,
-                        message = e.ErrorMessage,
-                        code = e.ErrorCode
-                    })
-                });
-            }
+    // Existing: single numeric error code → use as HTTP status
+    if (exception.Errors.Count() != 1)
+        return;
 
-            context.ExceptionHandled = true;
-        }
+    var singleError = exception.Errors.Single();
+
+    if (int.TryParse(singleError.ErrorCode, out var httpCode) &&
+        httpCode >= 100 && httpCode < 600)
+    {
+        HttpStatusCode = httpCode;
     }
 }
 ```
 
-### Option 2: Custom Exception for Authorization
+This requires `BuildingBlocks.WebApplications` to reference `BuildingBlocks.Enumerations` — add the project reference to the `.csproj`.
 
-Create a custom exception for authorization failures:
+### Why "any error", not "only error"?
 
-```csharp
-// BuildingBlocks/BuildingBlocks.Application/Exceptions/ForbiddenException.cs
-namespace BuildingBlocks.Application.Exceptions;
+With `CascadeMode.Continue` (FluentValidation's default), a forbidden role plus a missing patient produces two errors: `ERR_FORBIDDEN` and `ERR_NOT_FOUND`. Returning 403 in that case is the right call — if the caller isn't authorized, we don't want to confirm or deny the resource's existence. Forbidden trumps.
 
-public class ForbiddenException : Exception
-{
-    public ForbiddenException(string message) : base(message) { }
+### Client Experience
+
+The Angular `authInterceptor` can catch 403 responses generically:
+
+```typescript
+if (error.status === 403) {
+  this.notifications.error("You don't have permission to perform this action.");
+  return EMPTY;
 }
 ```
 
-Update `UserValidator` to throw this exception instead of using FluentValidation:
-
-```csharp
-// In UserValidator<T>
-protected void EnsureUserValidation()
-{
-    if (!HaveAValidRole())
-        throw new ForbiddenException("You do not have the required role to perform this action.");
-}
-
-// In derived validators
-public DeletePatientCommandValidator(ICurrentUser currentUser, IUnitOfWork unitOfWork)
-    : base(currentUser, new[] { "Admin" })
-{
-    EnsureUserValidation();  // Throws ForbiddenException immediately
-
-    // Other rules...
-}
-```
-
-Handle in global error filter:
-
-```csharp
-if (context.Exception is ForbiddenException forbiddenEx)
-{
-    context.Result = new ObjectResult(new { error = forbiddenEx.Message })
-    {
-        StatusCode = StatusCodes.Status403Forbidden
-    };
-    context.ExceptionHandled = true;
-}
-```
+No special body parsing required — the shape is identical to a 400.
 
 ---
 

@@ -1,4 +1,5 @@
-﻿using FluentValidation;
+﻿using BuildingBlocks.Enumerations;
+using FluentValidation;
 using Microsoft.AspNetCore.Http;
 using System.Text.Json.Serialization;
 
@@ -63,6 +64,15 @@ namespace BuildingBlocks.WebApplications.Filters
 
         private void TrySetCustomHttpStatusCode(ValidationException exception)
         {
+            // Forbidden takes precedence: if any error is the role-gate failure from
+            // UserValidator<T>, return 403 regardless of what else failed. Response body
+            // still uses the standard ValidationErrorWrapper shape — only status differs.
+            if (exception.Errors.Any(e => e.ErrorCode == ErrorCode.Forbidden.Value))
+            {
+                HttpStatusCode = StatusCodes.Status403Forbidden;
+                return;
+            }
+
             // If single error with numeric code between 100-599, use as HTTP status
             if (exception.Errors.Count() != 1)
                 return;

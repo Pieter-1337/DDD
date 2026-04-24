@@ -11,6 +11,10 @@
 	</ItemGroup>
 
 	<ItemGroup>
+		<ProjectReference Include="..\BuildingBlocks.Enumerations\BuildingBlocks.Enumerations.csproj" />
+	</ItemGroup>
+
+	<ItemGroup>
 		<PackageReference Include="Ardalis.SmartEnum.SystemTextJson" />
 		<PackageReference Include="FluentValidation" />
 		<PackageReference Include="Microsoft.AspNetCore.OpenApi" />
