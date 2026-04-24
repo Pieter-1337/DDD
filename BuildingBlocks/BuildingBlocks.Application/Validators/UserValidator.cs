@@ -1,53 +1,67 @@
-﻿using FluentValidation;
+﻿using BuildingBlocks.Application.Auth;
+using BuildingBlocks.Enumerations;
+using FluentValidation;
 
 namespace BuildingBlocks.Application.Validators
 {
+    /// <summary>
+    /// Base validator that provides role-based authorization validation.
+    /// Validators can specify allowed role groups using AND/OR logic.
+    /// </summary>
+    /// <typeparam name="T">The type being validated (typically a command or query).</typeparam>
     public abstract class UserValidator<T> : AbstractValidator<T>
     {
-        //protected readonly IUserContext UserContext;
+        /// <summary>
+        /// The current authenticated user. Available to derived validators for custom logic.
+        /// </summary>
+        protected readonly ICurrentUser CurrentUser;
 
-        //private IEnumerable<IEnumerable<string>> _allowedRoleGroups;
+        /// <summary>
+        /// The allowed role groups for this validator.
+        /// Outer collection is OR, inner collection is AND.
+        /// Example: [["Admin"], ["Doctor", "Nurse"]] means "Admin" OR ("Doctor" AND "Nurse").
+        /// </summary>
+        private readonly IEnumerable<IEnumerable<string>> _allowedRoleGroups;
 
-        ///// <summary>
-        ///// Validates the roles of the current user.
-        ///// Example of parameter: [roleA and roleB and roleC],OR [roleX]
-        ///// </summary>
-        ///// <param name="allowedRoleGroups">OR params lists of 'AND list roles'</param>
-        //protected UserValidator(IUserContext userContext, params IEnumerable<string>[] allowedRoleGroups)
-        //{
-        //    UserContext = userContext;
+        /// <summary>
+        /// Constructor for validators that require role-based validation.
+        /// </summary>
+        /// <param name="currentUser">The current user context.</param>
+        /// <param name="allowedRoleGroups">
+        /// One or more role groups. A user must have ALL roles in at least ONE group to pass validation.
+        /// Example: new[] { "Admin" }, new[] { "Doctor", "Nurse" } means "Admin" OR ("Doctor" AND "Nurse").
+        /// </param>
+        protected UserValidator(ICurrentUser currentUser, params IEnumerable<string>[] allowedRoleGroups)
+        {
+            CurrentUser = currentUser ?? throw new ArgumentNullException(nameof(currentUser));
 
-        //    _allowedRoleGroups = allowedRoleGroups.Where(g => g != null && g.Any(role => !role.IsNullOrWhitespace()))//exclude null and empty groups
-        //        .Select(g => g.Where(role => !role.IsNullOrWhitespace()));//exclude null and empty roles
-        //}
-        //protected IRuleBuilderOptions<T, T> RuleForUserValidation()
-        //{
-        //    return RuleFor(r => r)
-        //        .Must(r => HaveAValidRole(_allowedRoleGroups))
-        //            .WithMessage(m => Resources.ValidationMessages.role_notallowed)
-        //            .WithErrorCode(Resources.ValidationCodes.http_403_forbidden);
-        //}
+            // Filter out null or empty role groups
+            _allowedRoleGroups = allowedRoleGroups
+                .Where(g => g != null && g.Any(role => !string.IsNullOrWhiteSpace(role)))
+                .Select(g => g.Where(role => !string.IsNullOrWhiteSpace(role)))
+                .ToList();
 
-        //private bool HaveAValidRole(IEnumerable<IEnumerable<string>> allowedRoleGroups)
-        //{
-        //    if (!allowedRoleGroups.Any())
-        //        return true;
+            // Auto-register the role check so derived validators can't silently bypass it
+            // by forgetting to invoke it. Runs before any rules registered in the derived ctor.
+            RuleFor(r => r)
+                .Must(_ => HaveAValidRole())
+                    .WithMessage(ErrorCode.Forbidden.Message)
+                    .WithErrorCode(ErrorCode.Forbidden.Value);
+        }
 
-        //    foreach (var allowedRoleGroup in allowedRoleGroups)
-        //    {
-        //        if (allowedRoleGroup.All(role => UserContext.HasApplicationRole(role)))
-        //            return true;
-        //    }
-        //    return false;
-        //}
+        /// <summary>
+        /// Checks if the current user satisfies at least one role group.
+        /// A user must have ALL roles in at least ONE group to pass.
+        /// </summary>
+        private bool HaveAValidRole()
+        {
+            foreach (var group in _allowedRoleGroups)
+            {
+                if (group.All(role => CurrentUser.HasRole(role)))
+                    return true;
+            }
 
-        ///// <summary>
-        ///// ! Should only be used for tests !
-        ///// </summary>
-        //public IEnumerable<IEnumerable<string>> GetAllowedRoleGroups() => _allowedRoleGroups;
-        ///// <summary>
-        ///// ! Should only be used for tests !
-        ///// </summary>
-        //public void SetAllowedRoleGroups(params IEnumerable<string>[] allowedRoleGroups) => _allowedRoleGroups = allowedRoleGroups;
+            return false;
+        }
     }
 }

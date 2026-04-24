@@ -244,8 +244,9 @@ public abstract class UserValidator<T> : AbstractValidator<T>
 
 ```csharp
 // BuildingBlocks/BuildingBlocks.Application/Validators/UserValidator.cs
+using BuildingBlocks.Application.Auth;
+using BuildingBlocks.Enumerations;
 using FluentValidation;
-using BuildingBlocks.Application.Abstractions;
 
 namespace BuildingBlocks.Application.Validators;
 
@@ -285,42 +286,21 @@ public abstract class UserValidator<T> : AbstractValidator<T>
             .Where(g => g != null && g.Any(role => !string.IsNullOrWhiteSpace(role)))
             .Select(g => g.Where(role => !string.IsNullOrWhiteSpace(role)))
             .ToList();
-    }
 
-    /// <summary>
-    /// Parameterless constructor for validators that don't require role checks.
-    /// Use this when any authenticated user can perform the action.
-    /// </summary>
-    protected UserValidator(ICurrentUser currentUser)
-    {
-        CurrentUser = currentUser ?? throw new ArgumentNullException(nameof(currentUser));
-        _allowedRoleGroups = Enumerable.Empty<IEnumerable<string>>();
-    }
-
-    /// <summary>
-    /// Creates a validation rule that checks if the current user has the required roles.
-    /// Call this method in the derived validator's constructor to enforce role-based authorization.
-    /// </summary>
-    /// <returns>A FluentValidation rule builder for chaining.</returns>
-    protected IRuleBuilderOptions<T, T> RuleForUserValidation()
-    {
-        return RuleFor(r => r)
+        // Auto-register the role check so derived validators can't silently bypass it
+        // by forgetting to invoke it. Runs before any rules registered in the derived ctor.
+        RuleFor(r => r)
             .Must(_ => HaveAValidRole())
-                .WithMessage("You do not have the required role to perform this action.")
-                .WithErrorCode("ERR_FORBIDDEN");
+                .WithMessage(ErrorCode.Forbidden.Message)
+                .WithErrorCode(ErrorCode.Forbidden.Value);
     }
 
     /// <summary>
     /// Checks if the current user satisfies at least one role group.
+    /// A user must have ALL roles in at least ONE group to pass.
     /// </summary>
-    /// <returns>True if user has valid roles or no role groups are defined.</returns>
     private bool HaveAValidRole()
     {
-        // If no role groups are defined, allow access (any authenticated user can perform the action)
-        if (!_allowedRoleGroups.Any())
-            return true;
-
-        // User must satisfy ALL roles in at least ONE group
         foreach (var group in _allowedRoleGroups)
         {
             if (group.All(role => CurrentUser.HasRole(role)))
@@ -329,30 +309,14 @@ public abstract class UserValidator<T> : AbstractValidator<T>
 
         return false;
     }
-
-    /// <summary>
-    /// Gets the allowed role groups for this validator (useful for testing or diagnostics).
-    /// </summary>
-    public IEnumerable<IEnumerable<string>> GetAllowedRoleGroups() => _allowedRoleGroups;
-
-    /// <summary>
-    /// Sets the allowed role groups dynamically (useful for testing or conditional logic).
-    /// </summary>
-    public void SetAllowedRoleGroups(params IEnumerable<string>[] allowedRoleGroups)
-    {
-        // This would require making _allowedRoleGroups mutable
-        // Consider if this is needed in your application
-        throw new NotImplementedException(
-            "Dynamic role group modification is not supported. Define roles in constructor.");
-    }
 }
 ```
 
 **Key improvements**:
 - **Null safety**: ArgumentNullException on currentUser
 - **Clear XML docs**: Explains the AND/OR pattern with examples
-- **Two constructors**: One for role-based validation, one for "any authenticated user"
-- **Better method names**: `HaveAValidRole()` (no parameter, uses field)
+- **Single responsibility**: Only for validators that need a role gate. For "any authenticated user" validators, extend `AbstractValidator<T>` directly — `[Authorize]` on the controller already enforces authentication.
+- **Auto-registered role rule**: The base constructor registers the role check itself, so derived validators can't silently bypass it by forgetting to invoke it.
 - **No resource files**: Hard-coded messages (you can add resource files later)
 
 ---
@@ -382,8 +346,6 @@ public class DeletePatientCommandValidator : UserValidator<DeletePatientCommand>
         IUnitOfWork unitOfWork)
         : base(currentUser, new[] { AppRoles.Admin })  // Single role group: Admin only
     {
-        RuleForUserValidation();  // Enforce role check
-
         RuleFor(x => x.Id)
             .MustAsync(async (id, ct) => await unitOfWork.RepositoryFor<Patient>().ExistsAsync(id, ct))
             .WithMessage("Patient not found.");
@@ -405,8 +367,6 @@ public class SuspendPatientCommandValidator : UserValidator<SuspendPatientComman
         IUnitOfWork unitOfWork)
         : base(currentUser, new[] { AppRoles.Admin }, new[] { AppRoles.Doctor })  // Two role groups
     {
-        RuleForUserValidation();
-
         RuleFor(x => x.Id)
             .MustAsync(async (id, ct) => await unitOfWork.RepositoryFor<Patient>().ExistsAsync(id, ct))
             .WithMessage("Patient not found.");
@@ -430,7 +390,6 @@ public class CriticalActionCommandValidator : UserValidator<CriticalActionComman
                new[] { AppRoles.Admin },                    // Group 1: Admin alone
                new[] { AppRoles.Doctor, "NurseManager" })   // Group 2: Doctor AND NurseManager
     {
-        RuleForUserValidation();
         // ... other rules
     }
 }
@@ -456,8 +415,6 @@ public class CreatePatientCommandValidator : UserValidator<CreatePatientCommand>
         IValidator<CreatePatientRequest> requestValidator)
         : base(currentUser, new[] { AppRoles.Nurse }, new[] { AppRoles.Doctor }, new[] { AppRoles.Admin })
     {
-        RuleForUserValidation();  // Enforce role check: Nurse OR Doctor OR Admin
-
         RuleFor(c => c.Patient).Cascade(CascadeMode.Stop)
             .NotNull()
             .SetValidator(requestValidator);
@@ -483,8 +440,8 @@ Logic: User must have Nurse, Doctor, or Admin role. Front desk and clinical staf
               └─────────────────────────┘
                             ↓
               ┌─────────────────────────┐
-              │  RuleForUserValidation  │
-              │      (called in ctor)   │
+              │    Role check rule      │
+              │ (auto-registered in base)│
               └─────────────────────────┘
                             ↓
               ┌─────────────────────────┐
@@ -501,17 +458,40 @@ Logic: User must have Nurse, Doctor, or Admin role. Front desk and clinical staf
 
 ## 5. Using ICurrentUser in Command Handlers
 
-Beyond validation, command handlers can use `ICurrentUser` for audit trails, ownership checks, and business logic.
+Beyond validation, command handlers can use `ICurrentUser` for audit trails — stamping who created a record, attaching the caller to an integration event, or passing the user into a domain method that needs it. Authorization checks (role gates, ownership rules, NotFound guards) stay in the validator layer; the handler assumes those already passed.
 
 ### Example: Audit Trail
 
+Existence and role checks go in the validator; the handler only does the work and stamps audit information using `ICurrentUser`.
+
+```csharp
+// Scheduling/Scheduling.Application/Commands/CreateAppointment/CreateAppointmentCommandValidator.cs
+public class CreateAppointmentCommandValidator : UserValidator<CreateAppointmentCommand>
+{
+    private readonly IUnitOfWork _uow;
+
+    public CreateAppointmentCommandValidator(ICurrentUser currentUser, IUnitOfWork uow)
+        : base(currentUser, new[] { AppRoles.Doctor }, new[] { AppRoles.Nurse }, new[] { AppRoles.Admin })
+    {
+        _uow = uow;
+
+        RuleFor(c => c.PatientId)
+            .MustAsync(BeAValidPatientAsync)
+                .WithErrorCode(ErrorCode.NotFound.Value)
+                .WithMessage(ErrorCode.NotFound.Message);
+    }
+
+    private Task<bool> BeAValidPatientAsync(Guid id, CancellationToken ct) =>
+        _uow.RepositoryFor<Patient>().ExistsAsync(id, ct);
+}
+```
+
 ```csharp
 // Scheduling/Scheduling.Application/Commands/CreateAppointment/CreateAppointmentCommandHandler.cs
-using BuildingBlocks.Application.Abstractions;
+using BuildingBlocks.Application.Auth;
 using BuildingBlocks.Infrastructure.EfCore;
 using MediatR;
 using Scheduling.Domain.Aggregates.Appointments;
-using Scheduling.Domain.Aggregates.Patients;
 
 namespace Scheduling.Application.Commands.CreateAppointment;
 
@@ -528,32 +508,23 @@ public class CreateAppointmentCommandHandler : IRequestHandler<CreateAppointment
 
     public async Task<Guid> Handle(CreateAppointmentCommand cmd, CancellationToken ct)
     {
-        // Verify patient exists
-        var patientExists = await _uow.RepositoryFor<Patient>().ExistsAsync(cmd.PatientId, ct);
-        if (!patientExists)
-            throw new InvalidOperationException($"Patient {cmd.PatientId} not found.");
-
-        // Create appointment
+        // Validator already guaranteed: caller has the role AND the patient exists.
         var appointment = Appointment.Create(
             cmd.PatientId,
             cmd.DoctorId,
             cmd.AppointmentDateTime,
             cmd.DurationMinutes);
 
-        // Add audit information using current user
-        // (In a real app, you might have an AuditableEntity base class)
-        // For now, we'll use domain events or a separate audit log
-
         _uow.RepositoryFor<Appointment>().Add(appointment);
 
-        // Queue integration event with creator information
+        // Audit: stamp the creator on the integration event using ICurrentUser
         _uow.QueueIntegrationEvent(new AppointmentCreatedIntegrationEvent(
             appointment.Id,
             cmd.PatientId,
             cmd.DoctorId,
             cmd.AppointmentDateTime,
             cmd.DurationMinutes,
-            CreatedBy: _currentUser.UserId,  // Audit: who created this
+            CreatedBy: _currentUser.UserId,
             CreatedByName: _currentUser.Name));
 
         await _uow.SaveChangesAsync(ct);
@@ -562,27 +533,53 @@ public class CreateAppointmentCommandHandler : IRequestHandler<CreateAppointment
 }
 ```
 
-### Example: Ownership Check
+### Example: Ownership Check (Validator)
+
+Ownership checks belong in the validator, not the handler — same layer that enforces role gates and `NotFound` existence checks. The handler stays thin and trusts that validation has already passed.
 
 ```csharp
-// Example: Only allow users to update their own patient profile
+// Scheduling/Scheduling.Application/Patients/Commands/UpdateMyPatientProfileCommandValidator.cs
+public class UpdateMyPatientProfileCommandValidator : UserValidator<UpdateMyPatientProfileCommand>
+{
+    private readonly IUnitOfWork _uow;
+
+    public UpdateMyPatientProfileCommandValidator(ICurrentUser currentUser, IUnitOfWork uow)
+        : base(currentUser, new[] { AppRoles.Patient })
+    {
+        _uow = uow;
+
+        RuleFor(c => c.PatientId)
+            .MustAsync(BeAValidPatientAsync)
+                .WithErrorCode(ErrorCode.NotFound.Value)
+                .WithMessage(ErrorCode.NotFound.Message)
+            .MustAsync(BeOwnedByCurrentUserAsync)
+                .WithErrorCode(ErrorCode.Forbidden.Value)
+                .WithMessage("You can only update your own profile.");
+    }
+
+    private Task<bool> BeAValidPatientAsync(Guid id, CancellationToken ct) =>
+        _uow.RepositoryFor<Patient>().ExistsAsync(id, ct);
+
+    private async Task<bool> BeOwnedByCurrentUserAsync(Guid id, CancellationToken ct)
+    {
+        var patient = await _uow.RepositoryFor<Patient>().GetByIdAsync(id, ct);
+        return patient?.UserId == CurrentUser.UserId;
+    }
+}
+```
+
+The handler then contains no authorization logic — it only performs the business action:
+
+```csharp
 public class UpdateMyPatientProfileCommandHandler : IRequestHandler<UpdateMyPatientProfileCommand>
 {
     private readonly IUnitOfWork _uow;
-    private readonly ICurrentUser _currentUser;
 
     public async Task Handle(UpdateMyPatientProfileCommand cmd, CancellationToken ct)
     {
+        // Validator already guaranteed: patient exists AND is owned by current user
         var patient = await _uow.RepositoryFor<Patient>().GetByIdAsync(cmd.PatientId, ct);
-        if (patient == null)
-            throw new InvalidOperationException("Patient not found.");
-
-        // Ownership check: Patient's UserId must match current user
-        // (Assuming Patient has a UserId property linking to the identity system)
-        if (patient.UserId != _currentUser.UserId)
-            throw new UnauthorizedAccessException("You can only update your own profile.");
-
-        patient.UpdateContactInfo(cmd.Email, cmd.PhoneNumber);
+        patient!.UpdateContactInfo(cmd.Email, cmd.PhoneNumber);
         await _uow.SaveChangesAsync(ct);
     }
 }
@@ -590,225 +587,20 @@ public class UpdateMyPatientProfileCommandHandler : IRequestHandler<UpdateMyPati
 
 ---
 
-## 6. Testing Role-Based Validation
+## 6. Updating Existing Validators
 
-Testing validators with role logic requires mocking `ICurrentUser`. Here's how to do it with Moq and Shouldly.
+All existing validators in the project extend `UserValidator<T>` but don't currently use role validation. You need to update each one based on the role matrix from [doc 04](./04-api-resource-protection.md#authorization-summary) — queries that any authenticated user can issue demote to `AbstractValidator<T>`, commands keep `UserValidator<T>` with explicit role groups.
 
-### Test Setup
+### Target State
 
-```csharp
-// Scheduling/Scheduling.Domain.Tests/Validators/DeletePatientCommandValidatorTests.cs
-using BuildingBlocks.Application.Abstractions;
-using BuildingBlocks.Infrastructure.EfCore;
-using Shared.Auth;
-using Moq;
-using Scheduling.Application.Commands.DeletePatient;
-using Scheduling.Domain.Aggregates.Patients;
-using Shouldly;
-
-namespace Scheduling.Domain.Tests.Validators;
-
-[TestClass]
-public class DeletePatientCommandValidatorTests
-{
-    private Mock<ICurrentUser> _mockCurrentUser = null!;
-    private Mock<IUnitOfWork> _mockUow = null!;
-    private DeletePatientCommandValidator _validator = null!;
-
-    [TestInitialize]
-    public void Setup()
-    {
-        _mockCurrentUser = new Mock<ICurrentUser>();
-        _mockUow = new Mock<IUnitOfWork>();
-
-        // Default: authenticated admin user
-        _mockCurrentUser.Setup(u => u.IsAuthenticated).Returns(true);
-        _mockCurrentUser.Setup(u => u.UserId).Returns("test-user-id");
-        _mockCurrentUser.Setup(u => u.Email).Returns("admin@test.com");
-        _mockCurrentUser.Setup(u => u.Name).Returns("Test Admin");
-        _mockCurrentUser.Setup(u => u.Roles).Returns(new List<string> { AppRoles.Admin });
-        _mockCurrentUser.Setup(u => u.HasRole(AppRoles.Admin)).Returns(true);
-
-        _validator = new DeletePatientCommandValidator(_mockCurrentUser.Object, _mockUow.Object);
-    }
-
-    [TestMethod]
-    public async Task Validate_WhenUserIsAdmin_ShouldPass()
-    {
-        // Arrange
-        var patientId = Guid.NewGuid();
-        var command = new DeletePatientCommand(patientId);
-
-        var mockRepo = new Mock<IRepository<Patient>>();
-        mockRepo.Setup(r => r.ExistsAsync(patientId, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(true);
-        _mockUow.Setup(u => u.RepositoryFor<Patient>()).Returns(mockRepo.Object);
-
-        // Act
-        var result = await _validator.ValidateAsync(command);
-
-        // Assert
-        result.IsValid.ShouldBeTrue();
-    }
-
-    [TestMethod]
-    public async Task Validate_WhenUserIsNotAdmin_ShouldFail()
-    {
-        // Arrange
-        var patientId = Guid.NewGuid();
-        var command = new DeletePatientCommand(patientId);
-
-        // Reconfigure mock to be a non-admin user
-        _mockCurrentUser.Setup(u => u.Roles).Returns(new List<string> { "User" });
-        _mockCurrentUser.Setup(u => u.HasRole(AppRoles.Admin)).Returns(false);
-        _mockCurrentUser.Setup(u => u.HasRole(It.IsAny<string>()))
-            .Returns((string role) => role == "User");
-
-        // Recreate validator with updated mock
-        _validator = new DeletePatientCommandValidator(_mockCurrentUser.Object, _mockUow.Object);
-
-        // Act
-        var result = await _validator.ValidateAsync(command);
-
-        // Assert
-        result.IsValid.ShouldBeFalse();
-        result.Errors.ShouldContain(e => e.ErrorCode == "ERR_FORBIDDEN");
-        result.Errors.ShouldContain(e =>
-            e.ErrorMessage.Contains("do not have the required role"));
-    }
-
-    [TestMethod]
-    public async Task Validate_WhenUserIsDoctor_ShouldFail()
-    {
-        // Arrange
-        var patientId = Guid.NewGuid();
-        var command = new DeletePatientCommand(patientId);
-
-        // Reconfigure mock to be a doctor (not admin)
-        _mockCurrentUser.Setup(u => u.Roles).Returns(new List<string> { "Doctor" });
-        _mockCurrentUser.Setup(u => u.HasRole("Admin")).Returns(false);
-        _mockCurrentUser.Setup(u => u.HasRole("Doctor")).Returns(true);
-
-        _validator = new DeletePatientCommandValidator(_mockCurrentUser.Object, _mockUow.Object);
-
-        // Act
-        var result = await _validator.ValidateAsync(command);
-
-        // Assert
-        result.IsValid.ShouldBeFalse();
-        result.Errors.ShouldContain(e => e.ErrorCode == "ERR_FORBIDDEN");
-    }
-
-    [TestMethod]
-    public async Task Validate_WhenPatientDoesNotExist_ShouldFail()
-    {
-        // Arrange
-        var patientId = Guid.NewGuid();
-        var command = new DeletePatientCommand(patientId);
-
-        var mockRepo = new Mock<IRepository<Patient>>();
-        mockRepo.Setup(r => r.ExistsAsync(patientId, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(false);
-        _mockUow.Setup(u => u.RepositoryFor<Patient>()).Returns(mockRepo.Object);
-
-        // Act
-        var result = await _validator.ValidateAsync(command);
-
-        // Assert
-        result.IsValid.ShouldBeFalse();
-        result.Errors.ShouldContain(e => e.ErrorMessage.Contains("Patient not found"));
-    }
-}
-```
-
-### Testing Complex Role Logic (AND/OR)
-
-```csharp
-[TestClass]
-public class CriticalActionCommandValidatorTests
-{
-    private Mock<ICurrentUser> _mockCurrentUser = null!;
-    private Mock<IUnitOfWork> _mockUow = null!;
-
-    [TestMethod]
-    public async Task Validate_WhenUserIsAdmin_ShouldPass()
-    {
-        // Arrange
-        var mockCurrentUser = CreateMockUser(roles: new[] { "Admin" });
-        var validator = new CriticalActionCommandValidator(mockCurrentUser.Object, _mockUow.Object);
-        var command = new CriticalActionCommand();
-
-        // Act
-        var result = await validator.ValidateAsync(command);
-
-        // Assert
-        result.IsValid.ShouldBeTrue();
-    }
-
-    [TestMethod]
-    public async Task Validate_WhenUserIsDoctorAndNurseManager_ShouldPass()
-    {
-        // Arrange
-        var mockCurrentUser = CreateMockUser(roles: new[] { "Doctor", "NurseManager" });
-        var validator = new CriticalActionCommandValidator(mockCurrentUser.Object, _mockUow.Object);
-        var command = new CriticalActionCommand();
-
-        // Act
-        var result = await validator.ValidateAsync(command);
-
-        // Assert
-        result.IsValid.ShouldBeTrue();
-    }
-
-    [TestMethod]
-    public async Task Validate_WhenUserIsDoctorOnly_ShouldFail()
-    {
-        // Arrange
-        var mockCurrentUser = CreateMockUser(roles: new[] { "Doctor" });
-        var validator = new CriticalActionCommandValidator(mockCurrentUser.Object, _mockUow.Object);
-        var command = new CriticalActionCommand();
-
-        // Act
-        var result = await validator.ValidateAsync(command);
-
-        // Assert
-        result.IsValid.ShouldBeFalse();
-        result.Errors.ShouldContain(e => e.ErrorCode == "ERR_FORBIDDEN");
-    }
-
-    [TestMethod]
-    public async Task Validate_WhenUserIsNurseManagerOnly_ShouldFail()
-    {
-        // Arrange
-        var mockCurrentUser = CreateMockUser(roles: new[] { "NurseManager" });
-        var validator = new CriticalActionCommandValidator(mockCurrentUser.Object, _mockUow.Object);
-        var command = new CriticalActionCommand();
-
-        // Act
-        var result = await validator.ValidateAsync(command);
-
-        // Assert
-        result.IsValid.ShouldBeFalse();
-    }
-
-    private Mock<ICurrentUser> CreateMockUser(string[] roles)
-    {
-        var mock = new Mock<ICurrentUser>();
-        mock.Setup(u => u.IsAuthenticated).Returns(true);
-        mock.Setup(u => u.UserId).Returns("test-user-id");
-        mock.Setup(u => u.Roles).Returns(roles.ToList());
-        mock.Setup(u => u.HasRole(It.IsAny<string>()))
-            .Returns((string role) => roles.Contains(role));
-        return mock;
-    }
-}
-```
-
----
-
-## 7. Updating Existing Validators
-
-All existing validators in the project extend `UserValidator<T>` but don't currently use role validation. You need to update them to inject `ICurrentUser`.
+| Validator | Base class | Role groups (`: base(currentUser, ...)`) |
+|-----------|-----------|------------------------------------------|
+| `GetAllPatientsQueryValidator` | `AbstractValidator<T>` | — (authentication handled by `[Authorize]`) |
+| `GetPatientQueryValidator` | `AbstractValidator<T>` | — (authentication handled by `[Authorize]`) |
+| `CreatePatientCommandValidator` | `UserValidator<T>` | `new[] { AppRoles.Nurse }, new[] { AppRoles.Doctor }, new[] { AppRoles.Admin }` — Nurse OR Doctor OR Admin |
+| `SuspendPatientCommandValidator` | `UserValidator<T>` | `new[] { AppRoles.Doctor }, new[] { AppRoles.Admin }` — Doctor OR Admin |
+| `ActivatePatientCommandValidator` | `UserValidator<T>` | `new[] { AppRoles.Doctor }, new[] { AppRoles.Admin }` — Doctor OR Admin |
+| `DeletePatientCommandValidator` | `UserValidator<T>` | `new[] { AppRoles.Admin }` — Admin only |
 
 ### Before (Existing Code)
 
@@ -842,8 +634,6 @@ public class SuspendPatientCommandValidator : UserValidator<SuspendPatientComman
     {
         _uow = uow;
 
-        RuleForUserValidation();  // Enforce role check
-
         RuleFor(c => c.Id)
             .MustAsync(BeAValidPatientAsync)
             .WithErrorCode(ErrorCode.NotFound.Value)
@@ -854,11 +644,280 @@ public class SuspendPatientCommandValidator : UserValidator<SuspendPatientComman
 ```
 
 **Migration checklist for each validator**:
-1. Add `ICurrentUser currentUser` parameter to constructor
-2. Call `base(currentUser)` if no role restrictions needed
-3. Call `base(currentUser, roleGroups)` if specific roles required
-4. Call `RuleForUserValidation()` in constructor if role check is needed
-5. Update validator tests to mock `ICurrentUser`
+1. If the endpoint has no role restriction (any authenticated user), extend `AbstractValidator<T>` directly — `[Authorize]` on the controller already handles authentication. Skip the remaining steps.
+2. Otherwise, extend `UserValidator<T>` and:
+   - Add `ICurrentUser currentUser` parameter to constructor
+   - Call `: base(currentUser, roleGroups)` with the required role groups — the base constructor auto-registers the role check rule, so no explicit call is needed in the derived body
+   - Update validator tests to mock `ICurrentUser`
+
+---
+
+## 7. Testing Role-Based Validation
+
+Testing validators with role logic requires mocking `ICurrentUser`. Here's how to do it with Moq and Shouldly.
+
+### What Needs to Change in the Existing Test Suite
+
+The existing validator tests in `Scheduling.Domain.Tests/ApplicationTests/ValidatorTests/` were written before role gates existed. Now that the base validator auto-registers a role rule, any test that ran successfully with the old "no role check" validator will start failing unless the mock user is set up with the right role. Here's the concrete work per test class:
+
+| Test class | Action | Why |
+|------------|--------|-----|
+| `GetAllPatientsQueryValidatorTests` | No change | Validator is now `AbstractValidator<T>` — no role gate |
+| `GetPatientQueryValidatorTests` | No change | Same as above |
+| `CreatePatientCommandValidatorTests` | Fix existing tests + add role tests | Validator now gates on Nurse OR Doctor OR Admin |
+| `SuspendPatientCommandValidatorTests` | Fix existing tests + add role tests | Validator now gates on Doctor OR Admin |
+| `ActivatePatientCommandValidatorTests` | Fix existing tests + add role tests | Validator now gates on Doctor OR Admin |
+| `DeletePatientCommandValidatorTests` | Fix existing tests + add role tests | Validator now gates on Admin only |
+
+**"Fix existing tests"** = every currently passing test (e.g., `Valid_When_PatientExists`) needs the mock user to have one of the allowed roles, otherwise the auto-registered role rule fails the validation.
+
+**"Add role tests"** per command validator (one happy-path test per allowed role group + one denial test for an unauthorized role):
+
+| Command validator | Tests to add |
+|-------------------|--------------|
+| `CreatePatientCommandValidator` | `Valid_When_UserIsNurse`, `Valid_When_UserIsDoctor`, `Valid_When_UserIsAdmin`, `Invalid_When_UserHasNoAllowedRole` |
+| `SuspendPatientCommandValidator` | `Valid_When_UserIsDoctor`, `Valid_When_UserIsAdmin`, `Invalid_When_UserIsNurse`, `Invalid_When_UserHasNoAllowedRole` |
+| `ActivatePatientCommandValidator` | `Valid_When_UserIsDoctor`, `Valid_When_UserIsAdmin`, `Invalid_When_UserIsNurse`, `Invalid_When_UserHasNoAllowedRole` |
+| `DeletePatientCommandValidator` | `Valid_When_UserIsAdmin`, `Invalid_When_UserIsDoctor`, `Invalid_When_UserIsNurse`, `Invalid_When_UserHasNoAllowedRole` |
+
+A denial test should assert the error has `ErrorCode == ErrorCode.Forbidden.Value` — see the examples below.
+
+### What Needs to Be Added to the Test Infrastructure
+
+The existing `ValidatorTestBase` in `BuildingBlocks.Tests` already builds a DI container and registers a mocked `IUnitOfWork`. We extend it with a `Mock<ICurrentUser>` so the auto-registered role rule has something to read, plus a `SetupUserRoles(...)` helper so tests can declare the caller's role in a single line.
+
+```csharp
+// BuildingBlocks/BuildingBlocks.Tests/ValidatorTestBase.cs — additions only
+using BuildingBlocks.Application.Auth;
+
+public abstract class ValidatorTestBase
+{
+    // ... existing members ...
+
+    protected Mock<ICurrentUser> CurrentUserMock { get; private set; } = null!;
+
+    [TestInitialize]
+    public virtual void TestInitialize()
+    {
+        _stopwatch = new Stopwatch();
+
+        var services = new ServiceCollection();
+
+        // Existing: mocked IUnitOfWork
+        UnitOfWorkMock = new Mock<IUnitOfWork>();
+        services.AddSingleton(UnitOfWorkMock.Object);
+
+        // NEW: mocked ICurrentUser — authenticated but with no roles by default.
+        // Tests that exercise a role-gated validator call SetupUserRoles(...) in
+        // their Arrange block to give the caller an allowed role.
+        CurrentUserMock = new Mock<ICurrentUser>();
+        CurrentUserMock.Setup(u => u.IsAuthenticated).Returns(true);
+        CurrentUserMock.Setup(u => u.UserId).Returns("test-user-id");
+        CurrentUserMock.Setup(u => u.Name).Returns("Test User");
+        CurrentUserMock.Setup(u => u.Email).Returns("test@test.com");
+        CurrentUserMock.Setup(u => u.Roles).Returns(Array.Empty<string>());
+        CurrentUserMock.Setup(u => u.HasRole(It.IsAny<string>())).Returns(false);
+        services.AddSingleton(CurrentUserMock.Object);
+
+        RegisterServices(services);
+        _serviceProvider = services.BuildServiceProvider();
+    }
+
+    /// <summary>
+    /// Configure the mocked ICurrentUser to return the given roles.
+    /// Call this in the Arrange section of any test that exercises a role-gated validator.
+    /// </summary>
+    protected void SetupUserRoles(params string[] roles)
+    {
+        var list = roles.ToList();
+        CurrentUserMock.Setup(u => u.Roles).Returns(list);
+        CurrentUserMock.Setup(u => u.HasRole(It.IsAny<string>()))
+            .Returns((string r) => list.Contains(r));
+    }
+}
+```
+
+`SchedulingValidatorTestBase` does not need to change — it already overrides `RegisterServices` to register Scheduling validators, and the new `CurrentUserMock` is picked up by the DI container automatically when the role-gated validator is constructed.
+
+### Updated Test Pattern (DeletePatientCommandValidator — Admin only)
+
+Existing tests (`Invalid_When_PatientDoesNotExist`, `Valid_When_PatientExists`) need a `SetupUserRoles(AppRoles.Admin)` call added to their Arrange block so the auto-registered role rule passes. New role-focused tests follow the project's existing naming convention (`Valid_When_X` / `Invalid_When_X`) and use the same `SchedulingValidatorTestBase` helpers.
+
+```csharp
+// Scheduling/Scheduling.Domain.Tests/ApplicationTests/ValidatorTests/DeletePatientCommandValidatorTests.cs
+using BuildingBlocks.Enumerations;
+using BuildingBlocks.Tests;
+using Microsoft.VisualStudio.TestTools.UnitTesting;
+using Scheduling.Application.Patients.Commands;
+using Shared.Auth;
+using Shouldly;
+
+namespace Scheduling.Tests.ApplicationTests.ValidatorTests;
+
+[TestClass]
+public class DeletePatientCommandValidatorTests : SchedulingValidatorTestBase
+{
+    // --- Existing tests, updated to set up the required role ---
+
+    [TestMethod]
+    public async Task Invalid_When_PatientDoesNotExist()
+    {
+        // Arrange
+        var patientId = Guid.NewGuid();
+        SetupUserRoles(AppRoles.Admin);
+        SetupPatientNotExists(patientId);
+        var command = new DeletePatientCommand { Id = patientId };
+
+        // Act
+        StartStopwatch();
+        var result = await ValidatorFor<DeletePatientCommand>().ValidateAsync(command);
+        StopStopwatch();
+
+        // Assert
+        result.Errors.ShouldContainValidation(nameof(DeletePatientCommand.Id), ErrorCode.NotFound.Value);
+        result.Errors.Count.ShouldBe(1);
+        ElapsedSeconds().ShouldBeLessThan(0.1M);
+    }
+
+    [TestMethod]
+    public async Task Valid_When_PatientExists()
+    {
+        // Arrange
+        var patientId = Guid.NewGuid();
+        SetupUserRoles(AppRoles.Admin);
+        SetupPatientExists(patientId);
+        var command = new DeletePatientCommand { Id = patientId };
+
+        // Act
+        var result = await ValidatorFor<DeletePatientCommand>().ValidateAsync(command);
+
+        // Assert
+        result.IsValid.ShouldBeTrue();
+    }
+
+    // --- New tests for the role gate ---
+
+    [TestMethod]
+    public async Task Valid_When_UserIsAdmin()
+    {
+        // Arrange
+        var patientId = Guid.NewGuid();
+        SetupUserRoles(AppRoles.Admin);
+        SetupPatientExists(patientId);
+        var command = new DeletePatientCommand { Id = patientId };
+
+        // Act
+        var result = await ValidatorFor<DeletePatientCommand>().ValidateAsync(command);
+
+        // Assert
+        result.IsValid.ShouldBeTrue();
+    }
+
+    [TestMethod]
+    public async Task Invalid_When_UserIsDoctor()
+    {
+        // Arrange
+        var patientId = Guid.NewGuid();
+        SetupUserRoles(AppRoles.Doctor);
+        SetupPatientExists(patientId);
+        var command = new DeletePatientCommand { Id = patientId };
+
+        // Act
+        var result = await ValidatorFor<DeletePatientCommand>().ValidateAsync(command);
+
+        // Assert
+        result.Errors.ShouldContain(e => e.ErrorCode == ErrorCode.Forbidden.Value);
+    }
+
+    [TestMethod]
+    public async Task Invalid_When_UserIsNurse()
+    {
+        // Arrange
+        var patientId = Guid.NewGuid();
+        SetupUserRoles(AppRoles.Nurse);
+        SetupPatientExists(patientId);
+        var command = new DeletePatientCommand { Id = patientId };
+
+        // Act
+        var result = await ValidatorFor<DeletePatientCommand>().ValidateAsync(command);
+
+        // Assert
+        result.Errors.ShouldContain(e => e.ErrorCode == ErrorCode.Forbidden.Value);
+    }
+
+    [TestMethod]
+    public async Task Invalid_When_UserHasNoAllowedRole()
+    {
+        // Arrange
+        var patientId = Guid.NewGuid();
+        SetupPatientExists(patientId);
+        // No SetupUserRoles call — the mock user has no roles by default
+        var command = new DeletePatientCommand { Id = patientId };
+
+        // Act
+        var result = await ValidatorFor<DeletePatientCommand>().ValidateAsync(command);
+
+        // Assert
+        result.Errors.ShouldContain(e => e.ErrorCode == ErrorCode.Forbidden.Value);
+    }
+}
+```
+
+### Testing a Multi-Role Gate (SuspendPatientCommandValidator — Doctor OR Admin)
+
+For validators with multiple allowed role groups, write one `Valid_When_UserIsX` per group and denial tests for roles outside the set. The patient-existence tests stay largely the same — just add `SetupUserRoles(AppRoles.Doctor)` (or `AppRoles.Admin`) to their Arrange block.
+
+```csharp
+[TestMethod]
+public async Task Valid_When_UserIsDoctor()
+{
+    // Arrange
+    var patientId = Guid.NewGuid();
+    SetupUserRoles(AppRoles.Doctor);
+    SetupPatientExists(patientId);
+    var command = new SuspendPatientCommand { Id = patientId };
+
+    // Act
+    var result = await ValidatorFor<SuspendPatientCommand>().ValidateAsync(command);
+
+    // Assert
+    result.IsValid.ShouldBeTrue();
+}
+
+[TestMethod]
+public async Task Valid_When_UserIsAdmin()
+{
+    // Arrange
+    var patientId = Guid.NewGuid();
+    SetupUserRoles(AppRoles.Admin);
+    SetupPatientExists(patientId);
+    var command = new SuspendPatientCommand { Id = patientId };
+
+    // Act
+    var result = await ValidatorFor<SuspendPatientCommand>().ValidateAsync(command);
+
+    // Assert
+    result.IsValid.ShouldBeTrue();
+}
+
+[TestMethod]
+public async Task Invalid_When_UserIsNurse()
+{
+    // Arrange
+    var patientId = Guid.NewGuid();
+    SetupUserRoles(AppRoles.Nurse);
+    SetupPatientExists(patientId);
+    var command = new SuspendPatientCommand { Id = patientId };
+
+    // Act
+    var result = await ValidatorFor<SuspendPatientCommand>().ValidateAsync(command);
+
+    // Assert
+    result.Errors.ShouldContain(e => e.ErrorCode == ErrorCode.Forbidden.Value);
+}
+```
+
+Tests for `ActivatePatientCommandValidator` follow the same structure (Doctor OR Admin). Tests for `CreatePatientCommandValidator` add a third happy-path test for Nurse, since that validator permits Nurse OR Doctor OR Admin.
 
 ---
 
@@ -914,7 +973,7 @@ public class GlobalExceptionFilter : IExceptionFilter
         if (context.Exception is ValidationException validationEx)
         {
             // Check if any validation error is a forbidden error
-            var hasForbiddenError = validationEx.Errors.Any(e => e.ErrorCode == "ERR_FORBIDDEN");
+            var hasForbiddenError = validationEx.Errors.Any(e => e.ErrorCode == ErrorCode.Forbidden.Value);
 
             if (hasForbiddenError)
             {
@@ -923,7 +982,7 @@ public class GlobalExceptionFilter : IExceptionFilter
                     error = "Forbidden",
                     message = "You do not have permission to perform this action.",
                     details = validationEx.Errors
-                        .Where(e => e.ErrorCode == "ERR_FORBIDDEN")
+                        .Where(e => e.ErrorCode == ErrorCode.Forbidden.Value)
                         .Select(e => e.ErrorMessage)
                 })
                 {
@@ -1466,9 +1525,9 @@ return mapped.Concat(raw).Distinct().ToList();
    - Inner collection = AND (user must have ALL roles)
    - Outer array = OR (user must satisfy at least ONE group)
 
-3. **Two-Constructor Pattern**:
-   - `UserValidator(ICurrentUser, params roleGroups)` for role-based validation
-   - `UserValidator(ICurrentUser)` for "any authenticated user"
+3. **UserValidator is for role-gated validators only**:
+   - `UserValidator(ICurrentUser, params roleGroups)` — pass one or more role groups
+   - For "any authenticated user" validators, extend `AbstractValidator<T>` directly — `[Authorize]` on the controller covers the authentication check
 
 4. **Testing Strategy**: Mock `ICurrentUser` with Moq, configure roles per test case.
 

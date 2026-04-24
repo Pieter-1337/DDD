@@ -5,6 +5,9 @@ using BuildingBlocks.Enumerations;
 using FluentValidation;
 using FluentValidation.Validators;
 using Scheduling.Domain.Patients;
+using BuildingBlocks.Application.Auth;
+using BuildingBlocks.Application.Interfaces;
+using Auth;
 
 namespace Scheduling.Application.Patients.Commands
 {
@@ -28,7 +31,8 @@ namespace Scheduling.Application.Patients.Commands
     #region Validators
     internal class CreatePatientCommandValidator : UserValidator<CreatePatientCommand>
     {
-        public CreatePatientCommandValidator(IValidator<CreatePatientRequest> createPatientRequestValidator)
+        public CreatePatientCommandValidator(ICurrentUser currentUser ,IValidator<CreatePatientRequest> createPatientRequestValidator)
+            : base(currentUser, new[] { AppRoles.Nurse }, new[] { AppRoles.Doctor }, new[] {  AppRoles.Admin})
         {
             RuleFor(c => c.Patient).Cascade(CascadeMode.Stop)
                 .NotNull()

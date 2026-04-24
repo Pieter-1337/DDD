@@ -14,7 +14,7 @@ public record GetPatientQuery : Query<PatientDto?>
 }
 
 #region Validators
-internal class GetPatientQueryValidator : UserValidator<GetPatientQuery>
+internal class GetPatientQueryValidator : AbstractValidator<GetPatientQuery>
 {
     private readonly IUnitOfWork _uow;
 

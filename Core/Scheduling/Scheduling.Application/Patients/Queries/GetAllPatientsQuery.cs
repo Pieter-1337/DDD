@@ -1,5 +1,4 @@
 using BuildingBlocks.Application.Cqrs;
-using BuildingBlocks.Application.Validators;
 using BuildingBlocks.Enumerations;
 using FluentValidation;
 using Scheduling.Application.Patients.Dtos;
@@ -13,7 +12,7 @@ namespace Scheduling.Application.Patients.Queries
     }
 
     #region Validators
-    internal class GetAllPatientsQueryValidator : UserValidator<GetAllPatientsQuery>
+    internal class GetAllPatientsQueryValidator : AbstractValidator<GetAllPatientsQuery>
     {
         public GetAllPatientsQueryValidator()
         {

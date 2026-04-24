@@ -421,7 +421,7 @@ public class PatientsController(IMediator mediator) : ControllerBase
 | `POST /api/patients/{id}/activate` | Doctor or Admin | Reactivate a suspended patient |
 | `DELETE /api/patients/{id}` | Admin only | Destructive administrative action |
 
-**Note**: Role checks are enforced by `UserValidator<T>` in each command's validator (see [doc 06](./06-user-context-and-authorization.md)). The controller only has `[Authorize]` for authentication — it does not specify roles. This keeps authorization logic testable and centralized in the application layer.
+**Note**: Role checks are enforced by `UserValidator<T>` in each command's validator (see [doc 06](./06-user-context-and-authorization.md)). The controller only has `[Authorize]` for authentication — it does not specify roles. This keeps authorization logic testable and centralized in the application layer. Validators for the two "any authenticated user" endpoints (`GET /api/patients`, `GET /api/patients/{id}`) extend `AbstractValidator<T>` directly — `[Authorize]` already enforces authentication, so there's no role gate to add.
 
 ---
 

@@ -1,6 +1,8 @@
+using Auth;
+using BuildingBlocks.Application.Auth;
+using BuildingBlocks.Application.Cqrs;
 using BuildingBlocks.Application.Dtos;
 using BuildingBlocks.Application.Interfaces;
-using BuildingBlocks.Application.Cqrs;
 using BuildingBlocks.Application.Validators;
 using BuildingBlocks.Enumerations;
 using FluentValidation;
@@ -20,7 +22,8 @@ namespace Scheduling.Application.Patients.Commands
     {
         private readonly IUnitOfWork _uow;
 
-        public DeletePatientCommandValidator(IUnitOfWork uow)
+        public DeletePatientCommandValidator(ICurrentUser currentUser,IUnitOfWork uow)
+            :base (currentUser, new[] { AppRoles.Admin })
         {
             _uow = uow;
 
