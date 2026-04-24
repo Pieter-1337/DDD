@@ -92,6 +92,36 @@ This is a comprehensive learning project to master Domain-Driven Design (DDD) an
 - Shared kernel for common domain concepts
 - Health checks and observability
 
+### Phase 7: Frontend
+**Goal**: Build a client application that consumes the WebApis
+
+**Concepts implemented (Angular track)**:
+- Angular 21 standalone components with `inject()` DI
+- Signals for state (`signal`, `computed`) and zoneless change detection
+- Feature routing with lazy-loaded components and functional guards (`authGuard`, `roleGuard`)
+- HTTP interceptor adding `withCredentials` + `X-Requested-With` and handling 401 → login redirect
+- Angular Material navbar with `mat-menu` user controls and role-based `@if` blocks
+- Patient list/detail features against the Scheduling API
+
+**Tracks**:
+- Angular track — complete
+- Blazor Server track — deferred (docs written, implementation not pursued)
+
+### Phase 8: Authentication & Authorization
+**Goal**: Secure the APIs and SPA with standards-based auth while keeping authorization testable
+
+**Concepts implemented**:
+- Duende IdentityServer 7.4 as the OIDC/OAuth2 authority with EF Core config + operational stores
+- ASP.NET Core Identity for user/role storage, seeded with Admin/Doctor/Nurse users
+- Cookie auth + OIDC client per WebApi (BFF pattern — SPA never sees tokens)
+- Shared Data Protection keys so cookies decrypt across both WebApis
+- `id_token`-only cookie storage via `OnTokenValidated` — needed as `id_token_hint` for Duende logout to populate `PostLogoutRedirectUri`
+- Claim hydration via `GetClaimsFromUserInfoEndpoint = true` + explicit `MapJsonKey` entries (Duende's lean `id_token` default + .NET 9 `JsonWebTokenHandler` no-remapping behavior)
+- `ICurrentUser` abstraction in `BuildingBlocks.Application.Auth`, implemented by `HttpContextCurrentUser`
+- `UserValidator<T>` base that auto-registers a FluentValidation role rule from constructor role groups (AND/OR via nested arrays)
+- `ERR_FORBIDDEN` mapped to HTTP 403 by `ValidationErrorWrapper` — same response body as 400, only status differs
+- Angular role-gated UI via `AuthService.hasRole(...)` + computed signals (`canDelete`, `canSuspend`)
+
 ## Coding Standards
 
 ### C# Conventions
@@ -192,7 +222,7 @@ RabbitMQ is managed by .NET Aspire for local development. The `docker-compose.ym
 ```
 
 ## Current Phase
-**Current**: Phase 7 - Frontend (Blazor Server + Angular)
+**Current**: Phase 9 - API Gateway with YARP & BFF pattern (optional, not yet started)
 
 ### Completed Phases
 - ✅ Phase 1: DDD Fundamentals
@@ -201,10 +231,12 @@ RabbitMQ is managed by .NET Aspire for local development. The `docker-compose.ym
 - ✅ Phase 4: Testing
 - ✅ Phase 5: Event-Driven Architecture (MassTransit, RabbitMQ, Integration Events)
 - ✅ Phase 6: Integration (Aspire orchestration, Billing BC, Observability)
+- ✅ Phase 7: Frontend — Angular track (patient list/detail, routing, guards, interceptors, navbar)
+- ✅ Phase 8: Authentication & Authorization (Duende IdentityServer, OIDC+cookies, role-based `UserValidator<T>`, Angular role-gated UI)
 
-### Phase 7 Progress
-- **Angular track**: Project setup complete (doc 01) — implementing components next (doc 02)
-- **Blazor track**: Docs written, implementation pending
+### Phase 7 Status
+- **Angular track**: Complete
+- **Blazor track**: Deferred — docs written but implementation not pursued after the Angular track covered the frontend scope
 
 ## Learning Resources Referenced
 - Pluralsight: "Domain-Driven Design Fundamentals" (Julie Lerman & Steve Smith)
@@ -214,11 +246,9 @@ RabbitMQ is managed by .NET Aspire for local development. The `docker-compose.ym
 - Microsoft eBook: ".NET Microservices: Architecture for Containerized .NET Applications"
 
 ## Next Steps
-1. Implement Angular components and routing (Phase 7, doc 02)
-2. Build Blazor Server frontend with FluentUI (Phase 7)
-3. API integration for both frontends
-4. Authentication & Authorization (Phase 8)
-5. API Gateway with YARP & BFF pattern (Phase 9, optional)
+1. (Optional) Implement Phase 9 — API Gateway with YARP and the BFF pattern in front of the two WebApis
+2. (Optional) Resume the Blazor track of Phase 7 if a second frontend is needed
+3. (Optional) Additional hardening — integration tests hitting the real IdentityServer, production-hardened Data Protection key storage, token refresh flows
 
 ## Notes for Claude Code
 - When suggesting code, follow the DDD tactical patterns strictly
