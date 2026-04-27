@@ -176,6 +176,7 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "phase-9-api-gateway-bff", "
 	ProjectSection(SolutionItems) = preProject
 		docs\phase-9-api-gateway-bff\01-api-gateway-optional.md = docs\phase-9-api-gateway-bff\01-api-gateway-optional.md
 		docs\phase-9-api-gateway-bff\02-bff-pattern-optional.md = docs\phase-9-api-gateway-bff\02-bff-pattern-optional.md
+		docs\phase-9-api-gateway-bff\03-bff-with-duende.md = docs\phase-9-api-gateway-bff\03-bff-with-duende.md
 	EndProjectSection
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "05. Frontend", "05. Frontend", "{FDD91869-920E-468E-8564-77C5B4102542}"

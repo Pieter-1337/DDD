@@ -148,7 +148,14 @@
       "Bash(\"/c/Program Files/Microsoft SQL Server/Client SDK/ODBC/170/Tools/Binn/SQLCMD.exe\" -S MSI -d IdentityDb -Q \"SELECT DB_NAME\\(\\) AS CurrentDb, @@VERSION AS Version;\" -E)",
       "Bash(sc query *)",
       "Bash(\"/c/Program Files/Microsoft SQL Server/Client SDK/ODBC/170/Tools/Binn/SQLCMD.exe\" -S MSI -d IdentityDb -Q \"SELECT name FROM sys.tables ORDER BY name;\" -E)",
-      "Bash(\"/c/Program Files/Microsoft SQL Server/Client SDK/ODBC/170/Tools/Binn/SQLCMD.exe\" -S MSI -d IdentityDb -Q \"SELECT COUNT\\(*\\) AS Rows FROM PushedAuthorizationRequests; SELECT TOP 1 ReferenceValueHash, Parameters FROM PushedAuthorizationRequests ORDER BY ExpiresAtUtc DESC;\" -E)"
+      "Bash(\"/c/Program Files/Microsoft SQL Server/Client SDK/ODBC/170/Tools/Binn/SQLCMD.exe\" -S MSI -d IdentityDb -Q \"SELECT COUNT\\(*\\) AS Rows FROM PushedAuthorizationRequests; SELECT TOP 1 ReferenceValueHash, Parameters FROM PushedAuthorizationRequests ORDER BY ExpiresAtUtc DESC;\" -E)",
+      "Bash(xxd)",
+      "Read(//tmp/**)",
+      "Read(//c/tmp/**)",
+      "Read(//c/Users/piete/.claude/**)",
+      "Bash(where powershell.exe)",
+      "Read(//c/Windows/System32/WindowsPowerShell/v1.0/**)",
+      "Bash(bash /c/Users/piete/.claude/statusline.sh)"
     ]
   }
 }
