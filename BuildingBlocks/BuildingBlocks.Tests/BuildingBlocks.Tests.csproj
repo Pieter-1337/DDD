@@ -24,5 +24,6 @@
 	  <ProjectReference Include="..\BuildingBlocks.Application\BuildingBlocks.Application.csproj" />
 	  <ProjectReference Include="..\BuildingBlocks.Infrastructure.EfCore\BuildingBlocks.Infrastructure.EfCore.csproj" />
 	  <ProjectReference Include="..\BuildingBlocks.Domain\BuildingBlocks.Domain.csproj" />
+	  <ProjectReference Include="..\BuildingBlocks.Infrastructure.Wolverine\BuildingBlocks.Infrastructure.Wolverine.csproj" />
 	</ItemGroup>
 </Project>

@@ -37,6 +37,10 @@
     <PackageVersion Include="MassTransit.EntityFrameworkCore" Version="8.3.6" />
     <PackageVersion Include="WolverineFx" Version="4.12.2" />
     <PackageVersion Include="WolverineFx.RabbitMQ" Version="4.12.2" />
+    <!-- Wolverine Azure Service Bus transport: pinned to the same WolverineFx
+         version (4.12.2) as the core/RabbitMQ packages so the transport resolves
+         cleanly against the shared Wolverine core. -->
+    <PackageVersion Include="WolverineFx.AzureServiceBus" Version="4.12.2" />
     <PackageVersion Include="WolverineFx.SqlServer" Version="4.12.2" />
     <PackageVersion Include="WolverineFx.EntityFrameworkCore" Version="4.12.2" />
     <!-- Configuration -->
