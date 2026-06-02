@@ -13,6 +13,12 @@
   <ItemGroup>
     <PackageReference Include="MassTransit" />
     <PackageReference Include="MassTransit.RabbitMQ" />
+    <PackageReference Include="MassTransit.Azure.ServiceBus.Core" />
+    <!-- Explicit reference so the 7.20.1 floor in Directory.Packages.props applies
+         (fixes the emulator custom-port reset in the Administration Client; see
+         ADR-0001). Also gives us first-class access to ServiceBusClient /
+         ServiceBusAdministrationClient for the emulator's two-plane Host overload. -->
+    <PackageReference Include="Azure.Messaging.ServiceBus" />
     <PackageReference Include="MassTransit.EntityFrameworkCore" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" />
   </ItemGroup>

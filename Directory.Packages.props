@@ -21,6 +21,19 @@
     <!-- Messaging -->
     <PackageVersion Include="MassTransit" Version="8.3.6" />
     <PackageVersion Include="MassTransit.RabbitMQ" Version="8.3.6" />
+    <!-- Azure Service Bus transport: latest published 8.3.x; floors at MassTransit >= 8.3.5 so it resolves cleanly against the 8.3.6 core above. -->
+    <PackageVersion Include="MassTransit.Azure.ServiceBus.Core" Version="8.3.5" />
+    <!-- Azure SDK for the Service Bus emulator's two-plane wiring (see ADR-0001).
+         MassTransit.Azure.ServiceBus.Core 8.3.5 pulls this transitively at 7.18.2,
+         but 7.18.2 has a bug where ServiceBusAdministrationClient RESETS the custom
+         emulator port (e.g. :5300) — fixed in 7.20.1 (2025-06-12). The emulator's
+         management plane lives on a separate HTTP port (5300) from the AMQP data
+         plane (5672); MassTransit's startup topology creation goes through the
+         administration client, so without this floor it lands on https://localhost:443
+         and faults forever. We add an explicit PackageReference in the MassTransit
+         project so this Central-Package-Management version actually applies (a
+         PackageVersion entry alone does NOT pin a transitive dependency). -->
+    <PackageVersion Include="Azure.Messaging.ServiceBus" Version="7.20.1" />
     <PackageVersion Include="MassTransit.EntityFrameworkCore" Version="8.3.6" />
     <PackageVersion Include="WolverineFx" Version="4.12.2" />
     <PackageVersion Include="WolverineFx.RabbitMQ" Version="4.12.2" />
@@ -53,6 +66,7 @@
     <PackageVersion Include="OpenTelemetry.Instrumentation.Runtime" Version="1.14.0" />
     <!-- Aspire Hosting -->
     <PackageVersion Include="Aspire.Hosting.RabbitMQ" Version="13.1.1" />
+    <PackageVersion Include="Aspire.Hosting.Azure.ServiceBus" Version="13.1.1" />
 	<PackageVersion Include="Aspire.Hosting.JavaScript" Version="13.1.1" />
 	<!-- Authentication && Authorization -->
 	<PackageVersion Include="Duende.IdentityServer" Version="7.4.7" />

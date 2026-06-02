@@ -9,6 +9,13 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <!-- Referenced for BrokerNames so the orchestrator's broker switch uses the
+         same canonical constants as the services and extensions (ADR-0001, no drift).
+         IsAspireProjectResource=false: this is a normal compile reference, not an
+         Aspire resource to provision (without it the AppHost SDK treats project
+         references as resources only and does not flow them to the compiler). -->
+    <ProjectReference Include="..\BuildingBlocks\BuildingBlocks.Application\BuildingBlocks.Application.csproj"
+                      IsAspireProjectResource="false" />
     <ProjectReference Include="..\WebApplications\Identity.WebApi\Identity.WebApi.csproj" />
     <ProjectReference Include="..\WebApplications\Scheduling.WebApi\Scheduling.WebApi.csproj" />
     <ProjectReference Include="..\WebApplications\Billing.WebApi\Billing.WebApi.csproj" />
@@ -16,6 +23,7 @@
 
   <ItemGroup>
     <PackageReference Include="Aspire.Hosting.RabbitMQ" />
+    <PackageReference Include="Aspire.Hosting.Azure.ServiceBus" />
 	<PackageReference Include="Aspire.Hosting.JavaScript" />
   </ItemGroup>
 
