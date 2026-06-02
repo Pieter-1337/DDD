@@ -8,6 +8,7 @@ This directory contains learning notes, explanations, and progress tracking for 
 docs/
 +-- README.md                    # This file
 +-- SETUP.md                     # Fresh-machine setup checklist
++-- adr/                         # Architecture Decision Records
 +-- PROGRESS.md                  # Overall progress tracker
 +-- IMPROVEMENTS.md              # Identified gaps and future improvements
 +-- ARCHITECTURE-COMPARISON.md   # DDD vs Layered Monolith (ref-arch) comparison
