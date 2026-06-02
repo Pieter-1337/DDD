@@ -155,7 +155,9 @@
       "Read(//c/Users/piete/.claude/**)",
       "Bash(where powershell.exe)",
       "Read(//c/Windows/System32/WindowsPowerShell/v1.0/**)",
-      "Bash(bash /c/Users/piete/.claude/statusline.sh)"
+      "Bash(bash /c/Users/piete/.claude/statusline.sh)",
+      "PowerShell(dotnet user-secrets set *)",
+      "PowerShell(git *)"
     ]
   }
 }

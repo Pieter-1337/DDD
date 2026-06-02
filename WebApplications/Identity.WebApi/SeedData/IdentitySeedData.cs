@@ -32,19 +32,40 @@ public class IdentitySeedData : IHostedService
 
         using var scope = _serviceProvider.CreateScope();
 
-        // Ensure databases are created
+        // Apply migrations for all three contexts. MigrateAsync is multi-context-safe
+        // (each context gets its own __EFMigrationsHistory table) and idempotent — unlike
+        // EnsureCreatedAsync, which silently skips schema creation if the database already
+        // exists, leaving subsequent contexts without their tables.
         var identityContext = scope.ServiceProvider.GetRequiredService<IdentityDbContext>();
-        await identityContext.Database.EnsureCreatedAsync(cancellationToken);
+        await identityContext.Database.MigrateAsync(cancellationToken);
 
         var configurationContext = scope.ServiceProvider.GetRequiredService<ConfigurationDbContext>();
-        await configurationContext.Database.EnsureCreatedAsync(cancellationToken);
+        await configurationContext.Database.MigrateAsync(cancellationToken);
 
         var persistedGrantContext = scope.ServiceProvider.GetRequiredService<PersistedGrantDbContext>();
-        await persistedGrantContext.Database.EnsureCreatedAsync(cancellationToken);
+        await persistedGrantContext.Database.MigrateAsync(cancellationToken);
+
+        await EnsureConfigurationSchemaAsync(configurationContext, cancellationToken);
 
         await SeedRolesAsync(scope.ServiceProvider);
         await SeedUsersAsync(scope.ServiceProvider);
         await SeedIdentityServerConfigurationAsync(scope.ServiceProvider);
+    }
+
+    private static async Task EnsureConfigurationSchemaAsync(ConfigurationDbContext context, CancellationToken cancellationToken)
+    {
+        try
+        {
+            await context.Clients.AnyAsync(cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            throw new InvalidOperationException(
+                "Duende ConfigurationDbContext schema is missing — Clients table was not found after MigrateAsync. " +
+                "Run 'dotnet ef database update --context ConfigurationDbContext --project WebApplications/Identity.WebApi' " +
+                "and check the connection string in user-secrets (ConnectionStrings:IdentityDb).",
+                ex);
+        }
     }
 
     public Task StopAsync(CancellationToken cancellationToken) => Task.CompletedTask;
