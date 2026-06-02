@@ -1,0 +1,27 @@
+docs/README.md
+  s_cf03125e0c8c1d::t_1452bddaeacd61 10
+WebApplications/Identity.WebApi/SeedData/IdentitySeedData.cs
+  s_cf03125e0c8c1d::t_f7fca844f8460a 35-38,40,43,46-48,55-70
+docs/SETUP.md
+  s_cf03125e0c8c1d::t_1aff8b1ec92478 128-129
+  s_cf03125e0c8c1d::t_8184a71b288d71 1-22,25-38,40-92,104-127,130-135
+  s_cf03125e0c8c1d::t_091a9013164ffd 136-138
+  s_cf03125e0c8c1d::t_6eaf4aa1603e01 23-24,39
+  s_cf03125e0c8c1d::t_a79696d33f676f 93-103
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "899b5c73053d88fbf601337a8d74fd945d93b7a1",
+  "prompts": {},
+  "sessions": {
+    "s_cf03125e0c8c1d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "bf24f3ae-050e-41c0-9a5f-e1b652243ada",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Pieter Bracke <pieter.bracke@euri.com>"
+    }
+  }
+}
