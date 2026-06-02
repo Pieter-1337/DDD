@@ -1,0 +1,31 @@
+Directory.Packages.props
+  s_f055e9e8b1df42::t_d5bf378bb21278 29-31
+BuildingBlocks/BuildingBlocks.Application/BuildingBlocks.Application.csproj
+  s_f055e9e8b1df42::t_8cb86132e6f0b2 18
+BuildingBlocks/BuildingBlocks.Tests/BuildingBlocks.Tests.csproj
+  s_f055e9e8b1df42::t_1c0fbedceb5894 20
+BuildingBlocks/BuildingBlocks.Application/Messaging/BrokerSelection.cs
+  s_f055e9e8b1df42::t_1b3dda305a0358 1-14
+BuildingBlocks/BuildingBlocks.Application/Messaging/BrokerSelector.cs
+  s_f055e9e8b1df42::t_9b7dfae9addd8d 1-137
+BuildingBlocks/BuildingBlocks.Application/Messaging/BrokerNames.cs
+  s_f055e9e8b1df42::t_bbe344734c0451 1-16
+BuildingBlocks/BuildingBlocks.Tests/BrokerSelectorTests.cs
+  s_f055e9e8b1df42::t_bd93e219a142e5 1-185
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "5203ddd246548f0396c7a717d27a3ab05d9f1b51",
+  "prompts": {},
+  "sessions": {
+    "s_f055e9e8b1df42": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d734305b-61c0-4d9f-9271-b2bfe818a011",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Pieter Bracke <pieter.bracke@euri.com>"
+    }
+  }
+}
