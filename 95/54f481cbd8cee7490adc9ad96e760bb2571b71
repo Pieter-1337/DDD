@@ -1,0 +1,33 @@
+BuildingBlocks/BuildingBlocks.Infrastructure.MassTransit/BuildingBlocks.Infrastructure.MassTransit.csproj
+  s_f055e9e8b1df42::t_e758e977b03069 16
+BuildingBlocks/BuildingBlocks.Infrastructure.MassTransit/MassTransitExtensions.cs
+  s_f055e9e8b1df42::t_a9962b149d0d97 50-53
+  s_f055e9e8b1df42::t_68a71ee0311cf4 18-25,28-29,33-35,44-46,71-122
+  s_f055e9e8b1df42::t_0845d54ce22ae6 47-49
+Directory.Packages.props
+  s_f055e9e8b1df42::t_e37151f9684ace 24-25
+  s_f055e9e8b1df42::t_961a39d10a2962 58
+Aspire.AppHost/AppHost.cs
+  s_f055e9e8b1df42::t_e9aacee6a1904f 1-2,5-8,22-44,62,71
+  s_f055e9e8b1df42::t_a97b9b9fa77389 9-21
+Aspire.AppHost/Aspire.AppHost.csproj
+  s_f055e9e8b1df42::t_e66186f8fa0f57 13-18
+  s_f055e9e8b1df42::t_2398621fbb7329 12
+  s_f055e9e8b1df42::t_5a3696bf2bd2fc 26
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "9554f481cbd8cee7490adc9ad96e760bb2571b71",
+  "prompts": {},
+  "sessions": {
+    "s_f055e9e8b1df42": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d734305b-61c0-4d9f-9271-b2bfe818a011",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Pieter Bracke <pieter.bracke@euri.com>"
+    }
+  }
+}
