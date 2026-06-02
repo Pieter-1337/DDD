@@ -6,6 +6,7 @@ using MassTransit;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using AsbDefaults = MassTransit.AzureServiceBusTransport.Defaults;
 
 namespace BuildingBlocks.Infrastructure.MassTransit.Configuration;
 
@@ -118,6 +119,20 @@ public static class MassTransitExtensions
                     }
                     else
                     {
+                        // The emulator enforces far lower entity limits than the real
+                        // service: DefaultMessageTimeToLive must be between 00:00:01
+                        // and 01:00:00, while MassTransit's production defaults
+                        // (366-day TTL) get rejected with 400 SubCode=40000 at
+                        // CreateTopic time. Clamp the transport-wide defaults to the
+                        // emulator's ceiling — emulator path only; real namespaces
+                        // keep MassTransit's production defaults. This mirrors the
+                        // emulator guidance in MassTransit's Azure Service Bus docs.
+                        // (Defaults is [EditorBrowsable(Never)] but public — the
+                        // documented way to adjust transport-wide entity defaults.)
+                        AsbDefaults.DefaultMessageTimeToLive = TimeSpan.FromHours(1);
+                        AsbDefaults.BasicMessageTimeToLive = TimeSpan.FromHours(1);
+                        AsbDefaults.AutoDeleteOnIdle = TimeSpan.FromHours(1);
+
                         // Emulator two-plane wiring. The data-plane client targets
                         // 5672 (the 'messaging' string); the administration client
                         // targets 5300 (the 'messaging-admin' string). Both carry
