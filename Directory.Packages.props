@@ -26,6 +26,9 @@
     <PackageVersion Include="WolverineFx.RabbitMQ" Version="4.12.2" />
     <PackageVersion Include="WolverineFx.SqlServer" Version="4.12.2" />
     <PackageVersion Include="WolverineFx.EntityFrameworkCore" Version="4.12.2" />
+    <!-- Configuration -->
+    <PackageVersion Include="Microsoft.Extensions.Configuration.Abstractions" Version="9.0.0" />
+    <PackageVersion Include="Microsoft.Extensions.Configuration" Version="9.0.0" />
     <!-- Logging -->
     <PackageVersion Include="Microsoft.Extensions.Logging.Abstractions" Version="9.0.0" />
     <!-- Validation -->
