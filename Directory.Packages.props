@@ -21,6 +21,8 @@
     <!-- Messaging -->
     <PackageVersion Include="MassTransit" Version="8.3.6" />
     <PackageVersion Include="MassTransit.RabbitMQ" Version="8.3.6" />
+    <!-- Azure Service Bus transport: latest published 8.3.x; floors at MassTransit >= 8.3.5 so it resolves cleanly against the 8.3.6 core above. -->
+    <PackageVersion Include="MassTransit.Azure.ServiceBus.Core" Version="8.3.5" />
     <PackageVersion Include="MassTransit.EntityFrameworkCore" Version="8.3.6" />
     <PackageVersion Include="WolverineFx" Version="4.12.2" />
     <PackageVersion Include="WolverineFx.RabbitMQ" Version="4.12.2" />
@@ -53,6 +55,7 @@
     <PackageVersion Include="OpenTelemetry.Instrumentation.Runtime" Version="1.14.0" />
     <!-- Aspire Hosting -->
     <PackageVersion Include="Aspire.Hosting.RabbitMQ" Version="13.1.1" />
+    <PackageVersion Include="Aspire.Hosting.Azure.ServiceBus" Version="13.1.1" />
 	<PackageVersion Include="Aspire.Hosting.JavaScript" Version="13.1.1" />
 	<!-- Authentication && Authorization -->
 	<PackageVersion Include="Duende.IdentityServer" Version="7.4.7" />
