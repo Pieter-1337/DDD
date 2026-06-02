@@ -1,0 +1,30 @@
+BuildingBlocks/BuildingBlocks.Infrastructure.MassTransit/MassTransitExtensions.cs
+  s_f055e9e8b1df42::t_90de1df0143a9d 1-2
+  s_f055e9e8b1df42::t_d6bd4a5ea6172b 14-24
+  s_f055e9e8b1df42::t_9543ebf0fb5e67 89-108,111-137
+Aspire.AppHost/AppHost.cs
+  s_f055e9e8b1df42::t_0879553f18c81e 98-109
+  s_f055e9e8b1df42::t_0acea2a83da966 28-39,46-71
+Directory.Packages.props
+  s_f055e9e8b1df42::t_8b0cc39044d57c 26-36
+BuildingBlocks/BuildingBlocks.Infrastructure.MassTransit/BuildingBlocks.Infrastructure.MassTransit.csproj
+  s_f055e9e8b1df42::t_aac155f9f4b9f2 17-21
+docs/adr/0001-message-broker-selection.md
+  s_f055e9e8b1df42::t_41bf357a0c491b 19-38
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "4220cf1babe8ce35b28c8609758b616d1e54476d",
+  "prompts": {},
+  "sessions": {
+    "s_f055e9e8b1df42": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d734305b-61c0-4d9f-9271-b2bfe818a011",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Pieter Bracke <pieter.bracke@euri.com>"
+    }
+  }
+}
