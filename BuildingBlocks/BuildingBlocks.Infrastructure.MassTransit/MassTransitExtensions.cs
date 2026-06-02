@@ -1,3 +1,5 @@
+using Azure.Messaging.ServiceBus;
+using Azure.Messaging.ServiceBus.Administration;
 using BuildingBlocks.Application.Messaging;
 using FluentValidation;
 using MassTransit;
@@ -9,6 +11,17 @@ namespace BuildingBlocks.Infrastructure.MassTransit.Configuration;
 
 public static class MassTransitExtensions
 {
+    /// <summary>
+    /// Optional second connection string, injected by the Aspire AppHost only on
+    /// the Azure Service Bus *emulator* path. It targets the emulator's separate
+    /// HTTP management plane (port 5300) for the Service Bus Administration Client,
+    /// while the single <c>messaging</c> string (owned by <see cref="BrokerSelector"/>)
+    /// targets the AMQP data plane (5672). Kept here, not in <see cref="BrokerSelector"/>,
+    /// so the broker-selection module's contract and tests stay untouched; absent it,
+    /// the ASB path uses today's single-connection-string wiring (see ADR-0001).
+    /// </summary>
+    public const string MessagingAdminConnectionStringName = "messaging-admin";
+
     public static IServiceCollection AddMassTransitEventBus<TDbContext>(
         this IServiceCollection services,
         IConfiguration configuration,
@@ -73,33 +86,55 @@ public static class MassTransitExtensions
             // --- Transport branch (the only broker-specific code) ---
             if (selection.Broker == BrokerNames.AzureServiceBus)
             {
+                // The Service Bus emulator splits its data plane (AMQP, port 5672)
+                // from its management plane (HTTP, port 5300). MassTransit's startup
+                // topology creation goes through the Service Bus Administration
+                // Client, which speaks HTTP to the management plane — so the
+                // administration client needs a connection string pointing at 5300,
+                // while the data-plane client uses the 'messaging' string (5672).
+                // One connection string carries one host:port, so it cannot serve
+                // both planes on the emulator (see ADR-0001).
+                //
+                // The AppHost injects a second 'messaging-admin' connection string
+                // ONLY on the emulator path. When present, we build both clients
+                // explicitly and hand them to MassTransit via the
+                // Host(Uri, ServiceBusClient, ServiceBusAdministrationClient)
+                // overload. When absent (a real Azure namespace, where one endpoint
+                // serves both planes, or any non-emulator host), we keep the
+                // original single-connection-string Host(connectionString) path —
+                // zero behaviour change for real namespaces, preserving the
+                // user-secrets 'messaging' override criterion.
+                var adminConnectionString = configuration.GetConnectionString(MessagingAdminConnectionStringName);
+
                 x.UsingAzureServiceBus((context, cfg) =>
                 {
-                    // The broker-selection module already validated this is a
-                    // Service Bus endpoint connection string. For the Aspire
-                    // emulator it is the static emulator string, which carries
-                    // 'UseDevelopmentEmulator=true' — the Azure SDK uses that
-                    // flag to target the emulator's non-TLS AMQP data port (5672)
-                    // instead of the production 443/5671 endpoints. A real Azure
-                    // namespace is the same call with a different connection
-                    // string supplied via user secrets — zero code change.
-                    //
-                    // MANAGEMENT-PORT CAVEAT (see PR body / ADR-0001): MassTransit's
-                    // startup topology creation uses the Service Bus Administration
-                    // Client, whose management operations against the emulator
-                    // require the administration port (default 5300) appended to
-                    // the host. The data plane uses 5672. A single connection
-                    // string carries a single host:port, so we deliberately pass
-                    // the Aspire-provided string through UNMODIFIED rather than
-                    // append :5300 (which would break the data plane). Whether
-                    // 'UseDevelopmentEmulator=true' makes the SDK resolve the
-                    // admin port for topology creation is the one item that can
-                    // only be confirmed by a live emulator run; it is the headline
-                    // manual-QA item. If it fails live, the remedy is a MassTransit
-                    // version bump (8.4.0/9.x), NOT switching to cfg.EmulatorHost()
-                    // — EmulatorHost() ignores the connection string and would
-                    // break the real-namespace zero-code-change override.
-                    cfg.Host(selection.ConnectionString);
+                    if (string.IsNullOrWhiteSpace(adminConnectionString))
+                    {
+                        // Real Azure namespace (or any single-plane host): the
+                        // 'messaging' endpoint serves both data and management.
+                        // A real namespace is supplied via a user-secrets
+                        // 'messaging' override with zero code change.
+                        cfg.Host(selection.ConnectionString);
+                    }
+                    else
+                    {
+                        // Emulator two-plane wiring. The data-plane client targets
+                        // 5672 (the 'messaging' string); the administration client
+                        // targets 5300 (the 'messaging-admin' string). Both carry
+                        // 'UseDevelopmentEmulator=true' so the Azure SDK resolves
+                        // the emulator endpoints (and, on Azure.Messaging.ServiceBus
+                        // >= 7.20.1, honours the explicit admin port rather than
+                        // resetting it). The host Uri is derived from the data-plane
+                        // client's fully-qualified namespace, matching the
+                        // documented MassTransit pattern for preconfigured clients.
+                        var dataClient = new ServiceBusClient(selection.ConnectionString);
+                        var adminClient = new ServiceBusAdministrationClient(adminConnectionString);
+
+                        cfg.Host(
+                            new Uri($"sb://{dataClient.FullyQualifiedNamespace}"),
+                            dataClient,
+                            adminClient);
+                    }
 
                     ConfigureCommon(cfg, context);
                 });
