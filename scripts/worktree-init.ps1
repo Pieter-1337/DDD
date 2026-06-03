@@ -36,16 +36,34 @@ function Invoke-Git {
 # Resolve the root of the *current* worktree (where this script is running).
 $worktreeRoot = (Invoke-Git @('rev-parse', '--show-toplevel')).Trim()
 
-# git rev-parse --git-common-dir may return a relative path for the main
-# checkout (just ".git"), so resolve it to an absolute path.
-$gitCommonDirRaw = (Invoke-Git @('rev-parse', '--git-common-dir')).Trim()
+# git rev-parse --git-common-dir returns a path relative to the *current
+# directory*, not the worktree root — so running this script from a subdir
+# (e.g. scripts/) would otherwise resolve the lock dir incorrectly. Ask git
+# for the absolute path directly (--path-format=absolute, git >= 2.31) so the
+# result is independent of where the script is invoked from.
+$gitCommonDirRaw = (Invoke-Git @('rev-parse', '--path-format=absolute', '--git-common-dir')).Trim()
 # When git returns multiple lines (e.g. warning + path), take only the last.
 if ($gitCommonDirRaw -is [array]) { $gitCommonDirRaw = $gitCommonDirRaw[-1] }
 if ([System.IO.Path]::IsPathRooted($gitCommonDirRaw)) {
     $gitCommonDir = $gitCommonDirRaw
 } else {
+    # Fallback for an ancient git without --path-format: the relative path is
+    # relative to the current directory git ran in, so resolve it against that.
     $gitCommonDir = [System.IO.Path]::GetFullPath(
-        [System.IO.Path]::Combine($worktreeRoot, $gitCommonDirRaw))
+        [System.IO.Path]::Combine((Get-Location).Path, $gitCommonDirRaw))
+}
+
+# Refuse to run in the main checkout. The main checkout is implicitly slot 1
+# and must never carry a .worktree-slot file (that would silently rebind it to
+# another slot's ports/databases). In the main worktree --git-dir and
+# --git-common-dir resolve to the same location; in a linked worktree they differ.
+$gitDirRaw = (Invoke-Git @('rev-parse', '--path-format=absolute', '--git-dir')).Trim()
+if ($gitDirRaw -is [array]) { $gitDirRaw = $gitDirRaw[-1] }
+$gitDirNorm = [System.IO.Path]::GetFullPath($gitDirRaw).TrimEnd('\', '/')
+$gitCommonNorm = [System.IO.Path]::GetFullPath($gitCommonDir).TrimEnd('\', '/')
+if ($gitDirNorm -ieq $gitCommonNorm) {
+    Write-Error "This is the main checkout (implicit slot 1). Run worktree-init.ps1 from inside a NEW git worktree to claim slots 2-5; the main checkout must not carry a .worktree-slot file."
+    exit 1
 }
 
 # The slot file lives inside the AppHost subdir, matching WorktreeSlot.Resolve().
