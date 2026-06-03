@@ -6,6 +6,7 @@ using Identity.WebApi.Data;
 using Identity.WebApi.Models;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 
 /// <summary>
 /// Seeds the identity database with test users, roles, and OAuth clients.
@@ -15,11 +16,13 @@ public class IdentitySeedData : IHostedService
 {
     private readonly IServiceProvider _serviceProvider;
     private readonly IHostEnvironment _environment;
+    private readonly IConfiguration _configuration;
 
-    public IdentitySeedData(IServiceProvider serviceProvider, IHostEnvironment environment)
+    public IdentitySeedData(IServiceProvider serviceProvider, IHostEnvironment environment, IConfiguration configuration)
     {
         _serviceProvider = serviceProvider;
         _environment = environment;
+        _configuration = configuration;
     }
 
     public async Task StartAsync(CancellationToken cancellationToken)
@@ -49,7 +52,12 @@ public class IdentitySeedData : IHostedService
 
         await SeedRolesAsync(scope.ServiceProvider);
         await SeedUsersAsync(scope.ServiceProvider);
-        await SeedIdentityServerConfigurationAsync(scope.ServiceProvider);
+
+        // Read the worktree slot so this Identity instance seeds only its own slot's URLs.
+        // Default 1 (main checkout). The AppHost injects 'worktree-slot' via WithEnvironment
+        // for slots 2–5; slot 1 gets no injection and uses the default.
+        var slot = int.TryParse(_configuration["worktree-slot"], out var s) ? s : 1;
+        await SeedIdentityServerConfigurationAsync(scope.ServiceProvider, slot);
     }
 
     private static async Task EnsureConfigurationSchemaAsync(ConfigurationDbContext context, CancellationToken cancellationToken)
@@ -144,7 +152,7 @@ public class IdentitySeedData : IHostedService
         }
     }
 
-    private static async Task SeedIdentityServerConfigurationAsync(IServiceProvider serviceProvider)
+    private static async Task SeedIdentityServerConfigurationAsync(IServiceProvider serviceProvider, int slot)
     {
         var context = serviceProvider.GetRequiredService<ConfigurationDbContext>();
 
@@ -168,10 +176,10 @@ public class IdentitySeedData : IHostedService
             await context.SaveChangesAsync();
         }
 
-        // Seed Clients
+        // Seed Clients — slot-aware: only this slot's redirect/post-logout/CORS URLs are seeded.
         if (!await context.Clients.AnyAsync())
         {
-            foreach (var client in IdentityServerConfig.Clients)
+            foreach (var client in IdentityServerConfig.Clients(slot))
             {
                 context.Clients.Add(client.ToEntity());
             }

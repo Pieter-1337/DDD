@@ -163,6 +163,40 @@ if (messagingAdminConnectionString is not null)
     billingApi.WithEnvironment("ConnectionStrings__messaging-admin", messagingAdminConnectionString);
 }
 
+// ---------------------------------------------------------------------------
+// Slot-aware auth injections (#15)
+// Slot 1: inject nothing — appsettings.json slot-1 literals govern; behaviour
+//          is byte-for-byte identical to before this change.
+// Slots 2–5: override Authority, CookieName, and CORS origins with slot-derived
+//             values. All injections use env-var form (double-underscore separator)
+//             which beats appsettings/user-secrets in .NET's config precedence.
+// ---------------------------------------------------------------------------
+if (slot > 1)
+{
+    var identityAuthority = $"https://localhost:{WorktreeSlot.Port(7010, slot)}";
+    var cookieName = $"DDD.Auth.S{slot}";
+    var spaOrigin = $"https://localhost:{WorktreeSlot.Port(7003, slot)}";
+    var identityOrigin = identityAuthority;
+
+    // Identity: tell the seed service which slot it is so it generates only
+    // this slot's redirect/post-logout/CORS URLs into its own IdentityDb_S{N}.
+    identityApi.WithEnvironment("worktree-slot", slot.ToString());
+
+    // Scheduling API: override authority, cookie name, and CORS origins.
+    schedulingApi
+        .WithEnvironment("Auth__Authority", identityAuthority)
+        .WithEnvironment("Auth__CookieName", cookieName)
+        .WithEnvironment("Cors__AllowedOrigins__0", spaOrigin)
+        .WithEnvironment("Cors__AllowedOrigins__1", identityOrigin);
+
+    // Billing API: same overrides.
+    billingApi
+        .WithEnvironment("Auth__Authority", identityAuthority)
+        .WithEnvironment("Auth__CookieName", cookieName)
+        .WithEnvironment("Cors__AllowedOrigins__0", spaOrigin)
+        .WithEnvironment("Cors__AllowedOrigins__1", identityOrigin);
+}
+
 //Add Frontends
 // Add Angular app and define script to run on startup serve/start/other...
 builder.AddJavaScriptApp("scheduling-angularapp", "../Frontend/Angular/Scheduling.AngularApp", "start-aspire")

@@ -1,0 +1,28 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <IsPackable>false</IsPackable>
+    <RootNamespace>Identity.WebApi.Tests</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="MSTest.TestAdapter" />
+    <PackageReference Include="MSTest.TestFramework" />
+    <PackageReference Include="Shouldly" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Compile IdentityServerConfig.cs directly so tests cover the exact class
+         without pulling in the full ASP.NET Core web SDK pipeline. -->
+    <Compile Include="..\Identity.WebApi\Config\IdentityServerConfig.cs" Link="Config\IdentityServerConfig.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Duende.IdentityServer" />
+  </ItemGroup>
+
+</Project>
