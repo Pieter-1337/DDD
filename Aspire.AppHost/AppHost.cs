@@ -164,15 +164,15 @@ if (messagingAdminConnectionString is not null)
 }
 
 // ---------------------------------------------------------------------------
-// Slot-aware auth injections (#15)
-// Slot 1: inject nothing — appsettings.json slot-1 literals govern; behaviour
-//          is byte-for-byte identical to before this change.
-// Slots 2–5: override Authority, CookieName, and CORS origins with slot-derived
-//             values. All injections use env-var form (double-underscore separator)
-//             which beats appsettings/user-secrets in .NET's config precedence.
+// Slot-aware per-slot injections (slot ≥ 2 only; slot 1 injects nothing so the
+// appsettings.json slot-1 literals govern and behaviour is byte-for-byte
+// identical to before this change). All injections use env-var form
+// (double-underscore separator), which beats appsettings/user-secrets in
+// .NET's config precedence.
 // ---------------------------------------------------------------------------
 if (slot > 1)
 {
+    // ---- Auth (#15): override Authority, CookieName, and CORS origins. ----
     var identityAuthority = $"https://localhost:{WorktreeSlot.Port(7010, slot)}";
     var cookieName = $"DDD.Auth.S{slot}";
     var spaOrigin = $"https://localhost:{WorktreeSlot.Port(7003, slot)}";
@@ -195,6 +195,27 @@ if (slot > 1)
         .WithEnvironment("Auth__CookieName", cookieName)
         .WithEnvironment("Cors__AllowedOrigins__0", spaOrigin)
         .WithEnvironment("Cors__AllowedOrigins__1", identityOrigin);
+
+    // ---- Database isolation (#14): rewrite only the Initial Catalog token ----
+    // (DDD → DDD_S{N}, IdentityDb → IdentityDb_S{N}). The AppHost shares the
+    // UserSecretsId, so builder.Configuration reads the same base connection
+    // strings the child processes would use.
+    var defaultConnectionBase = builder.Configuration["ConnectionStrings:DefaultConnection"]
+        ?? throw new InvalidOperationException(
+            "Connection string 'DefaultConnection' not found in configuration. " +
+            "Ensure it is set in user secrets (shared UserSecretsId across all projects).");
+
+    var identityDbBase = builder.Configuration["ConnectionStrings:IdentityDb"]
+        ?? throw new InvalidOperationException(
+            "Connection string 'IdentityDb' not found in configuration. " +
+            "Ensure it is set in user secrets (shared UserSecretsId across all projects).");
+
+    var defaultConnectionSlotted = WorktreeSlot.WithSlotDatabase(defaultConnectionBase, slot);
+    var identityDbSlotted = WorktreeSlot.WithSlotDatabase(identityDbBase, slot);
+
+    schedulingApi.WithEnvironment("ConnectionStrings__DefaultConnection", defaultConnectionSlotted);
+    billingApi.WithEnvironment("ConnectionStrings__DefaultConnection", defaultConnectionSlotted);
+    identityApi.WithEnvironment("ConnectionStrings__IdentityDb", identityDbSlotted);
 }
 
 //Add Frontends

@@ -39,6 +39,10 @@ builder.Services.AddSchedulingInfrastructure(connectionString);
 builder.Services.AddSchedulingApplication();
 builder.Services.AddDefaultPipelineBehaviors();
 
+// Dev-only: create + migrate the Scheduling database on startup so booting a new
+// worktree slot requires no manual 'dotnet ef database update' step.
+builder.Services.AddHostedService<DatabaseMigrator>();
+
 // Add MassTransit for event-driven messaging
 builder.Services.AddMassTransitEventBus<SchedulingDbContext>(builder.Configuration, configure =>
 {
