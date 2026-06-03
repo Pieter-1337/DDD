@@ -1,3 +1,5 @@
+using System.Data.Common;
+
 namespace Aspire.AppHost;
 
 /// <summary>
@@ -49,6 +51,30 @@ internal static class WorktreeSlot
     /// <c>Port(base, slot) = base + 100 * (slot - 1)</c>
     /// </summary>
     internal static int Port(int basePort, int slot) => basePort + 100 * (slot - 1);
+
+    /// <summary>
+    /// Rewrites the <c>Initial Catalog</c> token of <paramref name="connectionString"/>
+    /// to <c>{catalog}_S{slot}</c>.  Only called for slot ≥ 2; slot 1 injects nothing.
+    /// Throws if <c>Initial Catalog</c> is absent — a missing catalog would silently
+    /// connect to the wrong database, defeating the isolation that is the whole point.
+    /// Uses <see cref="DbConnectionStringBuilder"/> (in-framework, no extra packages)
+    /// which parses/rewrites generically and does case-insensitive key lookup.
+    /// Note: <see cref="DbConnectionStringBuilder"/> may reorder tokens; that is
+    /// harmless because the result is only consumed by SQL Server connection logic.
+    /// </summary>
+    internal static string WithSlotDatabase(string connectionString, int slot)
+    {
+        var csb = new DbConnectionStringBuilder { ConnectionString = connectionString };
+        const string key = "Initial Catalog";
+        if (!csb.ContainsKey(key))
+            throw new InvalidOperationException(
+                $"No '{key}' token found in connection string. " +
+                $"Cannot suffix database for slot {slot}. " +
+                $"Connection string: {connectionString}");
+
+        csb[key] = $"{csb[key]}_S{slot}";
+        return csb.ConnectionString;
+    }
 
     private static int Parse(string value, string source)
     {

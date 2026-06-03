@@ -41,6 +41,10 @@ builder.Services.AddBillingInfrastructure(connectionString);
 builder.Services.AddBillingApplication();
 builder.Services.AddDefaultPipelineBehaviors();
 
+// Dev-only: create + migrate the Billing database on startup so booting a new
+// worktree slot requires no manual 'dotnet ef database update' step.
+builder.Services.AddHostedService<DatabaseMigrator>();
+
 // Add event-driven messaging (configurable: Wolverine or MassTransit)
 var messagingFramework = builder.Configuration.GetValue<string>("MessagingFramework") ?? "Wolverine";
 
