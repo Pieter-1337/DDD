@@ -63,6 +63,21 @@ A slice is not "done" when the PR opens — it's done when the PR merges. The or
 
 The orchestrator does not auto-merge. PRs go through human review like any other change — see [Stacking and merge cadence](#stacking-and-merge-cadence).
 
+## Concurrent-live-worktree ceiling
+
+The orchestrator throttles the DAG to at most **4 live worker worktrees at a time** (slots 2–5 in the [slot model](../../docs/adr/0002-worktree-slots.md); slot 1 is the human's main checkout). A slice that is DAG-ready — all its blockers merged — but cannot claim a slot waits and logs "waiting for a slot to free". It is reconsidered automatically when a slot releases on merge or failure.
+
+The ceiling is a single named constant (`MAX_WORKER_SLOTS = 4`) in the scheduling loop. Raising it requires bumping that constant and having the RAM: each live slot runs an API trio plus a broker; on the ASB path that is two containers per slot. There is no callback registration or static slot-list change involved — the auth layer is no longer the constraint.
+
+The two-gate design keeps the ceiling robust in the face of humans also using worktrees:
+
+1. **Fast gate** — the orchestrator's own in-flight count. Cheap; catches the common case.
+2. **Hard gate** — `scripts/worktree-init.ps1` scans `git worktree list` and the `.worktree-slot` files in each worktree, claims the lowest free slot under a lockfile in the git common dir, and exits non-zero if all four are taken. This catches any slot a human grabbed mid-run that the orchestrator does not know about.
+
+Both gates route a starved slice to the same waiting path. On merge or failure, `scripts/worktree-destroy.ps1` drops the slot's databases and releases the slot number (deleting the `.worktree-slot` marker) before the harness removes the worktree directory, so the next waiting slice can proceed.
+
+See [`app-do-prd/SKILL.md` §4a](../../.claude/skills/app-do-prd/SKILL.md) for the pseudocode.
+
 ## Agent auto-routing
 
 Each ready slice gets routed to a **specialist** primary agent based on the paths it touches — `backend-engineer`, `frontend-engineer`, or `documenter`. There is no generic fallback. Mixed BE+FE issues default to `backend-engineer` (FE typically consumes BE), which self-spawns `frontend-engineer` sub-agents in-band when the work crosses domains.
