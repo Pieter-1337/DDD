@@ -1,0 +1,34 @@
+WebApplications/Billing.WebApi/DatabaseMigrator.cs
+  s_a14b416f487d13::t_726fe20f484121 1-33
+Aspire.AppHost.Tests/WorktreeSlotTests.cs
+  s_a14b416f487d13::t_8ccdfe24844622 203-237,241-251
+  s_a14b416f487d13::t_e33c5e03de4155 238-240
+WebApplications/Scheduling.WebApi/Program.cs
+  s_a14b416f487d13::t_1f3de9ad6df2e6 42-45
+WebApplications/Scheduling.WebApi/DatabaseMigrator.cs
+  s_a14b416f487d13::t_235f20112d4f1e 1-33
+Aspire.AppHost/AppHost.cs
+  s_a14b416f487d13::t_f55d2b0cd97836 173,178
+  s_a14b416f487d13::t_e9e0ad1fb6aa2c 166-172,174-177,179-190
+WebApplications/Billing.WebApi/Program.cs
+  s_a14b416f487d13::t_960016efb4038d 44-47
+Aspire.AppHost/WorktreeSlot.cs
+  s_a14b416f487d13::t_38fb356bc14ace 1-2
+  s_a14b416f487d13::t_c8ea1db51d8a5d 55-78
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "5ed16ca8ec96e5263925101b5f782704cdb90eb1",
+  "prompts": {},
+  "sessions": {
+    "s_a14b416f487d13": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2d4d0f6a-b68f-42de-ab2d-da6283366436",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Pieter Bracke <pieter.bracke@euri.com>"
+    }
+  }
+}
