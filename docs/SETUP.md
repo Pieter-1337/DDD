@@ -156,6 +156,7 @@ Two things do **not** carry over into a fresh worktree:
   ```powershell
   npm ci --prefix <worktree-path>\Frontend\Angular\Scheduling.AngularApp
   ```
+  On Windows, first enable long paths (see [Windows long paths](#windows-long-paths-required-for-the-angular-spa-in-worktrees) below) — otherwise this install silently drops the most deeply-nested files. Note: booting the slot via Aspire (`dotnet run --project Aspire.AppHost`) also runs `npm install` for you, so an explicit `npm ci` is only needed to prep the SPA *before* launching.
 - **Local mkcert certificates** — seeded **only when Claude Code creates the worktree**. The repo-root `.worktreeinclude` lists `Frontend/Angular/Scheduling.AngularApp/certs/local-cert.pem` and `local-key.pem`, and the harness copies them into worktrees it creates. This is keyed to the harness's creation step, **not** the directory — a worktree made with a plain `git worktree add` (even one placed under `.claude/worktrees/`) does **not** get them. For those, regenerate the certs per `Frontend\Angular\Scheduling.AngularApp\certs\README.md`, or just create the worktree via Claude.
 
 ### Creating a worktree
@@ -167,6 +168,28 @@ Two things do **not** carry over into a fresh worktree:
 | A worktree you boot and reuse | `claude --worktree <name>` → `.claude/worktrees/<name>` (keep it when prompted) | Persists |
 | An agent to work in isolation | spawn with `isolation: worktree` (e.g. `/app-do-prd`) | Ephemeral — auto-cleaned when the agent finishes without changes |
 | Full manual control | `git worktree add <path>` | You manage cleanup — and must seed the certs yourself |
+
+### Windows long paths (required for the Angular SPA in worktrees)
+
+A worktree path like `.claude\worktrees\<name>\` plus Angular's deeply-nested `node_modules\@angular\material\…` can exceed Windows' 260-char `MAX_PATH`. When it does, **npm silently fails to write the deepest files** — typically some `@angular/material` `.d.ts` declarations — and the SPA build then fails with `TS7016: Could not find a declaration file for module '@angular/material/toolbar'` (plus a cascading `NG1010`). The package versions look correct; the install is just incomplete.
+
+Enable long-path support once so installs under deep worktree paths complete:
+
+```powershell
+git config --global core.longpaths true                       # git half (no admin)
+# OS half — run in an ELEVATED PowerShell (Run as Administrator):
+Set-ItemProperty 'HKLM:\SYSTEM\CurrentControlSet\Control\FileSystem' -Name LongPathsEnabled -Value 1 -Type DWord
+```
+
+`LongPathsEnabled` only applies to newly-started processes, so reopen your terminal (and restart Aspire) afterwards. If a worktree was installed *before* enabling it, reinstall cleanly so the missing files get written:
+
+```powershell
+$spa = '<worktree-path>\Frontend\Angular\Scheduling.AngularApp'
+Remove-Item "$spa\node_modules" -Recurse -Force
+npm --prefix $spa ci
+```
+
+Verify by comparing the `@angular/material` file count against the main checkout. If you'd rather not enable long paths, create the worktree at a short path instead (e.g. `git worktree add C:\w\<name>`).
 
 ### Running more than one instance at once (worktree slots)
 
