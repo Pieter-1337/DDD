@@ -631,6 +631,7 @@ Message Published
 6. **06-sagas-orchestration.md** - Saga pattern for distributed workflows
 7. **07-event-versioning.md** - Schema evolution and backwards compatibility
 8. **08-transactional-outbox.md** - Transactional Outbox Pattern (MassTransit EF Core Outbox + Wolverine Alternative)
+9. **09-broker-framework-matrix.md** - Supported messaging-framework × broker combinations (works / fails / not-wired), the deliberately-dead interop cell, and the system-wide alignment constraint
 
 ---
 
