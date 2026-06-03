@@ -1,0 +1,35 @@
+.claude/skills/ddd-backend-unit-test/SKILL.md
+  s_c2c88f09fcc690::t_3c7d946477eb7e 1-214
+.claude/skills/ddd-frontend-feature/SKILL.md
+  s_c2c88f09fcc690::t_25c276edc31f56 1-303
+.claude/skills/ddd-backend-module/SKILL.md
+  s_c2c88f09fcc690::t_b0f48e48b69249 1-291
+.claude/skills/ddd-ef-seed/SKILL.md
+  s_c2c88f09fcc690::t_3e13faf9e3fc09 1-117
+.claude/skills/ddd-backend-integration-test/SKILL.md
+  s_c2c88f09fcc690::t_25e6bf7cf74887 1-163
+.claude/skills/ddd-ef-migration/SKILL.md
+  s_c2c88f09fcc690::t_8afbc120c8c6f7 1-100
+.claude/skills/commit/SKILL.md
+  s_c2c88f09fcc690::t_7d972d74740658 53
+.claude/skills/ddd-backend-slice/SKILL.md
+  s_c2c88f09fcc690::t_8d5ed3825d9641 1-265
+.claude/skills/ddd-frontend-form/SKILL.md
+  s_c2c88f09fcc690::t_1d9a38c7372a51 1-182
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "af038534c8d7511b3d06ee799ec2abf19eb98ef8",
+  "prompts": {},
+  "sessions": {
+    "s_c2c88f09fcc690": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "06e3fd78-bdb6-4006-86c4-ff628e9e90f7",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Pieter Bracke <pieter.bracke@euri.com>"
+    }
+  }
+}
