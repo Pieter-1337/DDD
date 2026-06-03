@@ -1,0 +1,19 @@
+Aspire.AppHost.Tests/WorktreeSlotTests.cs
+  s_a14b416f487d13::t_98c648692c7684 169-202
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "1f6e2e181f6ba01f134af38f63389915076a08bd",
+  "prompts": {},
+  "sessions": {
+    "s_a14b416f487d13": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2d4d0f6a-b68f-42de-ab2d-da6283366436",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Pieter Bracke <pieter.bracke@euri.com>"
+    }
+  }
+}
