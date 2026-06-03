@@ -66,35 +66,11 @@ if ($gitDirNorm -ieq $gitCommonNorm) {
     exit 1
 }
 
-# ---------------------------------------------------------------------------
-# Copy gitignored local-dev assets that `git worktree add` never materializes
-# (it only checks out tracked files). The repo-root .worktreeinclude manifest
-# lists them, one path per line ('#' comments allowed) — the same file the
-# Claude Code harness uses to seed agent worktrees. Honouring it here gives a
-# MANUAL slot worktree the same assets (e.g. the Angular mkcert dev certs), so
-# "init the worktree" == "ready to run". Source is the main checkout (parent of
-# the git common dir). The "destination missing" guard means a tracked file is
-# never duplicated; the copy is idempotent.
-# ---------------------------------------------------------------------------
-$mainRoot = [System.IO.Path]::GetDirectoryName($gitCommonNorm)
-$includeManifest = [System.IO.Path]::Combine($worktreeRoot, '.worktreeinclude')
-if (Test-Path -LiteralPath $includeManifest) {
-    foreach ($line in Get-Content -LiteralPath $includeManifest) {
-        $rel = $line.Trim()
-        if ($rel.Length -eq 0 -or $rel.StartsWith('#')) { continue }
-        $rel = $rel.Replace('/', [System.IO.Path]::DirectorySeparatorChar)
-        $src = [System.IO.Path]::Combine($mainRoot, $rel)
-        $dst = [System.IO.Path]::Combine($worktreeRoot, $rel)
-        if ((Test-Path -LiteralPath $src) -and -not (Test-Path -LiteralPath $dst)) {
-            $dstParent = [System.IO.Path]::GetDirectoryName($dst)
-            if (-not (Test-Path -LiteralPath $dstParent)) {
-                New-Item -ItemType Directory -Path $dstParent -Force | Out-Null
-            }
-            Copy-Item -LiteralPath $src -Destination $dst -Recurse
-            Write-Host "Copied worktree-include asset: $rel" -ForegroundColor Gray
-        }
-    }
-}
+# Note: gitignored local-dev assets (e.g. the Angular mkcert certs listed in
+# the repo-root .worktreeinclude) are seeded by the Claude Code harness when it
+# creates the worktree (`claude --worktree`, subagent `isolation: worktree`).
+# This script does not copy them — create worktrees via Claude, or regenerate
+# the certs per Frontend/Angular/Scheduling.AngularApp/certs/README.md.
 
 # The slot file lives inside the AppHost subdir, matching WorktreeSlot.Resolve().
 $slotFile = [System.IO.Path]::Combine($worktreeRoot, 'Aspire.AppHost', '.worktree-slot')

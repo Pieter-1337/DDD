@@ -148,7 +148,7 @@ It also seeds Duende clients, API scopes, and identity resources into `IdentityD
 
 ## Working in a git worktree (e.g. agent worktrees)
 
-Background agents create isolated checkouts under `.claude/worktrees/`. Most of the setup above **carries over for free** because it lives outside the repo and is shared per-Windows-user: user secrets, the LocalDB databases, and the `C:\SharedKeys\DDD` Data Protection keys are all visible from any worktree without re-running steps 1, 3, or 4.
+Background agents and `claude --worktree` create isolated checkouts under `.claude/worktrees/`. Most of the setup above **carries over for free** because it lives outside the repo and is shared per-Windows-user: user secrets, the LocalDB databases, and the `C:\SharedKeys\DDD` Data Protection keys are all visible from any worktree without re-running steps 1, 3, or 4.
 
 Two things do **not** carry over into a fresh worktree:
 
@@ -156,9 +156,36 @@ Two things do **not** carry over into a fresh worktree:
   ```powershell
   npm ci --prefix <worktree-path>\Frontend\Angular\Scheduling.AngularApp
   ```
-- **Local mkcert certificates** — copied automatically. The repo-root `.worktreeinclude` lists `Frontend/Angular/Scheduling.AngularApp/certs/local-cert.pem` and `local-key.pem`, so Claude Code seeds them into each new worktree. (If you create a worktree by other means, regenerate them per `Frontend\Angular\Scheduling.AngularApp\certs\README.md`.)
+- **Local mkcert certificates** — seeded **only when Claude Code creates the worktree**. The repo-root `.worktreeinclude` lists `Frontend/Angular/Scheduling.AngularApp/certs/local-cert.pem` and `local-key.pem`, and the harness copies them into worktrees it creates. This is keyed to the harness's creation step, **not** the directory — a worktree made with a plain `git worktree add` (even one placed under `.claude/worktrees/`) does **not** get them. For those, regenerate the certs per `Frontend\Angular\Scheduling.AngularApp\certs\README.md`, or just create the worktree via Claude.
 
-Only one Aspire instance can run at a time — every checkout pins the same ports (7001/7002/7003/7010), so stop the AppHost in one worktree before launching it in another.
+### Creating a worktree
+
+`.worktreeinclude` (and the cert seeding above) only fires when **Claude Code** creates the worktree, so prefer that:
+
+| You want | Use | Lifetime |
+| --- | --- | --- |
+| A worktree you boot and reuse | `claude --worktree <name>` → `.claude/worktrees/<name>` (keep it when prompted) | Persists |
+| An agent to work in isolation | spawn with `isolation: worktree` (e.g. `/app-do-prd`) | Ephemeral — auto-cleaned when the agent finishes without changes |
+| Full manual control | `git worktree add <path>` | You manage cleanup — and must seed the certs yourself |
+
+### Running more than one instance at once (worktree slots)
+
+The AppHost derives every port from a single **slot** integer (1–5), so multiple checkouts can run live side by side without colliding. Slot 1 is the main checkout (unchanged byte-for-byte); slots 2–5 offset every port by `+100 × (slot − 1)` and get their own `DDD_S{N}` / `IdentityDb_S{N}` databases. Full design: **`docs/adr/0002-worktree-slots.md`**.
+
+From inside a new worktree, claim a slot, then boot:
+
+```powershell
+.\scripts\worktree-init.ps1            # claims the lowest free slot 2-5, writes Aspire.AppHost/.worktree-slot
+dotnet run --project Aspire.AppHost    # binds the slot's offset ports + creates/migrates its databases on boot
+```
+
+When you're done with the slot, release it (drops its databases and frees the slot; refuses on slot 1):
+
+```powershell
+.\scripts\worktree-destroy.ps1
+```
+
+`worktree-init.ps1` must be run from inside the worktree (not the main checkout — it refuses there) and serializes slot claims with a lockfile in the git common dir.
 
 ---
 
