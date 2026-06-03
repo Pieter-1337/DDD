@@ -1,0 +1,19 @@
+docs/requirements/native-framework-flows.md
+  s_f055e9e8b1df42::t_ca6219ba2529d8 1-60
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "26ffb263f7bd53fa7a91edbb730bf6ebae5d7071",
+  "prompts": {},
+  "sessions": {
+    "s_f055e9e8b1df42": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d734305b-61c0-4d9f-9271-b2bfe818a011",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Pieter Bracke <pieter.bracke@euri.com>"
+    }
+  }
+}
