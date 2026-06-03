@@ -1,0 +1,20 @@
+docs/SETUP.md
+  s_a14b416f487d13::t_3e6f89e880ae4f 159
+  s_a14b416f487d13::t_359146199ec74c 172-193
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "a46acbd21aaf71680e3c9432f64fd80c7d1346ba",
+  "prompts": {},
+  "sessions": {
+    "s_a14b416f487d13": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2d4d0f6a-b68f-42de-ab2d-da6283366436",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Pieter Bracke <pieter.bracke@euri.com>"
+    }
+  }
+}
