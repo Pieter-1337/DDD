@@ -61,8 +61,31 @@ If a child issue's body has no path signal that matches any rule, halt and repor
 while any issue in {pending, in-flight}:
 
     # 4a. Launch newly-ready slices
+    #
+    # MAX_WORKER_SLOTS = 4   (slots 2–5; slot 1 is the human's main checkout)
+    # Raising this constant gains capacity at the cost of RAM — no callback
+    # registration or static slot-list changes required (no longer auth-coupled).
+    #
     for issue in pending where all blockers are merged
                          AND no worker currently running for it:
+
+        # Slot gate: the orchestrator's in-flight count is the fast check.
+        if len(in-flight workers) >= MAX_WORKER_SLOTS:
+            log "waiting for a slot to free (in-flight: {count}/{MAX_WORKER_SLOTS})"
+            skip this issue for now; reconsider when a slot releases
+            continue
+
+        # Fast gate passed — attempt authoritative allocation.
+        # worktree-init.ps1 scans all live worktrees + .worktree-slot files and
+        # claims the lowest free slot under a lockfile in the git common dir.
+        # It is the hard guard: it also catches any slot a human grabbed mid-run
+        # that the orchestrator's in-flight count doesn't know about.
+        run `scripts/worktree-init.ps1` in the target worktree
+        if worktree-init exits non-zero ("no free slot"):
+            log "waiting for a slot to free (worktree-init reports all 4 slots taken)"
+            skip this issue for now; reconsider when a slot releases
+            continue
+
         spawn Agent with:
             subagent_type      = agent_type for issue
             isolation          = "worktree" if --worktrees else current
@@ -129,8 +152,12 @@ while any issue in {pending, in-flight}:
              stay unresolved or reviewer findings stay unaddressed — see §6)
 
       • PR merged (by human, or by orchestrator when --auto-merge=true)
+            → run `scripts/worktree-destroy.ps1` in the slice's worktree
+              (drops DDD_S{N} + IdentityDb_S{N} and releases the slot)
+              BEFORE the harness removes the worktree directory
             → mark issue = merged
-            → recompute the ready set; loop continues
+            → recompute the ready set; loop continues (a waiting slice may
+              now satisfy the slot gate)
 
       • Worker halts with explicit failure (no PR opened, or stuck mid-work,
         or iterate-mode budget exhausted without making the PR mergeable)
@@ -178,6 +205,8 @@ if ready_to_merge(pr):
     gh pr merge <pr-num> --squash --delete-branch --repo <repo>
     # (--squash / --merge / --rebase per the repo's default; check via
     #  `gh repo view --json mergeCommitAllowed,squashMergeAllowed,rebaseMergeAllowed`)
+    # After merge: run `scripts/worktree-destroy.ps1` to release the slot
+    # (same cleanup path as the §4b merged event — see there for details).
 else:
     # Trigger iterate mode (§5) — one attempt to resolve the blockers.
     # After that single attempt, re-check readiness; if still not met,
@@ -200,10 +229,11 @@ Edge cases:
 When a worker halts with an unrecoverable failure (NOT a one-attempt iterate-mode blocker — that's §5; NOT a missing-PR worker bail — that's §4a-finisher, which the orchestrator runs deterministically before falling through to here):
 
 1. **One diagnostic re-spawn.** Re-launch the same worker against the same issue, passing the previous attempt's last error / "stuck" summary explicitly in the prompt. Often a second attempt with diagnostic context succeeds where the first didn't.
-2. **If still failing**, branch on `--on-failure`:
+2. **If still failing**, run `scripts/worktree-destroy.ps1` in the slice's worktree — drops the slot databases and releases the slot number BEFORE the harness cleans the worktree. Note: `worktree-destroy.ps1` deletes only the DBs and the `.worktree-slot` marker file; the git worktree directory + branch + worker summary are preserved for human diagnosis (see §8 and the manual rescue path). A waiting slice may now satisfy the slot gate.
+3. Branch on `--on-failure`:
    - `continue-siblings` (default): mark the slice failed, preserve the worktree + branch + worker summary, log the failure, **continue launching independent siblings**. The DAG knows which open issues do NOT transitively depend on this slice — those keep flowing.
    - `halt`: stop all launches, surface immediately.
-3. **Halt unconditionally** when every remaining `pending` issue transitively depends on a failed slice — there's nothing useful left to launch.
+4. **Halt unconditionally** when every remaining `pending` issue transitively depends on a failed slice — there's nothing useful left to launch.
 
 ### 8. Final report
 
