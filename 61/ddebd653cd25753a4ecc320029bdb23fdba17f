@@ -1,0 +1,19 @@
+Frontend/Angular/Scheduling.AngularApp/src/environments/environment.ts
+  s_a14b416f487d13::t_c82ebdd0d69134 1-16,19-20
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "61ddebd653cd25753a4ecc320029bdb23fdba17f",
+  "prompts": {},
+  "sessions": {
+    "s_a14b416f487d13": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2d4d0f6a-b68f-42de-ab2d-da6283366436",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Pieter Bracke <pieter.bracke@euri.com>"
+    }
+  }
+}
