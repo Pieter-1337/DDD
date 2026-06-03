@@ -1,4 +1,38 @@
+using Aspire.AppHost;
 using BuildingBlocks.Application.Messaging;
+
+// ---------------------------------------------------------------------------
+// Worktree slot — resolved BEFORE CreateBuilder so we can offset the Aspire
+// dashboard/OTLP/resource-service ports via env vars that beat launchSettings.
+//
+// Source priority (highest first):
+//   1. 'worktree-slot' environment variable
+//   2. First line of Aspire.AppHost/.worktree-slot  (gitignored)
+//   3. Default: 1
+//
+// Slot 1 = main checkout; reproduces today's behaviour byte-for-byte (no env
+// vars set, no volume changes, no container-name changes).
+// Slots 2–5 = agent / developer worktrees; all ports shifted by +100*(slot-1).
+// ---------------------------------------------------------------------------
+var appHostDir = AppContext.BaseDirectory; // bin/Debug/net9.0 — resolve relative at runtime
+// Walk up from bin/… to the project directory so the .worktree-slot file is found
+// whether we're launched from Visual Studio, `dotnet run`, or the Aspire runner.
+var projectDir = FindProjectDirectory(appHostDir) ?? appHostDir;
+var slot = WorktreeSlot.Resolve(projectDir);
+
+// For slot >= 2: offset the dashboard UI, OTLP, and resource-service ports so two
+// live Aspire instances don't collide on those well-known localhost ports.
+// For slot 1: set nothing — let launchSettings.json govern exactly as before.
+//
+// Acceptance check #1: The Aspire dashboard UI is served on the AppHost process's
+// own ASPNETCORE_URLS (the "Login to the dashboard at https://localhost:NNNNN" URL).
+// Setting ASPNETCORE_URLS here, before CreateBuilder, overrides launchSettings at
+// process-start time, so the dashboard UI port moves without editing launchSettings.
+// This satisfies check #1 purely from Program.cs — no thin launch wrapper needed.
+if (slot > 1)
+{
+    OffsetDashboardPorts(slot);
+}
 
 var builder = DistributedApplication.CreateBuilder(args);
 
@@ -72,25 +106,47 @@ if (string.Equals(brokerChoice, BrokerNames.AzureServiceBus, StringComparison.Or
 }
 else
 {
-    // RabbitMQ (default) — exactly as before: management plugin + data volume.
+    // RabbitMQ (default).
+    // Slot 1: keep .WithDataVolume() for durable broker state — today's behaviour.
+    // Slots 2–5: ephemeral (no volume); scratch worktrees need no broker durability.
+    //
+    // Container naming:
+    // Aspire/DCP generates container names from the resource name + a per-run
+    // random suffix (e.g. "messaging-abc12345"). That suffix makes simultaneous
+    // multi-slot boots safe on the *name* — two slots don't collide.
+    // However, Docker volumes ARE deterministic by name (.WithDataVolume uses
+    // a fixed name derived from the solution/project). Removing .WithDataVolume()
+    // for slots 2–5 eliminates the only deterministic shared-state collision path.
+    //
+    // Acceptance check #2: because DCP appends a random run suffix to container
+    // names, two simultaneous RabbitMQ containers (slot 1 + slot 2) will have
+    // distinct Docker names without any additional .WithContainerName call.
+    // The only collision risk was the data volume; that is resolved by the
+    // conditional below. No .WithContainerName override needed.
     var messagingPassword = builder.AddParameter("messaging-password");
-    messaging = builder.AddRabbitMQ("messaging", password: messagingPassword)
-        .WithManagementPlugin()
-        .WithDataVolume();
+    var rabbitMq = builder.AddRabbitMQ("messaging", password: messagingPassword)
+        .WithManagementPlugin();
+
+    if (slot == 1)
+    {
+        rabbitMq.WithDataVolume();
+    }
+
+    messaging = rabbitMq;
 }
 
-// Add Apis
+// Add Apis — ports derived from slot: value(base) = base + 100 * (slot - 1)
 var identityApi = builder.AddProject<Projects.Identity_WebApi>("identity-webapi")
-    .WithHttpsEndpoint(port: 7010, name: "identity-https");
+    .WithHttpsEndpoint(port: WorktreeSlot.Port(7010, slot), name: "identity-https");
 
 var schedulingApi = builder.AddProject<Projects.Scheduling_WebApi>("scheduling-webapi")
-    .WithHttpsEndpoint(port: 7001, name: "scheduling-https")
+    .WithHttpsEndpoint(port: WorktreeSlot.Port(7001, slot), name: "scheduling-https")
     .WithReference(messaging)
     .WithReference(identityApi)
     .WaitFor(messaging);
 
 var billingApi = builder.AddProject<Projects.Billing_WebApi>("billing-webapi")
-    .WithHttpsEndpoint(port: 7002, name: "billing-https")
+    .WithHttpsEndpoint(port: WorktreeSlot.Port(7002, slot), name: "billing-https")
     .WithReference(messaging)
     .WithReference(identityApi)
     .WaitFor(messaging);
@@ -113,7 +169,83 @@ builder.AddJavaScriptApp("scheduling-angularapp", "../Frontend/Angular/Schedulin
     .WithReference(schedulingApi)
     .WithReference(billingApi)
     .WithReference(identityApi)
-    .WithHttpsEndpoint(port: 7003, env: "PORT")
+    .WithHttpsEndpoint(port: WorktreeSlot.Port(7003, slot), env: "PORT")
     .WithExternalHttpEndpoints();
 
 builder.Build().Run();
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+/// <summary>
+/// Offsets the Aspire dashboard UI, OTLP, and resource-service ports by
+/// <c>100 * (slot - 1)</c> so concurrent slots don't collide on those ports.
+/// Sets env vars BEFORE CreateBuilder so they override launchSettings.json values.
+/// Only called for slot &gt;= 2; slot 1 leaves launchSettings in control.
+/// </summary>
+static void OffsetDashboardPorts(int slot)
+{
+    var offset = 100 * (slot - 1);
+    OffsetUrlEnvVar("ASPNETCORE_URLS", offset);
+    OffsetUrlEnvVar("ASPIRE_DASHBOARD_OTLP_ENDPOINT_URL", offset);
+    OffsetUrlEnvVar("ASPIRE_DASHBOARD_MCP_ENDPOINT_URL", offset);
+    OffsetUrlEnvVar("ASPIRE_RESOURCE_SERVICE_ENDPOINT_URL", offset);
+}
+
+/// <summary>
+/// Reads the current value of <paramref name="varName"/>, bumps every port in
+/// every URL (semicolon-separated) by <paramref name="offset"/>, and writes
+/// it back via <see cref="Environment.SetEnvironmentVariable"/>.
+/// If the variable is not set, the call is a no-op — the Aspire host will
+/// allocate a dynamic port of its own.
+/// </summary>
+static void OffsetUrlEnvVar(string varName, int offset)
+{
+    var current = Environment.GetEnvironmentVariable(varName);
+    if (string.IsNullOrEmpty(current))
+        return;
+
+    var urls = current.Split(';', StringSplitOptions.RemoveEmptyEntries);
+    var bumped = urls.Select(url => BumpPort(url, offset));
+    Environment.SetEnvironmentVariable(varName, string.Join(";", bumped));
+}
+
+/// <summary>
+/// Parses <paramref name="url"/> with <see cref="UriBuilder"/> and adds
+/// <paramref name="offset"/> to its port. Returns the original string unchanged
+/// if the URL cannot be parsed or has no explicit port.
+/// </summary>
+static string BumpPort(string url, int offset)
+{
+    try
+    {
+        var ub = new UriBuilder(url);
+        if (ub.Port > 0)
+        {
+            ub.Port += offset;
+            return ub.Uri.ToString().TrimEnd('/');
+        }
+    }
+    catch (UriFormatException) { /* fall through */ }
+    return url;
+}
+
+/// <summary>
+/// Walks up the directory tree from <paramref name="startDirectory"/> looking
+/// for the Aspire.AppHost.csproj file so the .worktree-slot file is resolved
+/// relative to the project root regardless of whether the AppHost is launched
+/// from Visual Studio, <c>dotnet run</c>, or the Aspire runner (which sets
+/// BaseDirectory to <c>bin/Debug/net9.0</c>).
+/// </summary>
+static string? FindProjectDirectory(string startDirectory)
+{
+    var dir = new DirectoryInfo(startDirectory);
+    while (dir is not null)
+    {
+        if (dir.GetFiles("Aspire.AppHost.csproj").Length > 0)
+            return dir.FullName;
+        dir = dir.Parent;
+    }
+    return null;
+}
