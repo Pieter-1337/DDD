@@ -1,0 +1,19 @@
+.gitignore
+  s_f055e9e8b1df42::t_fcab095952d3ce 363-367
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "9328d016939fada6e3a410ad21fc948c6291a7c5",
+  "prompts": {},
+  "sessions": {
+    "s_f055e9e8b1df42": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d734305b-61c0-4d9f-9271-b2bfe818a011",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Pieter Bracke <pieter.bracke@euri.com>"
+    }
+  }
+}
