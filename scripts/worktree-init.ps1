@@ -68,26 +68,30 @@ if ($gitDirNorm -ieq $gitCommonNorm) {
 
 # ---------------------------------------------------------------------------
 # Copy gitignored local-dev assets that `git worktree add` never materializes
-# (it only checks out tracked files) but the stack needs to run. The Angular
-# dev server requires the mkcert certs under Frontend/.../certs; they are
-# localhost certs, not slot-specific, so copying them from the main checkout is
-# safe and makes "init the worktree" = "ready to run". Idempotent: only copies
-# what is missing. The main checkout is the parent of the git common dir.
+# (it only checks out tracked files). The repo-root .worktreeinclude manifest
+# lists them, one path per line ('#' comments allowed) — the same file the
+# Claude Code harness uses to seed agent worktrees. Honouring it here gives a
+# MANUAL slot worktree the same assets (e.g. the Angular mkcert dev certs), so
+# "init the worktree" == "ready to run". Source is the main checkout (parent of
+# the git common dir). The "destination missing" guard means a tracked file is
+# never duplicated; the copy is idempotent.
 # ---------------------------------------------------------------------------
 $mainRoot = [System.IO.Path]::GetDirectoryName($gitCommonNorm)
-$certRel = [System.IO.Path]::Combine('Frontend', 'Angular', 'Scheduling.AngularApp', 'certs')
-$srcCerts = [System.IO.Path]::Combine($mainRoot, $certRel)
-$dstCerts = [System.IO.Path]::Combine($worktreeRoot, $certRel)
-if (Test-Path -LiteralPath $srcCerts) {
-    foreach ($pem in 'local-cert.pem', 'local-key.pem') {
-        $src = [System.IO.Path]::Combine($srcCerts, $pem)
-        $dst = [System.IO.Path]::Combine($dstCerts, $pem)
+$includeManifest = [System.IO.Path]::Combine($worktreeRoot, '.worktreeinclude')
+if (Test-Path -LiteralPath $includeManifest) {
+    foreach ($line in Get-Content -LiteralPath $includeManifest) {
+        $rel = $line.Trim()
+        if ($rel.Length -eq 0 -or $rel.StartsWith('#')) { continue }
+        $rel = $rel.Replace('/', [System.IO.Path]::DirectorySeparatorChar)
+        $src = [System.IO.Path]::Combine($mainRoot, $rel)
+        $dst = [System.IO.Path]::Combine($worktreeRoot, $rel)
         if ((Test-Path -LiteralPath $src) -and -not (Test-Path -LiteralPath $dst)) {
-            if (-not (Test-Path -LiteralPath $dstCerts)) {
-                New-Item -ItemType Directory -Path $dstCerts -Force | Out-Null
+            $dstParent = [System.IO.Path]::GetDirectoryName($dst)
+            if (-not (Test-Path -LiteralPath $dstParent)) {
+                New-Item -ItemType Directory -Path $dstParent -Force | Out-Null
             }
-            Copy-Item -LiteralPath $src -Destination $dst
-            Write-Host "Copied dev cert $pem from the main checkout." -ForegroundColor Gray
+            Copy-Item -LiteralPath $src -Destination $dst -Recurse
+            Write-Host "Copied worktree-include asset: $rel" -ForegroundColor Gray
         }
     }
 }
