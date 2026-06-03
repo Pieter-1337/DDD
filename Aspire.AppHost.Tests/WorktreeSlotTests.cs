@@ -201,6 +201,55 @@ public sealed class WorktreeSlotTests
     }
 
     // -----------------------------------------------------------------------
+    // WithSlotDatabase: connection-string catalog rewrite
+    // -----------------------------------------------------------------------
+
+    [TestMethod]
+    public void WithSlotDatabase_Slot2_SuffixesCatalog()
+    {
+        const string cs = "Data Source=(localdb)\\MSSQLLocalDB;Initial Catalog=DDD;Integrated Security=true;TrustServerCertificate=True";
+
+        var result = WorktreeSlot.WithSlotDatabase(cs, 2);
+
+        var csb = new System.Data.Common.DbConnectionStringBuilder { ConnectionString = result };
+        csb["Initial Catalog"].ShouldBe("DDD_S2");
+    }
+
+    [TestMethod]
+    public void WithSlotDatabase_Slot5_SuffixesCatalog()
+    {
+        const string cs = "Data Source=(localdb)\\MSSQLLocalDB;Initial Catalog=IdentityDb;Integrated Security=true;TrustServerCertificate=True";
+
+        var result = WorktreeSlot.WithSlotDatabase(cs, 5);
+
+        var csb = new System.Data.Common.DbConnectionStringBuilder { ConnectionString = result };
+        csb["Initial Catalog"].ShouldBe("IdentityDb_S5");
+    }
+
+    [TestMethod]
+    public void WithSlotDatabase_PreservesOtherTokens()
+    {
+        const string cs = "Data Source=(localdb)\\MSSQLLocalDB;Initial Catalog=DDD;Integrated Security=true;TrustServerCertificate=True";
+
+        var result = WorktreeSlot.WithSlotDatabase(cs, 3);
+
+        var csb = new System.Data.Common.DbConnectionStringBuilder { ConnectionString = result };
+        csb["Data Source"].ShouldBe("(localdb)\\MSSQLLocalDB");
+        // DbConnectionStringBuilder normalises boolean values to lowercase — compare case-insensitively.
+        csb["Integrated Security"].ToString()!.ShouldBe("true", StringCompareShould.IgnoreCase);
+        csb["TrustServerCertificate"].ToString()!.ShouldBe("true", StringCompareShould.IgnoreCase);
+    }
+
+    [TestMethod]
+    public void WithSlotDatabase_MissingInitialCatalog_Throws()
+    {
+        const string cs = "Data Source=(localdb)\\MSSQLLocalDB;Integrated Security=true";
+
+        Should.Throw<InvalidOperationException>(() => WorktreeSlot.WithSlotDatabase(cs, 2))
+            .Message.ShouldContain("Initial Catalog");
+    }
+
+    // -----------------------------------------------------------------------
     // Helpers
     // -----------------------------------------------------------------------
 

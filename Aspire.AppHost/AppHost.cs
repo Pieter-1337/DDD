@@ -163,6 +163,31 @@ if (messagingAdminConnectionString is not null)
     billingApi.WithEnvironment("ConnectionStrings__messaging-admin", messagingAdminConnectionString);
 }
 
+// Per-slot database isolation (slot ≥ 2 only; slot 1 injects nothing → DDD / IdentityDb unchanged).
+// The AppHost shares the UserSecretsId with all services, so builder.Configuration reads the
+// same base connection strings the child processes would use. We rewrite only Initial Catalog
+// (DDD → DDD_S{N}, IdentityDb → IdentityDb_S{N}) and inject via env-var, which sits above
+// user-secrets in .NET config precedence — appsettings.json literals are overridden, not removed.
+if (slot > 1)
+{
+    var defaultConnectionBase = builder.Configuration["ConnectionStrings:DefaultConnection"]
+        ?? throw new InvalidOperationException(
+            "Connection string 'DefaultConnection' not found in configuration. " +
+            "Ensure it is set in user secrets (shared UserSecretsId across all projects).");
+
+    var identityDbBase = builder.Configuration["ConnectionStrings:IdentityDb"]
+        ?? throw new InvalidOperationException(
+            "Connection string 'IdentityDb' not found in configuration. " +
+            "Ensure it is set in user secrets (shared UserSecretsId across all projects).");
+
+    var defaultConnectionSlotted = WorktreeSlot.WithSlotDatabase(defaultConnectionBase, slot);
+    var identityDbSlotted = WorktreeSlot.WithSlotDatabase(identityDbBase, slot);
+
+    schedulingApi.WithEnvironment("ConnectionStrings__DefaultConnection", defaultConnectionSlotted);
+    billingApi.WithEnvironment("ConnectionStrings__DefaultConnection", defaultConnectionSlotted);
+    identityApi.WithEnvironment("ConnectionStrings__IdentityDb", identityDbSlotted);
+}
+
 //Add Frontends
 // Add Angular app and define script to run on startup serve/start/other...
 builder.AddJavaScriptApp("scheduling-angularapp", "../Frontend/Angular/Scheduling.AngularApp", "start-aspire")
