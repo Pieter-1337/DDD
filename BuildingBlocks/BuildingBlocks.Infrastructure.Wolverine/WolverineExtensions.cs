@@ -7,17 +7,25 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
-using RabbitMQ.Client;
 using Wolverine;
+using Wolverine.AzureServiceBus;
 using Wolverine.EntityFrameworkCore;
 using Wolverine.ErrorHandling;
 using Wolverine.RabbitMQ;
 using Wolverine.SqlServer;
 
+[assembly: System.Runtime.CompilerServices.InternalsVisibleTo("BuildingBlocks.Tests")]
+
 namespace BuildingBlocks.Infrastructure.Wolverine;
 
 public static class WolverineExtensions
 {
+    // Flows the resolved broker to ListenToMassTransitQueue<T>, which the host calls from
+    // inside the configureWolverine callback. WolverineOptions exposes no config at this
+    // package version, and host configuration is synchronous, so an ambient slot (set inside
+    // the UseWolverine lambda, reset in finally) is how the helper learns the broker.
+    private static readonly AsyncLocal<string?> CurrentBroker = new();
+
     public static IHostApplicationBuilder AddWolverineEventBus<TDbContext>(
         this IHostApplicationBuilder builder,
         string dbConnectionString,
@@ -25,31 +33,38 @@ public static class WolverineExtensions
         Action<WolverineOptions>? configureWolverine = null)
         where TDbContext : DbContext
     {
+        // Single source for the broker decision: reads 'MessageBroker', resolves the
+        // 'messaging' connection string, and runs the format guards (see ADR-0001).
+        // Note: the old 'RabbitMQ:' config-section fallback is gone — 'messaging' is
+        // now required for every broker, including non-Aspire environments.
+        var selection = BrokerSelector.Resolve(builder.Configuration);
+
         builder.Services.AddScoped<IEventBus, WolverineDbContextEventBus<TDbContext>>();
         builder.Services.AddScoped<ICommitStrategy, WolverineCommitStrategy<TDbContext>>();
         builder.Services.AddScoped(typeof(IDbContextOutbox<TDbContext>), typeof(DbContextOutbox<TDbContext>));
 
         builder.UseWolverine(opts =>
         {
-            // Try Aspire connection string first, fall back to manual config
-            var messagingConnectionString = builder.Configuration.GetConnectionString("messaging");
-
-            if (!string.IsNullOrEmpty(messagingConnectionString))
+            // --- Transport branch (the only broker-specific code) ---
+            if (selection.Broker == BrokerNames.AzureServiceBus)
             {
-                opts.UseRabbitMq(new Uri(messagingConnectionString))
+                // Single connection string covers both emulator (via the
+                // 'UseDevelopmentEmulator=true' flag) and real namespaces. Unlike the
+                // MassTransit extension, WolverineFx 4.12.2 offers no way to inject a
+                // separate admin client, so it cannot use the AppHost's 'messaging-admin'
+                // string (see ADR-0001 and the PR body).
+                opts.UseAzureServiceBus(selection.ConnectionString)
                     .AutoProvision();
             }
             else
             {
-                var rabbitMqSettings = builder.Configuration.GetSection("RabbitMQ");
-                opts.UseRabbitMq(factory =>
-                {
-                    factory.HostName = rabbitMqSettings["Host"] ?? "localhost";
-                    factory.VirtualHost = rabbitMqSettings["VirtualHost"] ?? "/";
-                    factory.UserName = rabbitMqSettings["Username"] ?? "guest";
-                    factory.Password = rabbitMqSettings["Password"] ?? "guest";
-                }).AutoProvision();
+                // The broker-selection module already validated this is an AMQP URI
+                // (e.g. Aspire's amqp://guest:guest@localhost:5672).
+                opts.UseRabbitMq(new Uri(selection.ConnectionString))
+                    .AutoProvision();
             }
+
+            // --- Broker-agnostic configuration (shared above the transport branch) ---
 
             // Only discover handlers where the first parameter implements IIntegrationEvent.
             // This prevents accidental handler registration for non-event types.
@@ -59,14 +74,16 @@ public static class WolverineExtensions
                     !HasIntegrationEventHandlerMethod(t));
             });
 
-            // Configure transactional outbox with SQL Server (per-BC schema)
+            // Configure transactional outbox with SQL Server (per-BC schema).
+            // The at-least-once delivery guarantee is identical across both brokers.
             opts.PersistMessagesWithSqlServer(dbConnectionString, schemaName);
             opts.AutoBuildMessageStorageOnStartup = AutoCreate.CreateOrUpdate;
 
             // Use EF Core transactions for atomic outbox
             opts.UseEntityFrameworkCoreTransactions();
 
-            // Configure retry policy — matches MassTransit's retry intervals
+            // Retry intervals match the MassTransit extension; global on 'opts' so
+            // they're identical across both brokers.
             opts.OnException<ValidationException>().MoveToErrorQueue();
             opts.OnException<ArgumentException>().MoveToErrorQueue();
             opts.OnAnyException().RetryWithCooldown(
@@ -75,7 +92,18 @@ public static class WolverineExtensions
                 TimeSpan.FromSeconds(15),
                 TimeSpan.FromSeconds(30));
 
-            configureWolverine?.Invoke(opts);
+            // Flow the broker to the interop helper for the duration of the host's
+            // callback (see CurrentBroker). Set here, not in the method body, because
+            // this lambda runs at host-build time — after the body has returned.
+            CurrentBroker.Value = selection.Broker;
+            try
+            {
+                configureWolverine?.Invoke(opts);
+            }
+            finally
+            {
+                CurrentBroker.Value = null;
+            }
         });
 
         return builder;
@@ -85,10 +113,17 @@ public static class WolverineExtensions
     /// Listens to a MassTransit-published message by binding a queue to MassTransit's exchange
     /// and configuring MassTransit envelope deserialization.
     /// </summary>
+    /// <remarks>
+    /// RabbitMQ-only: built on RabbitMQ exchange semantics with no Azure Service Bus
+    /// equivalent (ADR-0001), so it fails fast on Azure Service Bus rather than silently
+    /// receiving nothing.
+    /// </remarks>
     public static WolverineOptions ListenToMassTransitQueue<TMessage>(
         this WolverineOptions opts,
         string queueName)
     {
+        GuardMassTransitInteropSupported(CurrentBroker.Value);
+
         // MassTransit exchange naming convention: "Namespace:TypeName"
         var exchangeName = $"{typeof(TMessage).Namespace}:{typeof(TMessage).Name}";
 
@@ -118,6 +153,31 @@ public static class WolverineExtensions
             .UseMassTransitInterop();
 
         return opts;
+    }
+
+    /// <summary>
+    /// Fails fast when the MassTransit-interop listener is configured on Azure Service Bus
+    /// (the bridge is RabbitMQ-only — ADR-0001). Pure and broker-free so it is unit-testable.
+    /// </summary>
+    /// <param name="broker">
+    /// Resolved broker name, or null when called outside the configuration flow (test or
+    /// custom host) — in which case the guard is a no-op since the broker is unknown.
+    /// </param>
+    internal static void GuardMassTransitInteropSupported(string? broker)
+    {
+        if (broker == BrokerNames.AzureServiceBus)
+        {
+            throw new InvalidOperationException(
+                $"The Wolverine MassTransit-interop listener (ListenToMassTransitQueue) is " +
+                $"RabbitMQ-only: it is built on RabbitMQ exchange semantics with no Azure " +
+                $"Service Bus equivalent, and porting it to Azure Service Bus was deliberately " +
+                $"descoped (ADR-0001). '{BrokerSelector.MessageBrokerKey}' is " +
+                $"'{BrokerNames.AzureServiceBus}', so this service cannot receive " +
+                $"MassTransit-published events through Wolverine. Supported alternative: run " +
+                $"this service with 'MessagingFramework=MassTransit' on this broker. Wolverine " +
+                $"on Azure Service Bus remains valid for publishing and native " +
+                $"Wolverine-to-Wolverine flows.");
+        }
     }
 
     private static bool HasIntegrationEventHandlerMethod(Type type)
