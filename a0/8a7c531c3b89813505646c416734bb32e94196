@@ -1,0 +1,29 @@
+docs/agents/workflow-automatic.md
+  s_a14b416f487d13::t_acb8c6d5854493 59-61
+  s_a14b416f487d13::t_f95a21b0d50097 40-44
+docs/agents/workflow-manual.md
+  s_a14b416f487d13::t_577c59a672fb0f 76
+.claude/skills/app-do-prd/SKILL.md
+  s_a14b416f487d13::t_80aa011378adfa 120-124
+.claude/skills/app-do-work/SKILL.md
+  s_a14b416f487d13::t_0d8243a707643f 91-95
+  s_a14b416f487d13::t_ddfcc1635a17d8 53-57
+.claude/skills/validate/SKILL.md
+  s_a14b416f487d13::t_441a7838a93587 46,48-50,53,55-58,60,62-63,65
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "a08a7c531c3b89813505646c416734bb32e94196",
+  "prompts": {},
+  "sessions": {
+    "s_a14b416f487d13": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2d4d0f6a-b68f-42de-ab2d-da6283366436",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Pieter Bracke <pieter.bracke@euri.com>"
+    }
+  }
+}
