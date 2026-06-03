@@ -1,0 +1,19 @@
+.worktreeinclude
+  s_f055e9e8b1df42::t_8e80f5875f49ca 1-8
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "65245d749ce2aa4b07ef1c2c9df483cba87d4b43",
+  "prompts": {},
+  "sessions": {
+    "s_f055e9e8b1df42": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d734305b-61c0-4d9f-9271-b2bfe818a011",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Pieter Bracke <pieter.bracke@euri.com>"
+    }
+  }
+}
