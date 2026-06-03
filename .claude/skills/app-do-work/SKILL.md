@@ -50,10 +50,11 @@ When the work crosses a domain boundary (e.g. a backend-engineer slice that need
 Run the feedback loops and fix any issues. Repeat until all pass cleanly.
 
 ```bash
-bun run check --fix    # static analysis of Typescript code with linting, typechecking, and formatting
-bun run test:web       # frontend unit tests
-bun run test:api       # backend unit tests
-bun run test:integration  # end-to-end tests
+dotnet build DDD.sln    # compile + analyzers — the typecheck/lint gate
+dotnet test DDD.sln     # all .NET tests: domain/validator unit + handler integration (SQLite in-memory)
+# Frontend — only when the slice touches Frontend/Angular/**:
+npm --prefix Frontend/Angular/Scheduling.AngularApp run build   # ng build = SPA typecheck
+npm --prefix Frontend/Angular/Scheduling.AngularApp test         # ng test
 ```
 
 ### 4. Simplify
@@ -87,10 +88,11 @@ Before pushing, sanity-check the working tree: `git status` should show only the
 **Pre-push validation gate** — re-run the full §3 validation suite one final time after commit, before push. If the §5 reviewer pass produced fixes after §3, those fixes were never re-validated against the full suite. Run:
 
 ```bash
-bun run check --fix
-bun run test:web
-bun run test:api
-bun run test:integration   # only if the slice touched packages/api
+dotnet build DDD.sln
+dotnet test DDD.sln
+# Frontend — only if the slice touched Frontend/Angular/**:
+npm --prefix Frontend/Angular/Scheduling.AngularApp run build
+npm --prefix Frontend/Angular/Scheduling.AngularApp test
 ```
 
 If red: one more attempt to fix locally. If still red after that attempt: push anyway and call it out in the PR body under a "Known failures" section — do not silently ship a red branch, but also do not block the PR (CI will surface it and `/app-do-prd` will trigger iterate mode).

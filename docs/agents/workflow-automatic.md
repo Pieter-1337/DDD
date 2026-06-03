@@ -37,10 +37,11 @@ Defined in `.claude/skills/app-do-work/SKILL.md`. Takes an issue file as its arg
 2. **Implement** — works through the plan step by step.
 3. **Validate** — runs the feedback loops, repeats until clean:
    ```
-   bun run check --fix
-   bun run test:web
-   bun run test:api
-   bun run test:integration
+   dotnet build DDD.sln
+   dotnet test DDD.sln
+   # frontend, only when the slice touches Frontend/Angular/**:
+   npm --prefix Frontend/Angular/Scheduling.AngularApp run build
+   npm --prefix Frontend/Angular/Scheduling.AngularApp test
    ```
 4. **Simplify** — invokes `Skill('simplify')`, then re-runs the feedback loops.
 5. **Reviewer pass** _(default on, disable with `--reviewer=false`)_ — spawns a `reviewer` sub-agent that reads the diff + tests and returns prioritised findings. The primary agent addresses anything actionable and re-validates before committing. See [Per-issue quality gate](./workflow-autonomous.md#per-issue-quality-gate).
@@ -55,7 +56,9 @@ A `PostToolUse` hook wired in `.claude/settings.json` runs single-file checks on
 
 | File pattern         | Tool                        | What runs                                                |
 | -------------------- | --------------------------- | -------------------------------------------------------- |
-| `**/packages/web/**` | `bun vp check --fix <file>` | TypeScript typecheck + lint + format on the changed file |
+| `Frontend/Angular/**` | `npm --prefix Frontend/Angular/Scheduling.AngularApp run build` | Angular template/TypeScript typecheck on the SPA |
+
+(This per-edit hook is illustrative — it is wired in `.claude/settings.json`, which this repo does not currently define; the full `dotnet build`/`dotnet test` validate at the end is the real gate.)
 
 On failure the hook prints the tool's output and exits with code 2, which tells the model "your last edit broke something — fix it." Successful runs are silent.
 

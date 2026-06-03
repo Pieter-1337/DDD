@@ -43,28 +43,26 @@ Summarize in one sentence: "You added X to Y and Z." Confirm with the user if it
 Run all checks that apply to this project. For each one, report pass/fail with the actual output
 if it fails — not just "it failed".
 
-**First, discover what scripts exist:**
+**Run the build + test gates:**
 
-```bash
-cat package.json | grep -A 30 '"scripts"'
+```powershell
+dotnet build DDD.sln    # compile + analyzers (the typecheck/lint gate)
+dotnet test DDD.sln     # all .NET tests: domain/validator unit + handler integration (SQLite in-memory)
 ```
 
-In monorepos, also check the root `package.json`. Run checks from the root if root scripts
-delegate to packages (e.g. `bun run check` at root runs `bun run --filter '*' check`).
+If the change touches the Angular SPA (`Frontend/Angular/**`), also run:
 
-**Then run the relevant ones:**
+```powershell
+npm --prefix Frontend/Angular/Scheduling.AngularApp run build   # ng build = SPA typecheck
+npm --prefix Frontend/Angular/Scheduling.AngularApp test         # ng test
+```
 
-- TypeScript + lint + format: `bun run check` from the repo root (delegates to package `check` scripts). In this repo the web package uses `vp check`, which covers TypeScript type-checking — no separate `typecheck` step is needed.
-- Tests: `bun run test` from the repo root (bun delegates to packages that have a test script). If that fails, try `cd packages/<name> && bun run test`.
-- Run both — don't stop at the first failure. Collect everything before reporting.
+Run both .NET gates — don't stop at the first failure; collect everything before reporting.
 
-Run checks in parallel where they're independent. Don't stop at the first failure — collect all
-failures before reporting.
+If a project or script doesn't exist, skip it and note it's not configured — don't treat a
+missing script as a failure.
 
-If a script doesn't exist, skip it and note it's not configured. Don't treat a missing script as
-a failure.
-
-If you can't run bun commands (permissions issue), note that automated checks couldn't be
+If you can't run the commands (permissions issue), note that automated checks couldn't be
 confirmed and recommend the user runs them manually before committing — but still proceed with
 the rest of the validation using static analysis.
 

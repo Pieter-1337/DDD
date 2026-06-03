@@ -117,10 +117,11 @@ while any issue in {pending, in-flight}:
     #          - clean tree AND HEAD == master → worker did nothing → §7 failure (real).
     #          - otherwise: there's work to ship; proceed.
     #     3. Run validation deterministically (NOT through an agent):
-    #          bun run check --fix
-    #          bun run test:web
-    #          bun run test:api
-    #          bun run test:integration   # only if the slice touched packages/api
+    #          dotnet build DDD.sln
+    #          dotnet test DDD.sln
+    #          # frontend, only if the slice touched Frontend/Angular/**:
+    #          npm --prefix Frontend/Angular/Scheduling.AngularApp run build
+    #          npm --prefix Frontend/Angular/Scheduling.AngularApp test
     #        If any suite is red:
     #          - re-spawn the worker ONCE with prompt:
     #            "Validation failed in this worktree. Output: <pasted>. Fix only the

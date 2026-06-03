@@ -73,7 +73,7 @@ User-invocable only. Reads `PLAN.md` (or the issue file) and executes step-by-st
 
 ### 2. `/validate`
 
-Runs `bun run check` + `bun run test`, then cross-references the diff against `PLAN.md`:
+Runs `dotnet build DDD.sln` + `dotnet test DDD.sln` (plus the SPA's `npm run build` / `npm test` when `Frontend/Angular/**` changed), then cross-references the diff against `PLAN.md`:
 
 - Marks each plan step **Done / Partial / Missing / N/A**
 - Surfaces quality issues in the diff (unhandled rejections, `any` casts, stray `console.log`, dead code)
