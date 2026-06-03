@@ -1,0 +1,20 @@
+docs/adr/0002-worktree-slots.md
+  s_e340a3db86d807::t_87c131dacb12db 1-41,48-50
+  s_e340a3db86d807::t_ade5410e4b33ae 42-47
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "8606dbec8b42d23b1729b33f396ba7830ec4b0a6",
+  "prompts": {},
+  "sessions": {
+    "s_e340a3db86d807": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "3a9a1476-c883-4ee6-87b5-a25212c4508a",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Pieter Bracke <pieter.bracke@euri.com>"
+    }
+  }
+}
