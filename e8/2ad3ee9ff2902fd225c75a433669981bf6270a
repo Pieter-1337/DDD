@@ -1,0 +1,25 @@
+.claude/agents/backend-engineer.md
+  s_c2c88f09fcc690::t_1a2ff2a739bc33 1-46
+.claude/agents/documenter.md
+  s_c2c88f09fcc690::t_df9cbf64e1128f 1-48
+.claude/agents/frontend-engineer.md
+  s_c2c88f09fcc690::t_a3d2887bbced34 1-42
+.claude/agents/reviewer.md
+  s_c2c88f09fcc690::t_e73818c89a05c1 1-53
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "e82ad3ee9ff2902fd225c75a433669981bf6270a",
+  "prompts": {},
+  "sessions": {
+    "s_c2c88f09fcc690": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "06e3fd78-bdb6-4006-86c4-ff628e9e90f7",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Pieter Bracke <pieter.bracke@euri.com>"
+    }
+  }
+}
