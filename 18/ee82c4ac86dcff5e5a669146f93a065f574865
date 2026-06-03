@@ -1,0 +1,21 @@
+scripts/worktree-init.ps1
+  s_a14b416f487d13::t_cbaedf64ea150b 69-73
+docs/SETUP.md
+  s_a14b416f487d13::t_c2c62c485c5189 151,159,161-188
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "18ee82c4ac86dcff5e5a669146f93a065f574865",
+  "prompts": {},
+  "sessions": {
+    "s_a14b416f487d13": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2d4d0f6a-b68f-42de-ab2d-da6283366436",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Pieter Bracke <pieter.bracke@euri.com>"
+    }
+  }
+}
