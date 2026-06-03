@@ -120,6 +120,22 @@ It also seeds Duende clients, API scopes, and identity resources into `IdentityD
 
 ---
 
+## Working in a git worktree (e.g. agent worktrees)
+
+Background agents create isolated checkouts under `.claude/worktrees/`. Most of the setup above **carries over for free** because it lives outside the repo and is shared per-Windows-user: user secrets, the LocalDB databases, and the `C:\SharedKeys\DDD` Data Protection keys are all visible from any worktree without re-running steps 1, 3, or 4.
+
+Two things do **not** carry over into a fresh worktree:
+
+- **Angular `node_modules`** — not copied (it's large, and per-worktree copies are slow and cause Windows path-length grief). Before running or building the SPA from a worktree, install dependencies in that worktree:
+  ```powershell
+  npm ci --prefix <worktree-path>\Frontend\Angular\Scheduling.AngularApp
+  ```
+- **Local mkcert certificates** — copied automatically. The repo-root `.worktreeinclude` lists `Frontend/Angular/Scheduling.AngularApp/certs/local-cert.pem` and `local-key.pem`, so Claude Code seeds them into each new worktree. (If you create a worktree by other means, regenerate them per `Frontend\Angular\Scheduling.AngularApp\certs\README.md`.)
+
+Only one Aspire instance can run at a time — every checkout pins the same ports (7001/7002/7003/7010), so stop the AppHost in one worktree before launching it in another.
+
+---
+
 ## Troubleshooting
 
 **"Invalid object name 'IdentityResources'" (or any Duende table) on startup**

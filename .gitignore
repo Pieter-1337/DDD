@@ -361,3 +361,7 @@ MigrationBackup/
 
 # Fody - auto-generated XML schema
 FodyWeavers.xsd
+
+# Claude Code agent worktrees — each is a full second checkout of the repo,
+# created by background agents. Never commit them.
+.claude/worktrees/
