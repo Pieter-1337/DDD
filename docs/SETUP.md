@@ -82,11 +82,37 @@ New-Item -ItemType Directory -Force C:\SharedKeys\DDD
 
 ---
 
-## 5. RabbitMQ
+## 5. Message broker (RabbitMQ by default)
 
-Managed by .NET Aspire — running `Aspire.AppHost` starts a RabbitMQ container automatically. No manual setup needed.
+**RabbitMQ is the default broker.** Managed by .NET Aspire — running `Aspire.AppHost` starts a RabbitMQ container automatically. No manual setup needed.
 
 The `docker-compose.yml` at the repo root is kept as a fallback for CI/CD or running without Aspire.
+
+### Switching to Azure Service Bus (emulator) locally
+
+The broker is switchable per service (`MessageBroker` config) with the Aspire AppHost provisioning either RabbitMQ or the Azure Service Bus emulator. **Which combinations work, which fail, and which are not wired** is recorded in the **[supported framework × broker matrix](phase-5-event-driven/09-broker-framework-matrix.md)** — read it before switching. The authoritative decisions live in [ADR-0001](adr/0001-message-broker-selection.md).
+
+For the local ASB demo, **all three settings are needed together** (set any one alone and a startup guard trips fail-fast):
+
+```powershell
+# 1. AppHost: provision the ASB emulator instead of RabbitMQ (+ inject the Endpoint=sb:// connection strings)
+dotnet user-secrets set "Parameters:messaging-broker" AzureServiceBus --project Aspire.AppHost
+#    (or env var ASPIRE_MESSAGING_BROKER=AzureServiceBus)
+
+# 2. Each service: select the ASB transport. The AppHost does NOT propagate this
+#    (per-service config by design), so set it on BOTH APIs — otherwise BrokerSelector's
+#    format guard throws (it expects amqp:// but the injected string is Endpoint=sb://).
+dotnet user-secrets set "MessageBroker" AzureServiceBus --project WebApplications\Scheduling.WebApi
+dotnet user-secrets set "MessageBroker" AzureServiceBus --project WebApplications\Billing.WebApi
+
+# 3. Billing: the Wolverine<->MassTransit interop bridge is RabbitMQ-only, so run Billing on
+#    MassTransit for the ASB demo — otherwise the interop guard throws at startup.
+dotnet user-secrets set "MessagingFramework" MassTransit --project WebApplications\Billing.WebApi
+```
+
+The ASB emulator has **no management UI** (and is incompatible with the community Service Bus Explorer tools). Message-flow observability is the **Aspire dashboard's OpenTelemetry traces** — a connected publish->consume span tree confirms the cross-context flow.
+
+To switch back to RabbitMQ, remove the three secrets above (or set `Parameters:messaging-broker` back to `RabbitMq`).
 
 ---
 
