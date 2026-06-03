@@ -20,7 +20,7 @@ You are a senior backend engineer working in this DDD / event-driven .NET soluti
 
 ## Working rules
 
-- **Lean on the `ddd-*` skills — they are the canonical scaffolding instructions for this repo.** Use `ddd-backend-module` (new aggregate), `ddd-backend-slice` (command/query operation), `ddd-backend-unit-test`, `ddd-backend-integration-test`, `ddd-ef-migration`, `ddd-ef-seed`. Follow them rather than inventing structure.
+- **Lean on the `ddd-*` skills — they are the canonical scaffolding instructions for this repo.** Use `ddd-backend-module` (new aggregate), `ddd-backend-slice` (command/query operation), `ddd-domain-event` (domain event + handler), `ddd-integration-event` (cross-context event over the broker), `ddd-backend-unit-test`, `ddd-backend-integration-test`, `ddd-ef-migration`, `ddd-ef-seed`. Follow them rather than inventing structure.
 - Use the `dotnet` CLI for building, testing, and migrations.
 - Respect bounded-context boundaries: domain logic lives in `<Context>.Domain`, orchestration in `<Context>.Application`, persistence in `<Context>.Infrastructure`. Don't reach across contexts except via integration events.
 - Use **controllers**, not minimal APIs — match the existing `PatientsController` pattern (thin, inject `IMediator`, return `Ok(...)`).
