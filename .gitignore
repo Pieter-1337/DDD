@@ -365,3 +365,8 @@ FodyWeavers.xsd
 # Claude Code agent worktrees — each is a full second checkout of the repo,
 # created by background agents. Never commit them.
 .claude/worktrees/
+
+# Worktree slot — each git worktree carries its own slot integer (1–5) in this
+# gitignored file. Only the value is ignored; tooling + .worktree-slot.example
+# are committed. See docs/adr/0002-worktree-slots.md.
+/Aspire.AppHost/.worktree-slot
