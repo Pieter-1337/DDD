@@ -53,13 +53,15 @@ builder.Services.AddMassTransitEventBus<SchedulingDbContext>(builder.Configurati
 // Add cookie auth
 builder.Services.AddOidcCookieAuth(builder.Configuration);
 
-// Add cors
+// Add cors — origins read from config so AppHost can inject slot-derived values via
+// Cors__AllowedOrigins__0/1. Slot-1 defaults are in appsettings.json.
+var corsOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>()
+    ?? ["https://localhost:7003", "https://localhost:7010"];
+
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("Angular", policy => policy
-        .WithOrigins(
-        "https://localhost:7003", // Angular SPA 
-        "https://localhost:7010") // Auth Server (for redirect flows)
+        .WithOrigins(corsOrigins)
         .AllowAnyHeader()
         .AllowAnyMethod()
         .AllowCredentials());

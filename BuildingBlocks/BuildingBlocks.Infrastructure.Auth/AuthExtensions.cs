@@ -28,6 +28,10 @@ namespace BuildingBlocks.Infrastructure.Auth
             var clientId = configuration["Auth:ClientId"] ?? throw new InvalidOperationException("Auth:ClientId is not configured but required.");
             var clientSecret = configuration["Auth:ClientSecret"] ?? throw new InvalidOperationException("Auth:ClientSecret is not configured but required.");
             var sharedKeysPath = configuration["Auth:SharedKeysPath"];
+            // Cookie name read from config so the AppHost can inject a slot-specific name
+            // (e.g. "DDD.Auth.S2") for slots 2–5 via Auth__CookieName. Slot 1 uses the
+            // bare default so existing browsers/sessions are unchanged.
+            var cookieName = configuration["Auth:CookieName"] ?? "DDD.Auth";
 
             //1. Configure cookie auth as the default scheme
             services.AddAuthentication(options =>
@@ -35,9 +39,9 @@ namespace BuildingBlocks.Infrastructure.Auth
                 options.DefaultScheme = CookieAuthenticationDefaults.AuthenticationScheme;
                 options.DefaultChallengeScheme = "oidc"; // Custom name for OIDC handler
             })
-            .AddCookie(CookieAuthenticationDefaults.AuthenticationScheme, options => 
+            .AddCookie(CookieAuthenticationDefaults.AuthenticationScheme, options =>
             {
-                options.Cookie.Name = "DDD.Auth";
+                options.Cookie.Name = cookieName;
                 options.Cookie.HttpOnly = true; //Prevent javascript accessing the cookie => XSS protection
                 options.Cookie.SameSite = Microsoft.AspNetCore.Http.SameSiteMode.Lax; //CSRF protection while allowing cross-origin for top-level navigation
                 options.Cookie.SecurePolicy = Microsoft.AspNetCore.Http.CookieSecurePolicy.Always; // HTTPS only

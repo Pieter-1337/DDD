@@ -163,13 +163,43 @@ if (messagingAdminConnectionString is not null)
     billingApi.WithEnvironment("ConnectionStrings__messaging-admin", messagingAdminConnectionString);
 }
 
-// Per-slot database isolation (slot ≥ 2 only; slot 1 injects nothing → DDD / IdentityDb unchanged).
-// The AppHost shares the UserSecretsId with all services, so builder.Configuration reads the
-// same base connection strings the child processes would use. We rewrite only Initial Catalog
-// (DDD → DDD_S{N}, IdentityDb → IdentityDb_S{N}) and inject via env-var, which sits above
-// user-secrets in .NET config precedence — appsettings.json literals are overridden, not removed.
+// ---------------------------------------------------------------------------
+// Slot-aware per-slot injections (slot ≥ 2 only; slot 1 injects nothing so the
+// appsettings.json slot-1 literals govern and behaviour is byte-for-byte
+// identical to before this change). All injections use env-var form
+// (double-underscore separator), which beats appsettings/user-secrets in
+// .NET's config precedence.
+// ---------------------------------------------------------------------------
 if (slot > 1)
 {
+    // ---- Auth (#15): override Authority, CookieName, and CORS origins. ----
+    var identityAuthority = $"https://localhost:{WorktreeSlot.Port(7010, slot)}";
+    var cookieName = $"DDD.Auth.S{slot}";
+    var spaOrigin = $"https://localhost:{WorktreeSlot.Port(7003, slot)}";
+    var identityOrigin = identityAuthority;
+
+    // Identity: tell the seed service which slot it is so it generates only
+    // this slot's redirect/post-logout/CORS URLs into its own IdentityDb_S{N}.
+    identityApi.WithEnvironment("worktree-slot", slot.ToString());
+
+    // Scheduling API: override authority, cookie name, and CORS origins.
+    schedulingApi
+        .WithEnvironment("Auth__Authority", identityAuthority)
+        .WithEnvironment("Auth__CookieName", cookieName)
+        .WithEnvironment("Cors__AllowedOrigins__0", spaOrigin)
+        .WithEnvironment("Cors__AllowedOrigins__1", identityOrigin);
+
+    // Billing API: same overrides.
+    billingApi
+        .WithEnvironment("Auth__Authority", identityAuthority)
+        .WithEnvironment("Auth__CookieName", cookieName)
+        .WithEnvironment("Cors__AllowedOrigins__0", spaOrigin)
+        .WithEnvironment("Cors__AllowedOrigins__1", identityOrigin);
+
+    // ---- Database isolation (#14): rewrite only the Initial Catalog token ----
+    // (DDD → DDD_S{N}, IdentityDb → IdentityDb_S{N}). The AppHost shares the
+    // UserSecretsId, so builder.Configuration reads the same base connection
+    // strings the child processes would use.
     var defaultConnectionBase = builder.Configuration["ConnectionStrings:DefaultConnection"]
         ?? throw new InvalidOperationException(
             "Connection string 'DefaultConnection' not found in configuration. " +

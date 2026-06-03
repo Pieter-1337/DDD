@@ -8,6 +8,11 @@ namespace Identity.WebApi.Config
     /// </summary>
     public class IdentityServerConfig
     {
+        // Base ports for each service — must stay in sync with WorktreeSlot.Port bases in AppHost.cs.
+        // Port derivation: value(base) = base + 100 * (slot - 1)  (same formula as WorktreeSlot.Port)
+        private const int SchedulingApiBase = 7001;
+        private const int BillingApiBase = 7002;
+        private const int AngularSpaBase = 7003;
 
         /// <summary>
         /// Identity resources define user identity data that can be requested via scopes.
@@ -30,86 +35,102 @@ namespace Identity.WebApi.Config
         ];
 
         /// <summary>
-        /// Clients represent applications that can request tokens from this authorization server.
+        /// Returns the OIDC clients for this slot only, with redirect/post-logout/CORS URLs
+        /// derived from the slot number. Slot 1 produces the canonical localhost URLs;
+        /// slots 2–5 shift all ports by 100*(slot-1) (same formula as WorktreeSlot.Port).
+        /// Each slot's Identity seeds only its own URLs into its own IdentityDb_S{N}.
         /// </summary>
-        public static IEnumerable<Client> Clients =>
-        [
-            new Client
-            {
-                ClientId = "billing-api",
-                ClientName = "Billing API",
-                ClientSecrets = { new Secret("billing-secret".Sha256()) },
+        public static IEnumerable<Client> Clients(int slot = 1)
+        {
+            var schedulingPort = SlotPort(SchedulingApiBase, slot);
+            var billingPort = SlotPort(BillingApiBase, slot);
+            var spaPort = SlotPort(AngularSpaBase, slot);
 
-                AllowedGrantTypes = GrantTypes.Code,
-                RequirePkce = true,
-
-                RedirectUris = { "https://localhost:7002/signin-oidc" },
-                PostLogoutRedirectUris = { "https://localhost:7002/signout-callback-oidc" },
-
-                AllowedScopes =
+            return
+            [
+                new Client
                 {
-                    IdentityServerConstants.StandardScopes.OpenId,
-                    IdentityServerConstants.StandardScopes.Profile,
-                    IdentityServerConstants.StandardScopes.Email,
-                    "roles",
-                    "billing_api"
+                    ClientId = "billing-api",
+                    ClientName = "Billing API",
+                    ClientSecrets = { new Secret("billing-secret".Sha256()) },
+
+                    AllowedGrantTypes = GrantTypes.Code,
+                    RequirePkce = true,
+
+                    RedirectUris = { $"https://localhost:{billingPort}/signin-oidc" },
+                    PostLogoutRedirectUris = { $"https://localhost:{billingPort}/signout-callback-oidc" },
+
+                    AllowedScopes =
+                    {
+                        IdentityServerConstants.StandardScopes.OpenId,
+                        IdentityServerConstants.StandardScopes.Profile,
+                        IdentityServerConstants.StandardScopes.Email,
+                        "roles",
+                        "billing_api"
+                    },
+
+                    AllowOfflineAccess = true
                 },
-
-                AllowOfflineAccess = true // Enable refresh tokens
-            },
-            new Client
-            {
-                ClientId = "scheduling-api",
-                ClientName = "Scheduling API",
-
-                ClientSecrets = { new Secret("scheduling-secret".Sha256()) },
-
-                AllowedGrantTypes = GrantTypes.Code,
-                RequirePkce = true,
-
-                RedirectUris = { "https://localhost:7001/signin-oidc" },
-                PostLogoutRedirectUris = { "https://localhost:7001/signout-callback-oidc" },
-
-                AllowedScopes =
+                new Client
                 {
-                    IdentityServerConstants.StandardScopes.OpenId,
-                    IdentityServerConstants.StandardScopes.Profile,
-                    IdentityServerConstants.StandardScopes.Email,
-                    "roles",
-                    "scheduling_api"
+                    ClientId = "scheduling-api",
+                    ClientName = "Scheduling API",
+
+                    ClientSecrets = { new Secret("scheduling-secret".Sha256()) },
+
+                    AllowedGrantTypes = GrantTypes.Code,
+                    RequirePkce = true,
+
+                    RedirectUris = { $"https://localhost:{schedulingPort}/signin-oidc" },
+                    PostLogoutRedirectUris = { $"https://localhost:{schedulingPort}/signout-callback-oidc" },
+
+                    AllowedScopes =
+                    {
+                        IdentityServerConstants.StandardScopes.OpenId,
+                        IdentityServerConstants.StandardScopes.Profile,
+                        IdentityServerConstants.StandardScopes.Email,
+                        "roles",
+                        "scheduling_api"
+                    },
+
+                    AllowOfflineAccess = true
                 },
-
-                AllowOfflineAccess = true // Enable refresh tokens
-            },
-            new Client 
-            {
-                ClientId = "angular-spa",
-                ClientName = "Angular SPA",
-
-                AllowedGrantTypes = GrantTypes.Code,
-                RequirePkce = true,
-                RequireClientSecret = false, // Public client (SPA can't keep secrets)
-
-                RedirectUris =
+                new Client
                 {
-                    "https://localhost:7003/callback",
-                    "https://localhost:7003/silent-refresh.html"
-                },
-                PostLogoutRedirectUris = { "https://localhost:7003/" },
-                AllowedCorsOrigins = { "https://localhost:7003" },
+                    ClientId = "angular-spa",
+                    ClientName = "Angular SPA",
 
-                AllowedScopes =
-                {
-                    IdentityServerConstants.StandardScopes.OpenId,
-                    IdentityServerConstants.StandardScopes.Profile,
-                    IdentityServerConstants.StandardScopes.Email,
-                    "roles",
-                    "scheduling_api",
-                    "billing_api"
-                },
+                    AllowedGrantTypes = GrantTypes.Code,
+                    RequirePkce = true,
+                    RequireClientSecret = false,
 
-                AllowOfflineAccess = true // Enable refresh tokens
-            }
-        ];
+                    RedirectUris =
+                    {
+                        $"https://localhost:{spaPort}/callback",
+                        $"https://localhost:{spaPort}/silent-refresh.html"
+                    },
+                    PostLogoutRedirectUris = { $"https://localhost:{spaPort}/" },
+                    AllowedCorsOrigins = { $"https://localhost:{spaPort}" },
+
+                    AllowedScopes =
+                    {
+                        IdentityServerConstants.StandardScopes.OpenId,
+                        IdentityServerConstants.StandardScopes.Profile,
+                        IdentityServerConstants.StandardScopes.Email,
+                        "roles",
+                        "scheduling_api",
+                        "billing_api"
+                    },
+
+                    AllowOfflineAccess = true
+                }
+            ];
+        }
+
+        /// <summary>
+        /// Derives a port from a base port and slot number.
+        /// Mirrors WorktreeSlot.Port: value(base) = base + 100 * (slot - 1).
+        /// </summary>
+        internal static int SlotPort(int basePort, int slot) => basePort + 100 * (slot - 1);
     }
 }
