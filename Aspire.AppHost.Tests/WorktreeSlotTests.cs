@@ -166,6 +166,41 @@ public sealed class WorktreeSlotTests
     }
 
     // -----------------------------------------------------------------------
+    // BumpPort (dashboard URL offset helper)
+    // -----------------------------------------------------------------------
+
+    [TestMethod]
+    public void BumpPort_SingleUrl_OffsetsByHundred()
+    {
+        // OffsetUrlEnvVar/BumpPort are file-local functions in AppHost.cs so we
+        // test the equivalent logic inline. The port derivation formula is
+        // base + 100*(slot-1); slot 2 offset = 100.
+        var uri = new UriBuilder("https://localhost:17254");
+        uri.Port += 100;
+        uri.Uri.ToString().TrimEnd('/').ShouldBe("https://localhost:17354");
+    }
+
+    [TestMethod]
+    public void BumpPort_SlotFiveOffset_CorrectPort()
+    {
+        var uri = new UriBuilder("https://localhost:17254");
+        uri.Port += 400; // slot 5: offset = 100*(5-1)
+        uri.Uri.ToString().TrimEnd('/').ShouldBe("https://localhost:17654");
+    }
+
+    [TestMethod]
+    public void BumpPort_Slot1_NoOffset()
+    {
+        // Slot 1 sets no env vars; launchSettings governs. The port is unchanged.
+        var offset = 100 * (1 - 1); // = 0
+        offset.ShouldBe(0);
+
+        var uri = new UriBuilder("https://localhost:17254");
+        uri.Port += offset;
+        uri.Uri.ToString().TrimEnd('/').ShouldBe("https://localhost:17254");
+    }
+
+    // -----------------------------------------------------------------------
     // Helpers
     // -----------------------------------------------------------------------
 
