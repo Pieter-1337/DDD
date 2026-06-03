@@ -22,10 +22,13 @@ $ErrorActionPreference = 'Stop'
 # ---------------------------------------------------------------------------
 
 function Invoke-Git {
-    param([string[]]$Args)
-    $out = & git @Args 2>&1
+    param([string[]]$GitArgs)
+    # Do NOT use 2>&1 on native executables in PS 5.1 — it wraps stderr as
+    # ErrorRecord objects (NativeCommandError) and sets $? to $false even when
+    # the process exits 0.  Capture stdout only; let stderr flow to the console.
+    $out = & git @GitArgs
     if ($LASTEXITCODE -ne 0) {
-        throw "git $($Args -join ' ') failed: $out"
+        throw "git $($GitArgs -join ' ') failed (exit $LASTEXITCODE)"
     }
     return $out
 }
@@ -36,6 +39,8 @@ $worktreeRoot = (Invoke-Git @('rev-parse', '--show-toplevel')).Trim()
 # git rev-parse --git-common-dir may return a relative path for the main
 # checkout (just ".git"), so resolve it to an absolute path.
 $gitCommonDirRaw = (Invoke-Git @('rev-parse', '--git-common-dir')).Trim()
+# When git returns multiple lines (e.g. warning + path), take only the last.
+if ($gitCommonDirRaw -is [array]) { $gitCommonDirRaw = $gitCommonDirRaw[-1] }
 if ([System.IO.Path]::IsPathRooted($gitCommonDirRaw)) {
     $gitCommonDir = $gitCommonDirRaw
 } else {

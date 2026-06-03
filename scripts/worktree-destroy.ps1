@@ -24,15 +24,21 @@ $ErrorActionPreference = 'Stop'
 # ---------------------------------------------------------------------------
 
 function Invoke-Git {
-    param([string[]]$Args)
-    $out = & git @Args 2>&1
+    param([string[]]$GitArgs)
+    # Do NOT use 2>&1 on native executables in PS 5.1 — it wraps stderr as
+    # ErrorRecord objects (NativeCommandError) and sets $? to $false even when
+    # the process exits 0.  Capture stdout only; let stderr flow to the console.
+    $out = & git @GitArgs
     if ($LASTEXITCODE -ne 0) {
-        throw "git $($Args -join ' ') failed: $out"
+        throw "git $($GitArgs -join ' ') failed (exit $LASTEXITCODE)"
     }
     return $out
 }
 
-$worktreeRoot = (Invoke-Git @('rev-parse', '--show-toplevel')).Trim()
+$rootRaw = Invoke-Git @('rev-parse', '--show-toplevel')
+# When git returns multiple lines (e.g. warning + path), take only the last.
+if ($rootRaw -is [array]) { $rootRaw = $rootRaw[-1] }
+$worktreeRoot = $rootRaw.Trim()
 $slotFile = [System.IO.Path]::Combine($worktreeRoot, 'Aspire.AppHost', '.worktree-slot')
 
 # ---------------------------------------------------------------------------
