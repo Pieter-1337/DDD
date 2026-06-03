@@ -1,0 +1,32 @@
+Aspire.AppHost/.worktree-slot.example
+  s_a14b416f487d13::t_6628751356747f 1
+Aspire.AppHost.Tests/Aspire.AppHost.Tests.csproj
+  s_a14b416f487d13::t_8bb478f098016f 1-24
+Aspire.AppHost/AppHost.cs
+  s_a14b416f487d13::t_325687eb0ffb10 1,4-36,109-125,127-135,138,140,143,149,172,176-251
+DDD.sln
+  s_a14b416f487d13::t_50f2ef9954bc26 196-197,514-525
+Aspire.AppHost.Tests/WorktreeSlotTests.cs
+  s_a14b416f487d13::t_277d8a94a33739 2
+  s_a14b416f487d13::t_0ad6781a544345 1,3-189
+Aspire.AppHost/WorktreeSlot.cs
+  s_a14b416f487d13::t_071f37d88bc20b 1-68
+.gitignore
+  s_a14b416f487d13::t_038354f5703e04 367-372
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "ade906bf8bdb99814d8dba03273a9930ecde8da1",
+  "prompts": {},
+  "sessions": {
+    "s_a14b416f487d13": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2d4d0f6a-b68f-42de-ab2d-da6283366436",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Pieter Bracke <pieter.bracke@euri.com>"
+    }
+  }
+}
