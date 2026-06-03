@@ -66,6 +66,32 @@ if ($gitDirNorm -ieq $gitCommonNorm) {
     exit 1
 }
 
+# ---------------------------------------------------------------------------
+# Copy gitignored local-dev assets that `git worktree add` never materializes
+# (it only checks out tracked files) but the stack needs to run. The Angular
+# dev server requires the mkcert certs under Frontend/.../certs; they are
+# localhost certs, not slot-specific, so copying them from the main checkout is
+# safe and makes "init the worktree" = "ready to run". Idempotent: only copies
+# what is missing. The main checkout is the parent of the git common dir.
+# ---------------------------------------------------------------------------
+$mainRoot = [System.IO.Path]::GetDirectoryName($gitCommonNorm)
+$certRel = [System.IO.Path]::Combine('Frontend', 'Angular', 'Scheduling.AngularApp', 'certs')
+$srcCerts = [System.IO.Path]::Combine($mainRoot, $certRel)
+$dstCerts = [System.IO.Path]::Combine($worktreeRoot, $certRel)
+if (Test-Path -LiteralPath $srcCerts) {
+    foreach ($pem in 'local-cert.pem', 'local-key.pem') {
+        $src = [System.IO.Path]::Combine($srcCerts, $pem)
+        $dst = [System.IO.Path]::Combine($dstCerts, $pem)
+        if ((Test-Path -LiteralPath $src) -and -not (Test-Path -LiteralPath $dst)) {
+            if (-not (Test-Path -LiteralPath $dstCerts)) {
+                New-Item -ItemType Directory -Path $dstCerts -Force | Out-Null
+            }
+            Copy-Item -LiteralPath $src -Destination $dst
+            Write-Host "Copied dev cert $pem from the main checkout." -ForegroundColor Gray
+        }
+    }
+}
+
 # The slot file lives inside the AppHost subdir, matching WorktreeSlot.Resolve().
 $slotFile = [System.IO.Path]::Combine($worktreeRoot, 'Aspire.AppHost', '.worktree-slot')
 
