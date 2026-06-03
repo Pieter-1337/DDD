@@ -6,11 +6,8 @@ using Shouldly;
 namespace BuildingBlocks.Tests;
 
 /// <summary>
-/// Tests for the Wolverine MassTransit-interop fail-fast guard. The interop bridge
-/// (<c>ListenToMassTransitQueue</c>) is RabbitMQ-only by design (ADR-0001); configuring it
-/// while the broker is Azure Service Bus must throw a descriptive startup exception naming
-/// the supported alternative. These exercise the pure guard method directly, so they need no
-/// running broker, no container, and no Wolverine host.
+/// Tests for the Wolverine MassTransit-interop fail-fast guard (RabbitMQ-only by design,
+/// ADR-0001). Exercise the pure guard method directly — no broker, container, or host.
 /// </summary>
 [TestClass]
 public class WolverineMassTransitInteropGuardTests
