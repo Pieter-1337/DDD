@@ -1,0 +1,8 @@
+# Files to copy into Claude Code agent worktrees.
+# Uses .gitignore syntax. Only paths that are ALSO gitignored are copied,
+# so tracked files are never duplicated.
+
+# Local mkcert certificates (gitignored; needed for the Angular dev server's
+# HTTPS, so an agent worktree can run the SPA without regenerating them).
+Frontend/Angular/Scheduling.AngularApp/certs/local-cert.pem
+Frontend/Angular/Scheduling.AngularApp/certs/local-key.pem
