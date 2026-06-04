@@ -1,0 +1,19 @@
+scripts/worktree-destroy.ps1
+  s_a14b416f487d13::t_c0ce781a1dc2b0 86-87,89-98
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "276061b7122cf1a1a2e7936f56f7d60b24f3e13c",
+  "prompts": {},
+  "sessions": {
+    "s_a14b416f487d13": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2d4d0f6a-b68f-42de-ab2d-da6283366436",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Pieter Bracke <pieter.bracke@euri.com>"
+    }
+  }
+}
