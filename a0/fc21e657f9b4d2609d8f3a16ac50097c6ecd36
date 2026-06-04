@@ -1,0 +1,45 @@
+Directory.Packages.props
+  s_0f6c0a68d97da0::t_b183e66ed9554d 48-53
+  s_0f6c0a68d97da0::t_8dac00d1b45f7b 38-39,41-47
+docs/adr/0003-native-wolverine-flow-and-framework-alignment.md
+  s_0f6c0a68d97da0::t_cba66f460ae841 19,21-28
+docs/requirements/native-framework-flows.md
+  s_0f6c0a68d97da0::t_713789e6f35613 59
+docs/phase-5-event-driven/09-broker-framework-matrix.md
+  s_0f6c0a68d97da0::t_d4089d292b01ff 267-271
+  s_0f6c0a68d97da0::t_ea29bd256427d1 87
+  s_0f6c0a68d97da0::t_b119b1038e83cd 40
+  s_0f6c0a68d97da0::t_3b3d1ac97a934f 64-71
+  s_0f6c0a68d97da0::t_99a655494831c2 127,130-133
+  s_0f6c0a68d97da0::t_99f987c637c0a6 56
+  s_0f6c0a68d97da0::t_7f3b5a68f00aa4 143-156
+  s_0f6c0a68d97da0::t_457edd40a034e0 175-180
+Aspire.AppHost/AppHost.cs
+  s_0f6c0a68d97da0::t_f5982f5b68e91a 50
+BuildingBlocks/BuildingBlocks.Infrastructure.Wolverine/WolverineExtensions.cs
+  s_0f6c0a68d97da0::t_5c9c5005a60e3e 92-94
+  s_0f6c0a68d97da0::t_c5ac066e63714b 53-57
+  s_0f6c0a68d97da0::t_923ce1fbefd811 74-79
+  s_0f6c0a68d97da0::t_31ae800deea520 95-96
+  s_0f6c0a68d97da0::t_5002bc98f5361a 6
+  s_0f6c0a68d97da0::t_de8218a5a91b7e 30-39
+  s_0f6c0a68d97da0::t_9d4961802b3120 67-70
+BuildingBlocks/BuildingBlocks.Infrastructure.Wolverine/BuildingBlocks.Infrastructure.Wolverine.csproj
+  s_0f6c0a68d97da0::t_36592c19aeeadd 15-17
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.3",
+  "base_commit_sha": "a0fc21e657f9b4d2609d8f3a16ac50097c6ecd36",
+  "prompts": {},
+  "sessions": {
+    "s_0f6c0a68d97da0": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2959b439-610a-478d-a13c-9def7e3b2b44",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Pieter Bracke <pieter.bracke@euri.com>"
+    }
+  }
+}
