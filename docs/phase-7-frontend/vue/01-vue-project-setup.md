@@ -347,7 +347,7 @@ The port is set in `vite.config.ts` (`server.port: 7004`, Step 6).
 
 ## Step 8: Configure CORS (Additive)
 
-Vue runs on `https://localhost:7004`, a different origin from the APIs, so the backend must allow it via CORS. **Do not replace** the existing `"Angular"` policy — add the Vue origin alongside it so both frontends keep working.
+Vue runs on `https://localhost:7004`, a different origin from the APIs, so the backend must allow it via CORS. The APIs expose a single shared SPA policy (named `"Spa"`) that lists every trusted frontend origin — add the Vue origin alongside the Angular one so both frontends keep working.
 
 ### Option A: Add the Vue origin to the existing policy
 

@@ -326,7 +326,7 @@ builder.Services.AddAntiforgery(o => o.HeaderName = "X-XSRF-TOKEN");
 //    Resource APIs no longer need CORS (they are called server-to-server).
 builder.Services.AddCors(options =>
 {
-    options.AddPolicy("Angular", policy => policy
+    options.AddPolicy("Spa", policy => policy
         .WithOrigins("https://localhost:7003")
         .AllowAnyHeader()
         .AllowAnyMethod()
@@ -338,7 +338,7 @@ builder.Services.AddControllers();
 var app = builder.Build();
 app.MapDefaultEndpoints();
 app.UseHttpsRedirection();
-app.UseCors("Angular");
+app.UseCors("Spa");
 app.UseAuthentication();
 
 // Issue XSRF-TOKEN cookie on every response so Angular's built-in
@@ -449,7 +449,7 @@ builder.Services.AddJwtBearerAuth(builder.Configuration);
 
 ### CORS — remove entirely
 
-The `AddCors` block and `app.UseCors("Angular")` call in both `Program.cs` files are deleted. Resource APIs are no longer reached cross-origin. The BFF calls them server-to-server through the reverse proxy. Removing CORS from resource APIs also shrinks their attack surface — a browser cannot make direct CORS-preflight requests to them at all.
+The `AddCors` block and `app.UseCors("Spa")` call in both `Program.cs` files are deleted. Resource APIs are no longer reached cross-origin. The BFF calls them server-to-server through the reverse proxy. Removing CORS from resource APIs also shrinks their attack surface — a browser cannot make direct CORS-preflight requests to them at all.
 
 Current CORS block in Scheduling.WebApi (lines 52-62) and Billing.WebApi (lines 66-76) — both are removed.
 
@@ -732,9 +732,9 @@ In Phase 8, both Scheduling.WebApi and Billing.WebApi needed CORS configuration 
 
 **BFF**: CORS policy allows only `https://localhost:7003` with `AllowCredentials()`. This is required because the auth cookie must be sent on every request.
 
-**Scheduling.WebApi**: Remove `AddCors` and `app.UseCors("Angular")` entirely (lines 52-62 and line 76 of `Program.cs`).
+**Scheduling.WebApi**: Remove `AddCors` and `app.UseCors("Spa")` entirely (lines 52-62 and line 76 of `Program.cs`).
 
-**Billing.WebApi**: Remove `AddCors` and `app.UseCors("Angular")` entirely (lines 66-76 and line 90 of `Program.cs`).
+**Billing.WebApi**: Remove `AddCors` and `app.UseCors("Spa")` entirely (lines 66-76 and line 90 of `Program.cs`).
 
 Removing CORS from the resource APIs is not just cleanup. It closes a potential misconfiguration attack vector. If a resource API has CORS enabled with `AllowCredentials()`, a misconfigured allowlist could let a cross-origin attacker call it directly. With no CORS policy at all, the browser cannot initiate a cross-origin preflight to the resource API — the attempt fails before it reaches the application.
 

@@ -48,7 +48,7 @@ HTTP Request arrives
 UseHttpsRedirection()      ← Redirects HTTP to HTTPS
     │
     ▼
-UseCors("Angular")         ← Adds CORS headers to response (must be before auth
+UseCors("Spa")         ← Adds CORS headers to response (must be before auth
     │                        so error responses still include CORS headers)
     ▼
 UseAuthentication()        ← Reads cookie, validates signature, populates HttpContext.User
@@ -168,7 +168,7 @@ builder.Services.AddOidcCookieAuth(builder.Configuration);
 
 builder.Services.AddCors(options =>
 {
-    options.AddPolicy("Angular", policy => policy
+    options.AddPolicy("Spa", policy => policy
         .WithOrigins(
             "https://localhost:7003",  // Angular SPA
             "https://localhost:7010")  // Auth Server (for redirect flows if needed)
@@ -194,7 +194,7 @@ if (app.Environment.IsDevelopment())
 
 app.UseHttpsRedirection();
 
-app.UseCors("Angular");   // CORS before auth so error responses include CORS headers
+app.UseCors("Spa");   // CORS before auth so error responses include CORS headers
 
 // Authentication MUST come before Authorization
 app.UseAuthentication();  // NEW: Validates cookies, populates HttpContext.User
@@ -288,7 +288,7 @@ builder.Services.AddOidcCookieAuth(builder.Configuration);
 
 builder.Services.AddCors(options =>
 {
-    options.AddPolicy("Angular", policy => policy
+    options.AddPolicy("Spa", policy => policy
         .WithOrigins(
             "https://localhost:7003",  // Angular SPA
             "https://localhost:7010")  // Auth Server
@@ -314,7 +314,7 @@ if (app.Environment.IsDevelopment())
 
 app.UseHttpsRedirection();
 
-app.UseCors("Angular");   // CORS before auth so error responses include CORS headers
+app.UseCors("Spa");   // CORS before auth so error responses include CORS headers
 
 // Authentication MUST come before Authorization
 app.UseAuthentication();  // NEW: Validates cookies, populates HttpContext.User
@@ -464,7 +464,7 @@ public class AuthController : ControllerBase
 ```csharp
 builder.Services.AddCors(options =>
 {
-    options.AddPolicy("Angular", policy => policy
+    options.AddPolicy("Spa", policy => policy
         .WithOrigins("https://localhost:7003")
         .AllowAnyHeader()
         .AllowAnyMethod());
@@ -479,7 +479,7 @@ builder.Services.AddCors(options =>
 ```csharp
 builder.Services.AddCors(options =>
 {
-    options.AddPolicy("Angular", policy => policy
+    options.AddPolicy("Spa", policy => policy
         .WithOrigins(
             "https://localhost:7003",  // Angular origin
             "https://localhost:7010")  // Auth Server origin

@@ -386,7 +386,7 @@ Add the CORS policy before building the app:
 
 ```csharp
 builder.Services.AddCors(options =>
-    options.AddPolicy("Angular", policy => policy
+    options.AddPolicy("Spa", policy => policy
         .WithOrigins("https://localhost:7003")
         .AllowAnyHeader()
         .AllowAnyMethod()));
@@ -395,7 +395,7 @@ builder.Services.AddCors(options =>
 Then enable the CORS middleware in the request pipeline (before `app.MapControllers()`):
 
 ```csharp
-app.UseCors("Angular");
+app.UseCors("Spa");
 ```
 
 **File: `WebApplications/Billing.WebApi/Program.cs`**
@@ -762,7 +762,7 @@ has been blocked by CORS policy
 
 **Solution:**
 - Verify CORS is configured in the backend API's `Program.cs`
-- Ensure `app.UseCors("Angular")` is called before `app.MapControllers()`
+- Ensure `app.UseCors("Spa")` is called before `app.MapControllers()`
 - Check the allowed origin matches exactly (`https://localhost:7003`)
 - Restart the backend API after changing CORS configuration
 

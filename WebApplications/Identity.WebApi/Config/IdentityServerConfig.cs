@@ -104,13 +104,41 @@ namespace Identity.WebApi.Config
                     {
                         $"https://localhost:{spaPort}/callback",
                         $"https://localhost:{spaPort}/silent-refresh.html",
+                       
+                    },
+                    PostLogoutRedirectUris = { $"https://localhost:{spaPort}/" },
+                    AllowedCorsOrigins = { $"https://localhost:{spaPort}" },
+
+                    AllowedScopes =
+                    {
+                        IdentityServerConstants.StandardScopes.OpenId,
+                        IdentityServerConstants.StandardScopes.Profile,
+                        IdentityServerConstants.StandardScopes.Email,
+                        "roles",
+                        "scheduling_api",
+                        "billing_api"
+                    },
+
+                    AllowOfflineAccess = true
+                }, 
+                new Client 
+                {
+                    ClientId = "vue-spa",
+                    ClientName = "Vue SPA",
+
+                    AllowedGrantTypes = GrantTypes.Code,
+                    RequirePkce = true,
+                    RequireClientSecret = false,
+
+                    RedirectUris = 
+                    {
                         $"https://localhost:{vuePort}/callback",
                         $"https://localhost:{vuePort}/silent-refresh.html"
                     },
-                    PostLogoutRedirectUris = { $"https://localhost:{spaPort}/", $"https://localhost:{vuePort}/" },
-                    AllowedCorsOrigins = { $"https://localhost:{spaPort}", $"https://localhost:{vuePort}" },
+                    PostLogoutRedirectUris = { $"https://localhost:{vuePort}/" },
+                    AllowedCorsOrigins = { $"https://localhost:{vuePort}" },
 
-                    AllowedScopes =
+                    AllowedScopes = 
                     {
                         IdentityServerConstants.StandardScopes.OpenId,
                         IdentityServerConstants.StandardScopes.Profile,

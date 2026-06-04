@@ -74,7 +74,7 @@ var corsOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<st
 
 builder.Services.AddCors(options =>
 {
-    options.AddPolicy("Angular", policy => policy
+    options.AddPolicy("Spa", policy => policy
         .WithOrigins(corsOrigins)
         .AllowAnyHeader()
         .AllowAnyMethod()
@@ -93,7 +93,7 @@ if (app.Environment.IsDevelopment())
     app.UseOpenApiWithScalar("Scheduling API");
 }
 app.UseHttpsRedirection();
-app.UseCors("Angular");
+app.UseCors("Spa");
 app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();

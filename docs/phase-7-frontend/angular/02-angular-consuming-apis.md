@@ -315,7 +315,7 @@ Add CORS policy in `Program.cs` for both `Scheduling.WebApi` and `Billing.WebApi
 // Add CORS policy
 builder.Services.AddCors(options =>
 {
-    options.AddPolicy("Angular", policy => policy
+    options.AddPolicy("Spa", policy => policy
         .WithOrigins("https://localhost:7003")
         .AllowAnyHeader()
         .AllowAnyMethod());
@@ -326,7 +326,7 @@ builder.Services.AddCors(options =>
 var app = builder.Build();
 
 // Apply CORS middleware (before UseAuthorization)
-app.UseCors("Angular");
+app.UseCors("Spa");
 
 // ... other middleware
 ```
