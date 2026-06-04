@@ -95,13 +95,17 @@ internal static class AppHostHelper
     /// (MassTransit topology creation needs it; the AMQP data-plane string can't carry
     /// it too). Both transports expose a connection string, so callers reference
     /// 'messaging' uniformly via <see cref="IResourceWithConnectionString"/>.
+    /// <paramref name="brokerChoice"/> returns the resolved broker name so the host can
+    /// fan the same value out to each service's <c>MessageBroker</c> (keeping the
+    /// provisioned container and the services' broker selection aligned under the AppHost).
     /// </summary>
     public static IResourceBuilder<IResourceWithConnectionString> AddConfiguredMessaging(
-        this IDistributedApplicationBuilder builder, int slot, out ReferenceExpression? adminConnectionString)
+        this IDistributedApplicationBuilder builder, int slot, out ReferenceExpression? adminConnectionString,
+        out string brokerChoice)
     {
         adminConnectionString = null;
 
-        var brokerChoice =
+        brokerChoice =
             builder.Configuration["Parameters:messaging-broker"]
             ?? builder.Configuration["ASPIRE_MESSAGING_BROKER"]
             ?? BrokerNames.RabbitMq;
