@@ -1,0 +1,26 @@
+BuildingBlocks/BuildingBlocks.Tests/MessagingFrameworkSelectorTests.cs
+  s_f232d47a8ad27f::t_9bb69bbe5f7422 1-117
+BuildingBlocks/BuildingBlocks.Application/Messaging/MessagingFrameworkNames.cs
+  s_f232d47a8ad27f::t_34a95feca82a87 1-16
+BuildingBlocks/BuildingBlocks.Application/Messaging/MessagingFrameworkSelector.cs
+  s_f232d47a8ad27f::t_b51d9653c62426 1-74
+WebApplications/Billing.WebApi/Program.cs
+  s_f232d47a8ad27f::t_674699b30b156c 2
+  s_f232d47a8ad27f::t_76ac4fde88806b 50,52
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.3",
+  "base_commit_sha": "856b9cb33b16a5be39c27f42ab42fce7382f7ed0",
+  "prompts": {},
+  "sessions": {
+    "s_f232d47a8ad27f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "a2e91e10-4d4a-42e2-be68-e2006c7e4b1a",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Pieter Bracke <pieter.bracke@euri.com>"
+    }
+  }
+}
