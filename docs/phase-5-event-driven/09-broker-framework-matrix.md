@@ -7,8 +7,11 @@ broker seam's constraints stop being tribal knowledge.
 It is the checklist for the manual end-to-end verification of the broker seam, and it doubles
 as the **spec for a future automated contract test** (out of scope — see [Out of scope](#out-of-scope)).
 
-> Authoritative decisions live in **[ADR-0001 — message broker selection](../adr/0001-message-broker-selection.md)**.
-> Future native-framework work and the `O(frameworks²)` interop rationale live in
+> Authoritative decisions live in:
+> - **[ADR-0001 — message broker selection](../adr/0001-message-broker-selection.md)** (broker-alignment rule & interop bridge design).
+> - **[ADR-0003 — native Wolverine flow & framework alignment](../adr/0003-native-wolverine-flow-and-framework-alignment.md)** (framework-alignment rule & native W→W design).
+> 
+> Requirements and `O(frameworks²)` interop rationale live in
 > **[docs/requirements/native-framework-flows.md](../requirements/native-framework-flows.md)**.
 > This document records the **currently implemented behavior** — verified against the merged
 > code, with live-run gaps called out explicitly.
@@ -24,21 +27,22 @@ enforcement — ADR-0001):
 - **`MessageBroker`** — `RabbitMq` (default) or `AzureServiceBus`. Read by the **framework
   extension** via `BrokerSelector.Resolve(...)` (`BuildingBlocks.Application.Messaging`).
 
-But two facts about the **hosts** constrain which combinations are reachable today:
+Both services now support a **`MessagingFramework` switch**:
 
-1. **`Scheduling.WebApi` is hardcoded to MassTransit.** Its `Program.cs` calls
-   `AddMassTransitEventBus` unconditionally — there is **no** `MessagingFramework` switch.
-   So **Scheduling is always the publisher, always on MassTransit.**
-2. **Only `Billing.WebApi` has a `MessagingFramework` switch** — `Wolverine` (default) or
-   `MassTransit`. When on Wolverine, Billing consumes the cross-context event through
-   `ListenToMassTransitQueue<PatientCreatedIntegrationEvent>` — a **RabbitMQ-exchange-based
-   interop listener**, not a native Wolverine subscription.
+1. **`Scheduling.WebApi`** — `MassTransit` (default) or `Wolverine` (switch added in PRD #24).
+2. **`Billing.WebApi`** — `MassTransit` (default) or `Wolverine`.
 
-The only cross-context flow in the system is therefore:
+The cross-context flows in the system are:
 
 ```
-Scheduling (always MassTransit)  --PatientCreatedIntegrationEvent-->  Billing (Wolverine via interop, OR MassTransit native)
+Scheduling [MassTransit]  --PatientCreatedIntegrationEvent-->  Billing [MassTransit native] ✅ (default)
+Scheduling [MassTransit]  --PatientCreatedIntegrationEvent-->  Billing [Wolverine interop]  ✅ (legacy reference, RabbitMQ-only)
+Scheduling [Wolverine]    --PatientCreatedIntegrationEvent-->  Billing [Wolverine native]   ✅ (verified on RabbitMQ; both on Wolverine)
 ```
+
+The **framework-alignment rule** constrains realizable flows: all services on a single flow must run 
+the same framework (both MassTransit native, or both Wolverine native). The MT→W interop bridge is 
+RabbitMQ-only and is demoted to reference (ADR-0003).
 
 ---
 
@@ -68,16 +72,18 @@ Notes:
 
 ## Layer 2 — Realizable cross-context flows (Scheduling → Billing)
 
-Because Scheduling is always MassTransit, the *publisher* framework is fixed. Of the four
-conceptual framework pairings (MT→MT, MT→W, W→MT, W→W), **only the two with a MassTransit
-publisher are realizable** today.
+Both services now carry a `MessagingFramework` switch (PRD #24), so the publisher is no longer
+fixed. Of the four conceptual framework pairings (MT→MT, MT→W, W→MT, W→W), the **two
+framework-aligned native flows are realizable** today — MT→MT (default) and W→W (verified on
+RabbitMQ) — plus the **MT→W interop bridge** kept as a RabbitMQ-only legacy reference. **W→MT is
+not wired.**
 
 | Flow (publisher → consumer) | RabbitMq                                | Azure Service Bus                                                       |
 | --------------------------- | --------------------------------------- | ---------------------------------------------------------------------- |
-| **MT → Wolverine** (interop)| ✅ **works — this is today's default**  | ❌ **fails by design** (guard throws at startup — both emulator AND real namespace) |
+| **MT → Wolverine** (interop)| ✅ **works — legacy path** *(MT→W interop bridge is RabbitMQ-only; demoted to reference in ADR-0003)* | ❌ **fails by design** (guard throws at startup — both emulator AND real namespace) |
 | **MT → MassTransit** (native)| ✅ works                                | ✅ works *(ASB demo config; emulator wiring confirmed in code, live topology-creation pending)* |
-| **Wolverine → MassTransit** | 🚫 **not wired** (Scheduling can't run on Wolverine) | 🚫 **not wired** |
-| **Wolverine → Wolverine** (native) | 🚫 **not wired** (future work)   | 🚫 **not wired** (future work; additionally emulator-blocked — see notes) |
+| **Wolverine → Wolverine** (native) | ✅ **works** *(verified end-to-end; framework-alignment rule applies — see below)* | ⚠️ **blocked by WolverineFx 4.12.2** (AutoProvision cannot reach emulator's port-5300 management plane; valid on real namespace; upgrade to 6+ unblocks — see notes) |
+| **Wolverine → MassTransit** | 🚫 **not wired** (never pursued) | 🚫 **not wired** |
 
 ### MT → Wolverine: today's default — and the deliberately-dead cell on ASB
 
@@ -111,18 +117,29 @@ publisher are realizable** today.
   on Wolverine, the dead cell is a property of Billing's Wolverine configuration on ASB, not of
   what the publisher happens to be.
 
-### Wolverine → Wolverine: future work (not wired today)
+### Wolverine → Wolverine: native conventional routing
 
-Native W→W is **not wired**: it would require Scheduling to publish on Wolverine, which its host
-does not support, and Billing's Wolverine path uses the MT-interop listener rather than a native
-Wolverine subscription. This is the future-work record in
-[docs/requirements/native-framework-flows.md](../requirements/native-framework-flows.md).
+Native W→W **is now supported and verified end-to-end on RabbitMQ** via Wolverine's `UseConventionalRouting()` — 
+the implementation shipped in [ADR-0003](../adr/0003-native-wolverine-flow-and-framework-alignment.md) and
+[docs/requirements/native-framework-flows.md](../requirements/native-framework-flows.md). The patient → BillingProfile 
+flow has been confirmed working when both services run `MessagingFramework=Wolverine`: the publisher's exchange and 
+the listener's queue/binding share the same convention-derived `IntegrationEvents.Scheduling.PatientCreatedIntegrationEvent` name.
 
-Additionally, native Wolverine **AutoProvision against the emulator** is blocked: WolverineFx
-4.12.2 cannot inject a separate admin client, so it does **not** consume the `messaging-admin`
-string and its provisioning hits the emulator's management plane (`localhost:443`) wall. Native
-Wolverine on a **real Azure namespace** is fine. (This concerns only the future W→W work; W→W is
-**not wired today** regardless.)
+**Framework-alignment rule (mandatory):** All services on a **single cross-context flow** must run the same 
+messaging framework — either both MassTransit (native MT→MT) or both Wolverine (native W→W). **No mixed-framework 
+configuration is runnable** (it silently drops messages, unguardable at startup because services cannot see each 
+other's framework choice — unlike the broker's self-describing connection string). This mirrors ADR-0001's 
+broker-alignment rule. See [native-framework-flows.md § "Default & alignment"](../requirements/native-framework-flows.md#default--alignment) 
+for the AppHost `messaging-framework` knob that fans out a single aligned value to both services.
+
+**On Azure Service Bus:** native W→W on the **emulator is blocked** by WolverineFx 4.12.2, which cannot inject a 
+separate management-plane client — its `AzureServiceBusTransport` has no `ManagementConnectionString` property, 
+so `AutoProvision` tries to reach `localhost:443` and fails. This is **confirmed empirically (2026-06-04)** via a 
+build probe. Current WolverineFx (6.4.3+) adds the property, feedable from the AppHost's existing `messaging-admin` 
+string — but reaching it requires a **major 4→6 upgrade with breaking-change risk across the Wolverine surface**, 
+deferred to [issue #28](https://github.com/Pieter-1337/DDD/issues/28). Native W→W on a **real Azure namespace** 
+is unaffected (no emulator management-plane workaround needed). RabbitMQ remains fully unaffected and fully 
+verified.
 
 ---
 
@@ -152,7 +169,7 @@ the distinction matters for the ✅ cells above.
 
 ---
 
-## System-wide constraint: all services on a flow must align
+## System-wide constraints: broker and framework alignment
 
 There is **no central enforcement** of broker or framework choice — both are **per-service
 config by design** (ADR-0001: production configures each service individually, so an
@@ -160,18 +177,29 @@ AppHost-propagated value would be a second, local-only mechanism).
 
 The consequence is a **system-wide alignment requirement** for every cross-context flow:
 
-1. **Same broker across all services on the flow.** If Scheduling runs RabbitMq and Billing
-   runs AzureServiceBus (or vice-versa), cross-context events stop flowing. This fails **fast**:
-   `BrokerSelector`'s connection-string **format guard** throws at startup when a service's
-   `MessageBroker` value does not match the connection string it received (expects `amqp://`
-   for RabbitMq, `Endpoint=sb://` for AzureServiceBus), with an error message naming the
-   misalignment and the fix.
-2. **Framework alignment per the supported pairings.** Same-framework-native (MT→MT, native
-   W→W) or the **single MT→W bridge** (RabbitMq-only). Any other cross-framework-on-ASB
-   combination fails fast via the interop guard.
+1. **Same broker across all services on the flow** (broker-alignment rule, ADR-0001).
+   If Scheduling runs RabbitMq and Billing runs AzureServiceBus (or vice-versa), cross-context 
+   events stop flowing. This fails **fast**: `BrokerSelector`'s connection-string **format guard** 
+   throws at startup when a service's `MessageBroker` value does not match the connection string 
+   it received (expects `amqp://` for RabbitMq, `Endpoint=sb://` for AzureServiceBus), with an 
+   error message naming the misalignment and the fix.
+
+2. **Same framework across all services on the flow** (framework-alignment rule, ADR-0003).
+   All services on a **single cross-context flow** must run the same messaging framework — either 
+   both MassTransit (native MT→MT) or both Wolverine (native W→W). There is **no runnable mixed 
+   configuration**. If Scheduling publishes on MassTransit and Billing listens on Wolverine with 
+   native conventional routing (not the MT→W interop bridge), events silently stop flowing. Unlike 
+   the broker alignment guard (which fails fast via connection-string format mismatch), framework 
+   misalignment **cannot be caught at startup** — a service cannot see another service's 
+   `MessagingFramework` choice. Alignment is enforced by:
+   - Both services defaulting to **`MassTransit`** (the out-of-box flow is MT→MT, which works on 
+     all brokers).
+   - The **AppHost exposing one `messaging-framework` parameter** (default `MassTransit`) and 
+     fanning it out via `WithEnvironment(...)` to both services, so a single local knob keeps 
+     them aligned and cannot drift — see [native-framework-flows.md § "Default & alignment"](../requirements/native-framework-flows.md#default--alignment).
 
 Alignment is **trusted to developers now** and is **checkable by a CI/release pipeline later**
-(out of scope — ADR-0001).
+(out of scope — ADR-0001 and ADR-0003).
 
 ---
 
@@ -214,8 +242,13 @@ dashboard** — a connected publish→consume span tree confirms the flow.
 
 - Porting the Wolverine↔MassTransit interop bridge to Azure Service Bus topics/subscriptions
   (the constrained matrix is the deliberate alternative — ADR-0001).
-- The CI/release pipeline check that all services' `MessageBroker` values align (feasible,
-  deliberately deferred).
+- The CI/release pipeline check that all services' `MessageBroker` and `MessagingFramework` 
+  values align (feasible, deliberately deferred).
+- **WolverineFx 4→6 upgrade for native W→W on ASB emulator** — deferred to [issue #28](https://github.com/Pieter-1337/DDD/issues/28).
+  The 4.12.2 limitation (no `ManagementConnectionString` on `AzureServiceBusTransport`, blocking 
+  `AutoProvision` on the emulator) is lifted in WolverineFx 6.4.3+, but the major-version upgrade 
+  carries breaking-change risk across the whole Wolverine surface and is not pursued here.
+  Real Azure namespaces are unaffected and work today.
 - **Automated contract tests.** This matrix doubles as the spec for a future automated contract
   test that would assert each cell's startup behavior (works / throws-with-message / not-wired)
   without a human running the system.
