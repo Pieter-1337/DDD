@@ -3,6 +3,7 @@ using BuildingBlocks.Application.Interfaces;
 using BuildingBlocks.Application.Messaging;
 using FluentValidation;
 using JasperFx;
+using JasperFx.CodeGeneration.Model;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -26,6 +27,16 @@ public static class WolverineExtensions
     // the UseWolverine lambda, reset in finally) is how the helper learns the broker.
     private static readonly AsyncLocal<string?> CurrentBroker = new();
 
+    /// <summary>
+    /// Optional second connection string, injected by the Aspire AppHost only on the
+    /// Azure Service Bus *emulator* path. It targets the emulator's separate HTTP
+    /// management plane (port 5300) for topology provisioning, while the single
+    /// <c>messaging</c> string (owned by <see cref="BrokerSelector"/>) targets the AMQP
+    /// data plane (5672). Same key the MassTransit extension reads — both frameworks
+    /// consume the one value the AppHost fans out (see ADR-0001/ADR-0003).
+    /// </summary>
+    internal const string MessagingAdminConnectionStringName = "messaging-admin";
+
     public static IHostApplicationBuilder AddWolverineEventBus<TDbContext>(
         this IHostApplicationBuilder builder,
         string dbConnectionString,
@@ -39,6 +50,11 @@ public static class WolverineExtensions
         // now required for every broker, including non-Aspire environments.
         var selection = BrokerSelector.Resolve(builder.Configuration);
 
+        // Captured here (outside the host-build lambda, which runs after this method
+        // returns) so the ASB branch can wire the emulator's management plane. Null on
+        // RabbitMQ and on real Azure namespaces (one endpoint serves both planes there).
+        var adminConnectionString = builder.Configuration.GetConnectionString(MessagingAdminConnectionStringName);
+
         builder.Services.AddScoped<IEventBus, WolverineDbContextEventBus<TDbContext>>();
         builder.Services.AddScoped<ICommitStrategy, WolverineCommitStrategy<TDbContext>>();
         builder.Services.AddScoped(typeof(IDbContextOutbox<TDbContext>), typeof(DbContextOutbox<TDbContext>));
@@ -48,14 +64,19 @@ public static class WolverineExtensions
             // --- Transport branch (the only broker-specific code) ---
             if (selection.Broker == BrokerNames.AzureServiceBus)
             {
-                // Single connection string covers both emulator (via the
-                // 'UseDevelopmentEmulator=true' flag) and real namespaces. Unlike the
-                // MassTransit extension, WolverineFx 4.12.2 offers no way to inject a
-                // separate admin client, so it cannot use the AppHost's 'messaging-admin'
-                // string (see ADR-0001 and the PR body).
+                // Emulator only: topology provisioning uses a separate HTTP management
+                // port the 'messaging' data-plane string can't reach, so wire the admin
+                // string below. Null (and skipped) on RabbitMQ / real namespaces, where one
+                // endpoint serves both planes. See ADR-0003.
                 opts.UseAzureServiceBus(selection.ConnectionString)
                     .AutoProvision()
                     .UseConventionalRouting();
+
+                if (!string.IsNullOrWhiteSpace(adminConnectionString))
+                {
+                    opts.Transports.GetOrCreate<AzureServiceBusTransport>()
+                        .ManagementConnectionString = adminConnectionString;
+                }
             }
             else
             {
@@ -67,6 +88,11 @@ public static class WolverineExtensions
             }
 
             // --- Broker-agnostic configuration (shared above the transport branch) ---
+
+            // Wolverine 6 flipped the default ServiceLocationPolicy to NotAllowed, which
+            // rejects our consumers' IMediator dispatch (MediatR resolves via IServiceProvider).
+            // Restore the 5.x default; AllowedButWarn keeps the reliance visible in logs. See ADR-0003.
+            opts.ServiceLocationPolicy = ServiceLocationPolicy.AllowedButWarn;
 
             // Only discover handlers where the first parameter implements IIntegrationEvent.
             // This prevents accidental handler registration for non-event types.

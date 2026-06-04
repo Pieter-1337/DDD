@@ -12,6 +12,9 @@
 
   <ItemGroup>
     <PackageReference Include="WolverineFx" />
+    <!-- Restores Wolverine's runtime code generation, which core no longer bundles in
+         6.x (GH-2876); auto-registers the Roslyn IAssemblyGenerator at host start. -->
+    <PackageReference Include="WolverineFx.RuntimeCompilation" />
     <PackageReference Include="WolverineFx.EntityFrameworkCore" />
     <PackageReference Include="WolverineFx.RabbitMQ" />
     <PackageReference Include="WolverineFx.AzureServiceBus" />
