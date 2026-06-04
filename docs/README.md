@@ -18,7 +18,7 @@ docs/
 +-- phase-4-testing/             # Integration testing setup
 +-- phase-5-event-driven/        # Event-driven architecture
 +-- phase-6-integration/         # Complete system integration
-+-- phase-7-frontend/            # Frontend (Blazor + Angular)
++-- phase-7-frontend/            # Frontend (Blazor + Angular + Vue)
 +-- phase-8-auth/                # Authentication & Authorization (planned)
 +-- phase-9-api-gateway-bff/     # API Gateway (YARP) & BFF pattern (optional)
 +-- worktree-slots/              # Dev tooling: run multiple live stacks side by side (see adr/0002)
@@ -39,8 +39,9 @@ Each phase directory contains:
 Building user interfaces for the DDD learning project:
 - Blazor Server with FluentUI components
 - Angular SPA with Angular Material
+- Vue SPA with PrimeVue + Tailwind + TanStack Query
 - Patient management UI (list, create, detail, suspend, activate)
-- API integration for both frontends
+- API integration for all frontends
 
 ### Event Architecture (Established in Phase 5)
 

@@ -10,7 +10,7 @@
 | Phase 4: Testing | Complete | 2026-01-09 | 2026-01-23 |
 | Phase 5: Event-Driven Architecture | Complete | 2026-01-23 | 2026-02-13 |
 | Phase 6: Integration | Complete | 2026-03-09 | 2026-03-16 |
-| Phase 7: Frontend (Blazor + Angular) | In Progress | 2026-03-12 | - |
+| Phase 7: Frontend (Blazor + Angular + Vue) | In Progress | 2026-03-12 | - |
 | Phase 8: Authentication & Authorization | Docs Written | 2026-03-25 | - |
 | Phase 9: API Gateway & BFF (optional) | Not Started | - | - |
 
@@ -357,27 +357,31 @@ This allows using `nameof(GetPatientAsync)` in `CreatedAtAction` calls.
 - [x] Frontend overview and architecture (framework-agnostic)
 - [x] Blazor Server with FluentUI components
 - [x] Angular with Angular Material
+- [x] Vue with PrimeVue + Tailwind + TanStack Query
 - [x] Component architecture and routing
-- [x] Consuming backend APIs with typed HttpClient / Angular HttpClient
-- [x] State management patterns (Blazor scoped services, Angular signals)
-- [x] Forms and validation (EditForm + FluentValidation / Reactive Forms)
+- [x] Consuming backend APIs with typed HttpClient / Angular HttpClient / TanStack Query
+- [x] State management patterns (Blazor scoped services, Angular signals, Vue refs + query cache)
+- [x] Forms and validation (EditForm + FluentValidation / Reactive Forms / VeeValidate + Zod)
 
 ### Implementation Progress
 
-- [x] Documentation created (11 documents: 1 overview + 5 Blazor + 5 Angular)
+- [x] Documentation created (14 documents: 1 overview + 5 Blazor + 4 Angular + 4 Vue)
 - [ ] Blazor Server project setup with FluentUI and Aspire
 - [ ] Angular project setup with Angular Material
+- [ ] Vue project setup with PrimeVue + Tailwind + TanStack Query
 - [ ] Patient management UI (list, create, detail, suspend, activate)
 - [ ] API integration end-to-end
 
 ### Key Decisions Made
 
-1. **Two-track approach** - Blazor Server and Angular, same topics mirrored. Building both enables BFF pattern in Phase 9
+1. **Three-track approach** - Blazor Server, Angular, and Vue, same topics mirrored against the same APIs. Building more than one enables BFF pattern in Phase 9
 2. **FluentUI for Blazor** - Microsoft's component library for Blazor Server
 3. **Angular Material for Angular** - Google's component library for Angular
-4. **Typed HttpClient** - Blazor uses typed HttpClient with Aspire service discovery
-5. **Proxy config for Angular** - Angular uses proxy.conf.json for API calls during development
+4. **PrimeVue + Tailwind for Vue** - PrimeVue 4 components with Tailwind CSS v4 utilities (cssLayer integration)
+5. **Typed HttpClient** - Blazor uses typed HttpClient with Aspire service discovery
 6. **Signals for Angular state** - Angular uses signals instead of BehaviorSubject for state management
+7. **TanStack Query for Vue server state** - queries + mutations with cache invalidation replace manual reload; VeeValidate + Zod for schema-first form validation
+8. **Additive CORS** - Vue runs on its own origin (`https://localhost:7004`) added alongside Angular's, so both SPAs run side by side
 
 ### Docs Available
 
@@ -388,9 +392,13 @@ This allows using `nameof(GetPatientAsync)` in `CreatedAtAction` calls.
 - `phase-7-frontend/blazor/04-blazor-state-management.md` - Component state, scoped services
 - `phase-7-frontend/blazor/05-blazor-forms-and-validation.md` - EditForm, FluentValidation
 - `phase-7-frontend/angular/01-angular-project-setup.md` - Angular CLI + Material
-- `phase-7-frontend/angular/02-angular-components-and-routing.md` - Standalone components, Router
-- `phase-7-frontend/angular/03-angular-consuming-apis.md` - HttpClient, RxJS, proxy config
-- `phase-7-frontend/angular/05-angular-forms-and-validation.md` - Reactive Forms, validation
+- `phase-7-frontend/angular/02-angular-consuming-apis.md` - HttpClient, RxJS
+- `phase-7-frontend/angular/03-angular-components-and-routing.md` - Standalone components, Router
+- `phase-7-frontend/angular/04-angular-forms-and-validation.md` - Reactive Forms, validation
+- `phase-7-frontend/vue/01-vue-project-setup.md` - Vite + PrimeVue 4 + Tailwind v4 + TanStack Query + Aspire
+- `phase-7-frontend/vue/02-vue-consuming-apis.md` - fetch API layer, TanStack Query queries + mutations
+- `phase-7-frontend/vue/03-vue-components-and-routing.md` - SFCs, Vue Router, PrimeVue DataTable/Card
+- `phase-7-frontend/vue/04-vue-forms-and-validation.md` - VeeValidate + Zod, PrimeVue inputs
 
 ---
 

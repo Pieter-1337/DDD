@@ -105,6 +105,7 @@ This is a comprehensive learning project to master Domain-Driven Design (DDD) an
 
 **Tracks**:
 - Angular track — complete
+- Vue track — docs written (PrimeVue 4 + Tailwind v4 + TanStack Query + VeeValidate/Zod), implementation not yet pursued
 - Blazor Server track — deferred (docs written, implementation not pursued)
 
 ### Phase 8: Authentication & Authorization

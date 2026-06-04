@@ -2,7 +2,7 @@
 
 ## What We're Building
 
-This phase adds user interfaces to the DDD learning project. Both the **Blazor** and **Angular** tracks build the same patient management UI with identical functionality. Choose either track — or build both to compare frameworks and to enable the BFF pattern exploration in Phase 9.
+This phase adds user interfaces to the DDD learning project. The **Blazor**, **Angular**, and **Vue** tracks all build the same patient management UI with identical functionality. Choose any track — or build more than one to compare frameworks and to enable the BFF pattern exploration in Phase 9.
 
 The UI provides:
 - List all patients with optional status filtering
@@ -35,6 +35,8 @@ Browser
 |  - Blazor Server |  <-- C# / .NET track
 |    OR            |
 |  - Angular SPA   |  <-- TypeScript track
+|    OR            |
+|  - Vue SPA       |  <-- TypeScript track (PrimeVue + Tailwind + TanStack Query)
 +------------------+
    |
    | HTTP requests
@@ -228,34 +230,39 @@ Without this endpoint, the frontend can display patient data but not billing pro
 
 ## Track Comparison Table
 
-Both tracks build identical functionality. Choose one or both.
+All tracks build identical functionality. Choose one or more.
 
-| # | Topic | Blazor Doc | Angular Doc |
-|---|-------|-----------|-------------|
-| **01** | Project Setup | [blazor/01-blazor-project-setup.md](./blazor/01-blazor-project-setup.md) | [angular/01-angular-project-setup.md](./angular/01-angular-project-setup.md) |
-| **02** | Components & Routing | [blazor/02-blazor-components-and-routing.md](./blazor/02-blazor-components-and-routing.md) | [angular/02-angular-components-and-routing.md](./angular/02-angular-components-and-routing.md) |
-| **03** | Consuming APIs | [blazor/03-blazor-consuming-apis.md](./blazor/03-blazor-consuming-apis.md) | [angular/03-angular-consuming-apis.md](./angular/03-angular-consuming-apis.md) |
-| **05** | Forms & Validation | [blazor/05-blazor-forms-and-validation.md](./blazor/05-blazor-forms-and-validation.md) | [angular/05-angular-forms-and-validation.md](./angular/05-angular-forms-and-validation.md) |
+The cross-reference below is **topic-aligned** — the same topic may sit at a different file number per track (e.g. the Angular/Vue tracks fold state management into the consuming-APIs and components docs, so they have four docs to Blazor's five).
+
+| Topic | Blazor Doc | Angular Doc | Vue Doc |
+|-------|-----------|-------------|---------|
+| Project Setup | [blazor/01](./blazor/01-blazor-project-setup.md) | [angular/01](./angular/01-angular-project-setup.md) | [vue/01](./vue/01-vue-project-setup.md) |
+| Consuming APIs | [blazor/03](./blazor/03-blazor-consuming-apis.md) | [angular/02](./angular/02-angular-consuming-apis.md) | [vue/02](./vue/02-vue-consuming-apis.md) |
+| Components & Routing | [blazor/02](./blazor/02-blazor-components-and-routing.md) | [angular/03](./angular/03-angular-components-and-routing.md) | [vue/03](./vue/03-vue-components-and-routing.md) |
+| Forms & Validation | [blazor/05](./blazor/05-blazor-forms-and-validation.md) | [angular/04](./angular/04-angular-forms-and-validation.md) | [vue/04](./vue/04-vue-forms-and-validation.md) |
+| State Management | [blazor/04](./blazor/04-blazor-state-management.md) | (signals — in components doc) | (TanStack Query — in consuming-APIs doc) |
 
 ---
 
 ## Technology Comparison
 
-### Blazor Server vs Angular
+### Blazor Server vs Angular vs Vue
 
-| Aspect | Blazor Server | Angular |
-|--------|--------------|---------|
-| **Language** | C# | TypeScript |
-| **Rendering** | Server-side via SignalR | Client-side (SPA) |
-| **State Management** | Scoped services, component state | Services, signals |
-| **Component Library** | FluentUI Blazor (Microsoft Fluent 2 design) | Angular Material |
-| **Forms** | `EditForm` + FluentValidation | Reactive Forms + validation |
-| **API Client** | Typed `HttpClient` with Aspire service discovery | Angular `HttpClient` + CORS |
-| **Bundle Size** | N/A (server-rendered) | ~200KB gzipped (initial load) |
-| **Deployment** | ASP.NET Core app | Static files + nginx/CDN |
-| **SEO** | Excellent (server-rendered HTML) | Requires SSR or prerendering |
-| **Offline Support** | Limited (requires SignalR connection) | Excellent with Service Workers |
-| **Learning Curve** | Low (if you know C#) | Medium (TypeScript + RxJS + Signals) |
+| Aspect | Blazor Server | Angular | Vue 3 |
+|--------|--------------|---------|-------|
+| **Language** | C# | TypeScript | TypeScript |
+| **Rendering** | Server-side via SignalR | Client-side (SPA) | Client-side (SPA) |
+| **State Management** | Scoped services, component state | Services, signals | `ref`/`computed` + TanStack Query cache |
+| **Component Library** | FluentUI Blazor (Microsoft Fluent 2 design) | Angular Material | PrimeVue 4 |
+| **Styling** | Component CSS / FluentUI | Component-scoped SCSS | Tailwind CSS v4 |
+| **Forms** | `EditForm` + FluentValidation | Reactive Forms + validation | VeeValidate + Zod schema |
+| **API Client** | Typed `HttpClient` with Aspire service discovery | Angular `HttpClient` + CORS | `fetch` + TanStack Query + CORS |
+| **Build Tool** | .NET SDK | Angular CLI | Vite |
+| **Bundle Size** | N/A (server-rendered) | ~200KB gzipped (initial load) | ~100–150KB gzipped (initial load) |
+| **Deployment** | ASP.NET Core app | Static files + nginx/CDN | Static files + nginx/CDN |
+| **SEO** | Excellent (server-rendered HTML) | Requires SSR or prerendering | Requires SSR (Nuxt) or prerendering |
+| **Offline Support** | Limited (requires SignalR connection) | Excellent with Service Workers | Excellent with Service Workers |
+| **Learning Curve** | Low (if you know C#) | Medium (TypeScript + RxJS + Signals) | Low–Medium (TypeScript + Composition API) |
 
 ### When to Choose Blazor
 
@@ -274,6 +281,15 @@ Both tracks build identical functionality. Choose one or both.
 - You need a mature SPA ecosystem (RxJS, signals, standalone components)
 - Note: TypeScript models must be defined separately (or generated from API specs using tools like NSwag or openapi-generator)
 
+### When to Choose Vue
+
+- You want a lightweight SPA with a gentle learning curve and minimal boilerplate
+- You prefer declarative server-state management (TanStack Query) over manual subscription/reload code
+- You like utility-first styling (Tailwind) and a batteries-included component library (PrimeVue)
+- You want fast dev startup and HMR via Vite
+- You prefer schema-first validation (Zod) that mirrors backend rules in one place
+- Note: like Angular, TypeScript models are defined separately from the backend DTOs
+
 ---
 
 ## Relationship to BFF Pattern (Phase 9)
@@ -291,13 +307,13 @@ Phase 9 documents the **Backend for Frontend (BFF)** pattern as an optional enha
 Browser
    |
    v
-Frontend (Blazor or Angular)
+Frontend (Blazor, Angular, or Vue)
    |
    v
 Backend APIs (Scheduling, Billing)  <-- Direct consumption
 ```
 
-> **Note:** Blazor Server is inherently a BFF — it runs server-side, makes API calls server-to-server, and communicates with the browser via SignalR. It can aggregate data from multiple backend APIs without needing a separate BFF service. The BFF pattern in Phase 9 is primarily relevant for the Angular SPA track.
+> **Note:** Blazor Server is inherently a BFF — it runs server-side, makes API calls server-to-server, and communicates with the browser via SignalR. It can aggregate data from multiple backend APIs without needing a separate BFF service. The BFF pattern in Phase 9 is primarily relevant for the client-side SPA tracks (Angular and Vue).
 
 **When to add a BFF:**
 - You build both Blazor and Angular frontends with different needs
@@ -414,9 +430,17 @@ Start with [angular/01-angular-project-setup.md](./angular/01-angular-project-se
 3. Configure CORS for cross-origin API access
 4. Set up HttpClient and environment configuration
 
-### Why build both?
+### Vue SPA
 
-Building both frontends against the same backend APIs unlocks learning opportunities in Phase 9 (BFF pattern). Two frontends with different rendering models (server-side vs client-side SPA) are the natural trigger for introducing separate Backend for Frontend services, each tailored to their frontend's needs.
+Start with [vue/01-vue-project-setup.md](./vue/01-vue-project-setup.md) to:
+1. Scaffold a Vue 3 + Vite project
+2. Add PrimeVue 4 + Tailwind CSS v4 + TanStack Query
+3. Configure CORS (additively, alongside Angular) and a dedicated port (7004)
+4. Register the app with .NET Aspire
+
+### Why build more than one?
+
+Building multiple frontends against the same backend APIs unlocks learning opportunities in Phase 9 (BFF pattern). Frontends with different rendering models (server-side Blazor vs client-side Angular/Vue SPAs) are the natural trigger for introducing separate Backend for Frontend services, each tailored to their frontend's needs.
 
 ---
 
@@ -426,6 +450,7 @@ Building both frontends against the same backend APIs unlocks learning opportuni
 
 - **Blazor Track:** Server-side rendering, SignalR, C# component model, FluentUI Blazor
 - **Angular Track:** Client-side SPA, TypeScript, reactive programming, Angular Material
+- **Vue Track:** Client-side SPA, TypeScript, Composition API, PrimeVue + Tailwind + TanStack Query
 
 ### Key Concepts
 
@@ -441,10 +466,11 @@ Building both frontends against the same backend APIs unlocks learning opportuni
 - **Display-specific models** - Transform backend DTOs into UI-specific view models if needed
 - **Handle errors gracefully** - Show user-friendly messages for validation errors and exceptions
 - **Avoid business logic in UI** - Frontend orchestrates, domain layer decides
-- **Use framework conventions** - Follow Blazor or Angular best practices for components, routing, and state
+- **Use framework conventions** - Follow Blazor, Angular, or Vue best practices for components, routing, and state
 
 ---
 
 > **Next:** Choose your track:
 > - **Blazor:** [blazor/01-blazor-project-setup.md](./blazor/01-blazor-project-setup.md)
 > - **Angular:** [angular/01-angular-project-setup.md](./angular/01-angular-project-setup.md)
+> - **Vue:** [vue/01-vue-project-setup.md](./vue/01-vue-project-setup.md)
