@@ -54,14 +54,16 @@ public static class WolverineExtensions
                 // separate admin client, so it cannot use the AppHost's 'messaging-admin'
                 // string (see ADR-0001 and the PR body).
                 opts.UseAzureServiceBus(selection.ConnectionString)
-                    .AutoProvision();
+                    .AutoProvision()
+                    .UseConventionalRouting();
             }
             else
             {
                 // The broker-selection module already validated this is an AMQP URI
                 // (e.g. Aspire's amqp://guest:guest@localhost:5672).
                 opts.UseRabbitMq(new Uri(selection.ConnectionString))
-                    .AutoProvision();
+                    .AutoProvision()
+                    .UseConventionalRouting();
             }
 
             // --- Broker-agnostic configuration (shared above the transport branch) ---

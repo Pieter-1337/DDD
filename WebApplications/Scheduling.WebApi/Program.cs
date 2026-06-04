@@ -1,6 +1,8 @@
 using BuildingBlocks.Application;
+using BuildingBlocks.Application.Messaging;
 using BuildingBlocks.Infrastructure.Auth;
 using BuildingBlocks.Infrastructure.MassTransit.Configuration;
+using BuildingBlocks.Infrastructure.Wolverine;
 using BuildingBlocks.WebApplications.Filters;
 using BuildingBlocks.WebApplications.Json;
 using BuildingBlocks.WebApplications.OpenApi;
@@ -43,12 +45,24 @@ builder.Services.AddDefaultPipelineBehaviors();
 // worktree slot requires no manual 'dotnet ef database update' step.
 builder.Services.AddHostedService<DatabaseMigrator>();
 
-// Add MassTransit for event-driven messaging
-builder.Services.AddMassTransitEventBus<SchedulingDbContext>(builder.Configuration, configure =>
+// Add event-driven messaging (configurable: Wolverine or MassTransit)
+var messagingFramework = MessagingFrameworkSelector.Resolve(builder.Configuration);
+
+if (messagingFramework == MessagingFrameworkNames.Wolverine)
 {
-    // Register consumers from bounded context assemblies
-    configure.AddConsumers(typeof(Scheduling.Infrastructure.ServiceCollectionExtensions).Assembly);
-});
+    builder.AddWolverineEventBus<SchedulingDbContext>(connectionString, "wolverine_scheduling", opts =>
+    {
+        opts.Discovery.IncludeAssembly(typeof(Scheduling.Infrastructure.ServiceCollectionExtensions).Assembly);
+    });
+}
+else
+{
+    builder.Services.AddMassTransitEventBus<SchedulingDbContext>(builder.Configuration, configure =>
+    {
+        // Register consumers from bounded context assemblies
+        configure.AddConsumers(typeof(Scheduling.Infrastructure.ServiceCollectionExtensions).Assembly);
+    });
+}
 
 // Add cookie auth
 builder.Services.AddOidcCookieAuth(builder.Configuration);
