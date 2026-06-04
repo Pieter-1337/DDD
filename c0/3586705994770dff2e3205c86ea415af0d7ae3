@@ -1,0 +1,35 @@
+docs/phase-7-frontend/angular/02-angular-consuming-apis.md
+  s_4e9c4254b7e829::t_dd04c38d141e63 318,329
+.claude/skills/ddd-backend-module/SKILL.md
+  s_4e9c4254b7e829::t_450c205c476b66 289
+docs/phase-7-frontend/vue/01-vue-project-setup.md
+  s_4e9c4254b7e829::t_10e963c0a7d2ec 350
+WebApplications/Billing.WebApi/Program.cs
+  s_4e9c4254b7e829::t_5314bcca27e0f2 99
+  s_4e9c4254b7e829::t_dec819672b76a1 80
+docs/phase-8-auth/04-api-resource-protection.md
+  s_4e9c4254b7e829::t_af358ead01abce 51,171,197,291,317,467,482
+docs/phase-9-api-gateway-bff/03-bff-with-duende.md
+  s_4e9c4254b7e829::t_1d0971443df811 329,341,452,735,737
+docs/phase-7-frontend/angular/01-angular-project-setup.md
+  s_4e9c4254b7e829::t_5a4103f6840755 389,398,765
+WebApplications/Scheduling.WebApi/Program.cs
+  s_4e9c4254b7e829::t_192b76f83f6067 77
+  s_4e9c4254b7e829::t_6616c9b0b520ce 96
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.3",
+  "base_commit_sha": "c03586705994770dff2e3205c86ea415af0d7ae3",
+  "prompts": {},
+  "sessions": {
+    "s_4e9c4254b7e829": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "4619a0ef-c2ef-404d-911c-d486713235d0",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Pieter Bracke <pieter.bracke@euri.com>"
+    }
+  }
+}
