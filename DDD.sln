@@ -1,7 +1,7 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
-# Visual Studio Version 17
-VisualStudioVersion = 17.14.36811.4
+# Visual Studio Version 18
+VisualStudioVersion = 18.6.11822.322 stable
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "02. Core", "02. Core", "{03A6EEB5-10D2-1CFD-26D6-60D98C6C0462}"
 EndProject
@@ -200,6 +200,16 @@ EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Identity.WebApi.Tests", "WebApplications\Identity.WebApi.Tests\Identity.WebApi.Tests.csproj", "{226E87DC-598B-4F87-9DD4-3B1C9BC2B2F7}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "BuildingBlocks.WorktreeSlots", "BuildingBlocks\BuildingBlocks.WorktreeSlots\BuildingBlocks.WorktreeSlots.csproj", "{C5DB9549-1F64-4A21-9C66-EA35C3DC9CE4}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "vue", "vue", "{66129F0D-E67B-4A52-AE11-B7673E6072E2}"
+	ProjectSection(SolutionItems) = preProject
+		docs\phase-7-frontend\vue\01-vue-project-setup.md = docs\phase-7-frontend\vue\01-vue-project-setup.md
+		docs\phase-7-frontend\vue\02-vue-consuming-apis.md = docs\phase-7-frontend\vue\02-vue-consuming-apis.md
+		docs\phase-7-frontend\vue\03-vue-components-and-routing.md = docs\phase-7-frontend\vue\03-vue-components-and-routing.md
+		docs\phase-7-frontend\vue\04-vue-forms-and-validation.md = docs\phase-7-frontend\vue\04-vue-forms-and-validation.md
+	EndProjectSection
+EndProject
+Project("{54A90642-561A-4BB1-A94E-469ADEE60C69}") = "Scheduling.VueApp", "Frontend\Vue\Scheduling.VueApp\Scheduling.VueApp.esproj", "{D810141B-A570-42CA-09F0-C2E47C87CAD3}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -553,6 +563,24 @@ Global
 		{C5DB9549-1F64-4A21-9C66-EA35C3DC9CE4}.Release|x64.Build.0 = Release|Any CPU
 		{C5DB9549-1F64-4A21-9C66-EA35C3DC9CE4}.Release|x86.ActiveCfg = Release|Any CPU
 		{C5DB9549-1F64-4A21-9C66-EA35C3DC9CE4}.Release|x86.Build.0 = Release|Any CPU
+		{D810141B-A570-42CA-09F0-C2E47C87CAD3}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{D810141B-A570-42CA-09F0-C2E47C87CAD3}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{D810141B-A570-42CA-09F0-C2E47C87CAD3}.Debug|Any CPU.Deploy.0 = Debug|Any CPU
+		{D810141B-A570-42CA-09F0-C2E47C87CAD3}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{D810141B-A570-42CA-09F0-C2E47C87CAD3}.Debug|x64.Build.0 = Debug|Any CPU
+		{D810141B-A570-42CA-09F0-C2E47C87CAD3}.Debug|x64.Deploy.0 = Debug|Any CPU
+		{D810141B-A570-42CA-09F0-C2E47C87CAD3}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{D810141B-A570-42CA-09F0-C2E47C87CAD3}.Debug|x86.Build.0 = Debug|Any CPU
+		{D810141B-A570-42CA-09F0-C2E47C87CAD3}.Debug|x86.Deploy.0 = Debug|Any CPU
+		{D810141B-A570-42CA-09F0-C2E47C87CAD3}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{D810141B-A570-42CA-09F0-C2E47C87CAD3}.Release|Any CPU.Build.0 = Release|Any CPU
+		{D810141B-A570-42CA-09F0-C2E47C87CAD3}.Release|Any CPU.Deploy.0 = Release|Any CPU
+		{D810141B-A570-42CA-09F0-C2E47C87CAD3}.Release|x64.ActiveCfg = Release|Any CPU
+		{D810141B-A570-42CA-09F0-C2E47C87CAD3}.Release|x64.Build.0 = Release|Any CPU
+		{D810141B-A570-42CA-09F0-C2E47C87CAD3}.Release|x64.Deploy.0 = Release|Any CPU
+		{D810141B-A570-42CA-09F0-C2E47C87CAD3}.Release|x86.ActiveCfg = Release|Any CPU
+		{D810141B-A570-42CA-09F0-C2E47C87CAD3}.Release|x86.Build.0 = Release|Any CPU
+		{D810141B-A570-42CA-09F0-C2E47C87CAD3}.Release|x86.Deploy.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -597,6 +625,8 @@ Global
 		{45C9AF73-DE58-4DBE-86B5-C4243EDCE5A2} = {864C7D7F-7A10-4CD5-B358-C6EBE4A79957}
 		{226E87DC-598B-4F87-9DD4-3B1C9BC2B2F7} = {8187F2F1-1AC5-12E6-BB08-803650E2BDDF}
 		{C5DB9549-1F64-4A21-9C66-EA35C3DC9CE4} = {7266C4A9-E384-DC00-0EB6-47F6002CFBA7}
+		{66129F0D-E67B-4A52-AE11-B7673E6072E2} = {A1C2D3E4-F5A6-4B7C-8D9E-0F1A2B3C4D5E}
+		{D810141B-A570-42CA-09F0-C2E47C87CAD3} = {D5E0C74E-507B-FBA1-2641-3C6776080F4D}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {C211A4F3-E9B4-4BC3-9EE5-6536CAAF6F04}

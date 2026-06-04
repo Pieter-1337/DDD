@@ -159,6 +159,7 @@ internal static class AppHostHelper
         var authority = $"https://localhost:{WorktreeSlot.Port(WorktreeSlot.IdentityBasePort, slot)}";
         var cookieName = $"DDD.Auth.S{slot}";
         var spaOrigin = $"https://localhost:{WorktreeSlot.Port(WorktreeSlot.SpaBasePort, slot)}";
+        var vueOrigin = $"https://localhost:{WorktreeSlot.Port(WorktreeSlot.VueBasePort, slot)}";
 
         // Tell Identity which slot it is so it seeds only this slot's client URLs.
         identityApi.WithEnvironment("worktree-slot", slot.ToString());
@@ -167,7 +168,8 @@ internal static class AppHostHelper
             api.WithEnvironment("Auth__Authority", authority)
                .WithEnvironment("Auth__CookieName", cookieName)
                .WithEnvironment("Cors__AllowedOrigins__0", spaOrigin)
-               .WithEnvironment("Cors__AllowedOrigins__1", authority);
+               .WithEnvironment("Cors__AllowedOrigins__1", authority)
+               .WithEnvironment("Cors__AllowedOrigins__2", vueOrigin);
 
         // Per-slot databases: rewrite only the Initial Catalog (DDD → DDD_S{N}, etc).
         var defaultSlotted = WorktreeSlot.WithSlotDatabase(RequireConnectionString(builder, "DefaultConnection"), slot);

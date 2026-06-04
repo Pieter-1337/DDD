@@ -73,7 +73,7 @@ builder.Services.AddOidcCookieAuth(builder.Configuration);
 // Add cors — origins read from config so AppHost can inject slot-derived values via
 // Cors__AllowedOrigins__0/1. Slot-1 defaults are in appsettings.json.
 var corsOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>()
-    ?? ["https://localhost:7003", "https://localhost:7010"];
+    ?? ["https://localhost:7003", "https://localhost:7004", "https://localhost:7010"];
 
 builder.Services.AddCors(options =>
 {

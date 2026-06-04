@@ -40,6 +40,7 @@ namespace Identity.WebApi.Config
             var schedulingPort = WorktreeSlot.Port(WorktreeSlot.SchedulingBasePort, slot);
             var billingPort = WorktreeSlot.Port(WorktreeSlot.BillingBasePort, slot);
             var spaPort = WorktreeSlot.Port(WorktreeSlot.SpaBasePort, slot);
+            var vuePort = WorktreeSlot.Port(WorktreeSlot.VueBasePort, slot);
 
             return
             [
@@ -102,10 +103,12 @@ namespace Identity.WebApi.Config
                     RedirectUris =
                     {
                         $"https://localhost:{spaPort}/callback",
-                        $"https://localhost:{spaPort}/silent-refresh.html"
+                        $"https://localhost:{spaPort}/silent-refresh.html",
+                        $"https://localhost:{vuePort}/callback",
+                        $"https://localhost:{vuePort}/silent-refresh.html"
                     },
-                    PostLogoutRedirectUris = { $"https://localhost:{spaPort}/" },
-                    AllowedCorsOrigins = { $"https://localhost:{spaPort}" },
+                    PostLogoutRedirectUris = { $"https://localhost:{spaPort}/", $"https://localhost:{vuePort}/" },
+                    AllowedCorsOrigins = { $"https://localhost:{spaPort}", $"https://localhost:{vuePort}" },
 
                     AllowedScopes =
                     {

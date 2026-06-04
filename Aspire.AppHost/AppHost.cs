@@ -65,4 +65,12 @@ builder.AddJavaScriptApp("scheduling-angularapp", "../Frontend/Angular/Schedulin
     .WithHttpsEndpoint(port: WorktreeSlot.Port(WorktreeSlot.SpaBasePort, slot), env: "PORT")
     .WithExternalHttpEndpoints();
 
+// Vue SPA.
+builder.AddJavaScriptApp("scheduling-vueapp", "../Frontend/Vue/Scheduling.VueApp", "start-aspire")
+    .WithReference(schedulingApi)
+    .WithReference(billingApi)
+    .WithReference(identityApi)
+    .WithHttpsEndpoint(port: WorktreeSlot.Port(WorktreeSlot.VueBasePort, slot), env: "PORT")
+    .WithExternalHttpEndpoints();
+
 builder.Build().Run();

@@ -26,6 +26,7 @@ public static class WorktreeSlot
     public const int SchedulingBasePort = 7001;
     public const int BillingBasePort = 7002;
     public const int SpaBasePort = 7003;
+    public const int VueBasePort = 7004;
 
     /// <summary>
     /// Resolves the slot from the AppHost's environment: <c>worktree-slot</c> env var
