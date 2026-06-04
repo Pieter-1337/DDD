@@ -1,0 +1,31 @@
+docs/SETUP.md
+  s_f232d47a8ad27f::t_32bca6911726ae 91,93-94,96-99,101-111,113-114,116-123,126,128
+docs/adr/0003-native-wolverine-flow-and-framework-alignment.md
+  s_f232d47a8ad27f::t_5e460d549c189f 15-17
+Aspire.AppHost/AppHost.cs
+  s_f232d47a8ad27f::t_3d440dd9371bde 38,46
+  s_f232d47a8ad27f::t_7ba136f14ed6f2 14-16,23-27
+Aspire.AppHost/AppHostHelper.cs
+  s_f232d47a8ad27f::t_8385b1645548db 98-100,103-104,108
+docs/requirements/native-framework-flows.md
+  s_f232d47a8ad27f::t_e49e7313823df3 47
+docs/phase-5-event-driven/09-broker-framework-matrix.md
+  s_f232d47a8ad27f::t_fe79e17de9a09b 178-184,193-196,233,238
+  s_f232d47a8ad27f::t_027ed16da77388 231-232,234-237,239-245,249
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.3",
+  "base_commit_sha": "d2b09a297639b512e1846f1c55b40b93dc576226",
+  "prompts": {},
+  "sessions": {
+    "s_f232d47a8ad27f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "a2e91e10-4d4a-42e2-be68-e2006c7e4b1a",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Pieter Bracke <pieter.bracke@euri.com>"
+    }
+  }
+}
