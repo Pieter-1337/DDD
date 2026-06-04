@@ -1,4 +1,5 @@
 using BuildingBlocks.Application;
+using BuildingBlocks.Application.Messaging;
 using BuildingBlocks.Infrastructure.MassTransit.Configuration;
 using BuildingBlocks.Infrastructure.Wolverine;
 using BuildingBlocks.WebApplications.Filters;
@@ -46,9 +47,9 @@ builder.Services.AddDefaultPipelineBehaviors();
 builder.Services.AddHostedService<DatabaseMigrator>();
 
 // Add event-driven messaging (configurable: Wolverine or MassTransit)
-var messagingFramework = builder.Configuration.GetValue<string>("MessagingFramework") ?? "Wolverine";
+var messagingFramework = MessagingFrameworkSelector.Resolve(builder.Configuration);
 
-if (messagingFramework == "Wolverine")
+if (messagingFramework == MessagingFrameworkNames.Wolverine)
 {
     builder.AddWolverineEventBus<BillingDbContext>(connectionString, "wolverine_billing", opts =>
     {
