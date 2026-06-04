@@ -83,9 +83,19 @@ Write-Host "Databases    : $schedulingDb, $identityDb" -ForegroundColor Cyan
 # Drop the slot databases
 # ---------------------------------------------------------------------------
 
+# SINGLE_USER WITH ROLLBACK IMMEDIATE forces off pooled/idle connections that
+# otherwise make DROP fail with "database is currently in use" (msg 3702).
 $dropSql = @"
-DROP DATABASE IF EXISTS [$schedulingDb];
-DROP DATABASE IF EXISTS [$identityDb];
+IF DB_ID('$schedulingDb') IS NOT NULL
+BEGIN
+    ALTER DATABASE [$schedulingDb] SET SINGLE_USER WITH ROLLBACK IMMEDIATE;
+    DROP DATABASE [$schedulingDb];
+END
+IF DB_ID('$identityDb') IS NOT NULL
+BEGIN
+    ALTER DATABASE [$identityDb] SET SINGLE_USER WITH ROLLBACK IMMEDIATE;
+    DROP DATABASE [$identityDb];
+END
 "@
 
 if ($PSCmdlet.ShouldProcess($server, "DROP DATABASE IF EXISTS [$schedulingDb]; DROP DATABASE IF EXISTS [$identityDb]")) {
