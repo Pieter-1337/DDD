@@ -1,0 +1,35 @@
+docs/worktree-slots/04-apphost-orchestration.md
+  s_4e9c4254b7e829::t_e788f342c65f10 77-81
+docs/phase-6-integration/05-observability.md
+  s_4e9c4254b7e829::t_f8a05d856aefc6 793
+  s_4e9c4254b7e829::t_62d60dc1fe6b16 157-158
+  s_4e9c4254b7e829::t_e16d9587192acc 84,210
+  s_4e9c4254b7e829::t_ebba0e7fd80087 362-363,365,367-369,373-374
+  s_4e9c4254b7e829::t_902bb5dc4b8910 455
+  s_4e9c4254b7e829::t_5c30be62b3d1fd 204-206,209
+  s_4e9c4254b7e829::t_361da7689bd364 144-145
+ServiceDefaults/Extensions.cs
+  s_4e9c4254b7e829::t_4a268c111380f2 76-79
+  s_4e9c4254b7e829::t_695ef2b1a3c12a 59-61
+docs/worktree-slots/01-the-problem.md
+  s_4e9c4254b7e829::t_c0356b84edcfa5 29
+Aspire.AppHost/AppHostHelper.cs
+  s_4e9c4254b7e829::t_cb5e903ca153bf 132-136,139-140
+  s_4e9c4254b7e829::t_7463faed7b56e5 118-120
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.3",
+  "base_commit_sha": "bcdcfefbc1aa5745a8f3fadbceb85c4a0496eb13",
+  "prompts": {},
+  "sessions": {
+    "s_4e9c4254b7e829": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "4619a0ef-c2ef-404d-911c-d486713235d0",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Pieter Bracke <pieter.bracke@euri.com>"
+    }
+  }
+}
