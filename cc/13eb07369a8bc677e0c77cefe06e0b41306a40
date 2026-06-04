@@ -1,0 +1,58 @@
+docs/PROGRESS.md
+  s_6c23c3044f4b2d::t_2bc5df0fb7bcc5 13
+  s_6c23c3044f4b2d::t_fe358dadd7b674 360,362-364
+  s_6c23c3044f4b2d::t_d2cf70f7326160 368,371
+  s_6c23c3044f4b2d::t_499f552f564ef9 377,380-381,383-384
+  s_6c23c3044f4b2d::t_09e686e34c715a 395-401
+docs/phase-7-frontend/00-frontend-overview.md
+  s_6c23c3044f4b2d::t_a8364bf711bb43 5,234,250
+  s_6c23c3044f4b2d::t_c8dc20d0e87991 38-39
+  s_6c23c3044f4b2d::t_3b40c418c46504 233,235,237-243
+  s_6c23c3044f4b2d::t_6ef879e8a9d016 249,251-265
+  s_6c23c3044f4b2d::t_12aaa38f52ba48 284-292
+  s_6c23c3044f4b2d::t_6937593d129136 310
+  s_6c23c3044f4b2d::t_c59bb568ab9ab6 316
+  s_6c23c3044f4b2d::t_ff557b81a22497 433-441
+  s_6c23c3044f4b2d::t_d0f69e279fb2f4 443
+  s_6c23c3044f4b2d::t_1d76ce2ffd6b60 453
+  s_6c23c3044f4b2d::t_6e2c6ae16c8483 469
+  s_6c23c3044f4b2d::t_bb5a711faa9bed 476
+docs/README.md
+  s_6c23c3044f4b2d::t_815f5283aea588 21
+  s_6c23c3044f4b2d::t_78e7ea4fd6174a 42,44
+docs/phase-7-frontend/angular/03-angular-components-and-routing.md
+  s_6c23c3044f4b2d::t_436776768c9dc4 750
+docs/phase-7-frontend/vue/02-vue-consuming-apis.md
+  s_6c23c3044f4b2d::t_c99e5f3bdb8d08 1-165,167-170,172-175,178-184,186-190,192-200,204,206-211,213,215-219,221-240,242-251,253-320,322-324,326-422
+  s_6c23c3044f4b2d::t_58999f279a0703 166,171,176-177
+  s_6c23c3044f4b2d::t_eeb18f26227695 185,191,201-203,205,212,214,220
+  s_6c23c3044f4b2d::t_dc0e33bca76533 241,252
+  s_6c23c3044f4b2d::t_31b9361180fff4 321,325
+docs/phase-7-frontend/vue/01-vue-project-setup.md
+  s_6c23c3044f4b2d::t_e1a57c59bde366 1-708
+docs/phase-7-frontend/vue/03-vue-components-and-routing.md
+  s_6c23c3044f4b2d::t_1606339d3828eb 1-323,325-340,342-432
+  s_6c23c3044f4b2d::t_0aa8eb7bdaf3d0 324
+  s_6c23c3044f4b2d::t_f2a5c00ead9dcc 341
+docs/phase-7-frontend/vue/04-vue-forms-and-validation.md
+  s_6c23c3044f4b2d::t_fdc2313b867286 1-164,166-178,180-247,249-288
+  s_6c23c3044f4b2d::t_d3fa228d751348 165
+  s_6c23c3044f4b2d::t_c10026600a14ef 179
+  s_6c23c3044f4b2d::t_0a9120cbef9257 248
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.3",
+  "base_commit_sha": "cc13eb07369a8bc677e0c77cefe06e0b41306a40",
+  "prompts": {},
+  "sessions": {
+    "s_6c23c3044f4b2d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "56d9b218-cb4b-4bf6-9cb7-577211214d4f",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Pieter Bracke <pieter.bracke@euri.com>"
+    }
+  }
+}
