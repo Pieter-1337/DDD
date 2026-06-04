@@ -85,12 +85,15 @@ not wired.**
 | **Wolverine → Wolverine** (native) | ✅ **works** *(verified end-to-end; framework-alignment rule applies — see below)* | ⚠️ **blocked by WolverineFx 4.12.2** (AutoProvision cannot reach emulator's port-5300 management plane; valid on real namespace; upgrade to 6+ unblocks — see notes) |
 | **Wolverine → MassTransit** | 🚫 **not wired** (never pursued) | 🚫 **not wired** |
 
-### MT → Wolverine: today's default — and the deliberately-dead cell on ASB
+### MT → Wolverine interop: legacy reference — and the deliberately-dead cell on ASB
 
-- **On RabbitMq** this is the **default configuration**: Billing's `MessagingFramework`
-  defaults to `Wolverine` (`Program.cs`), and Wolverine receives the MassTransit-published
-  `PatientCreatedIntegrationEvent` via `ListenToMassTransitQueue` (binds a Wolverine queue to
-  MassTransit's `Namespace:TypeName` RabbitMQ exchange and uses MassTransit envelope interop).
+- **On RabbitMq** this is a **legacy reference path — no longer the default.** Since PRD #24
+  Billing's `MessagingFramework` defaults to `MassTransit` (so the out-of-box flow is MT→MT
+  native), and the interop listener `ListenToMassTransitQueue<PatientCreatedIntegrationEvent>(...)`
+  is **commented out** in `Program.cs`. Re-enabling it (with Billing on `Wolverine`) restores the
+  MT→W bridge: a Wolverine queue bound to MassTransit's `Namespace:TypeName` RabbitMQ exchange,
+  using MassTransit envelope interop. Left in place so the bridge can be re-tested without
+  re-deriving it; Billing-on-Wolverine otherwise consumes **natively** via conventional routing.
 - **On Azure Service Bus** this cell is **deliberately dead.** Configuring the interop
   listener while `MessageBroker=AzureServiceBus` throws an `InvalidOperationException` at
   startup. The gist of the exception:
@@ -113,9 +116,9 @@ not wired.**
   **Independent of the publisher's framework:** the guard
   (`GuardMassTransitInteropSupported`) checks the **broker name only** (`broker == AzureServiceBus`).
   It throws on the emulator **and** on a real namespace alike — it does not check
-  emulator-ness. And because Billing's host **hardcodes** the interop listener whenever it runs
-  on Wolverine, the dead cell is a property of Billing's Wolverine configuration on ASB, not of
-  what the publisher happens to be.
+  emulator-ness. And because the interop listener (when uncommented) is a property of Billing's
+  Wolverine configuration on ASB, the dead cell depends on that opt-in, not on what the publisher
+  happens to be.
 
 ### Wolverine → Wolverine: native conventional routing
 
@@ -125,11 +128,12 @@ the implementation shipped in [ADR-0003](../adr/0003-native-wolverine-flow-and-f
 flow has been confirmed working when both services run `MessagingFramework=Wolverine`: the publisher's exchange and 
 the listener's queue/binding share the same convention-derived `IntegrationEvents.Scheduling.PatientCreatedIntegrationEvent` name.
 
-**Framework-alignment rule (mandatory):** All services on a **single cross-context flow** must run the same 
-messaging framework — either both MassTransit (native MT→MT) or both Wolverine (native W→W). **No mixed-framework 
-configuration is runnable** (it silently drops messages, unguardable at startup because services cannot see each 
-other's framework choice — unlike the broker's self-describing connection string). This mirrors ADR-0001's 
-broker-alignment rule. See [native-framework-flows.md § "Default & alignment"](../requirements/native-framework-flows.md#default--alignment) 
+**Framework-alignment rule (mandatory for native flows):** All services on a **single cross-context flow** must run 
+the same messaging framework — either both MassTransit (native MT→MT) or both Wolverine (native W→W). **No mixed-framework 
+*native* configuration is runnable** (it silently drops messages, unguardable at startup because services cannot see each 
+other's framework choice — unlike the broker's self-describing connection string). The one deliberate exception is the 
+**MT→W interop bridge** (RabbitMQ-only, commented-out legacy reference above): it crosses frameworks on purpose via 
+MassTransit envelope interop rather than native routing. This mirrors ADR-0001's broker-alignment rule. See [native-framework-flows.md § "Default & alignment"](../requirements/native-framework-flows.md#default--alignment) 
 for the AppHost `messaging-framework` knob that fans out a single aligned value to both services.
 
 **On Azure Service Bus:** native W→W on the **emulator is blocked** by WolverineFx 4.12.2, which cannot inject a 
