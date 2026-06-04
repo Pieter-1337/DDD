@@ -1,5 +1,7 @@
 # Message broker is per-service config, with a deliberately constrained interop matrix
 
+> **Note:** the Wolverine-path/interop framing below is superseded by [ADR-0003](0003-native-wolverine-flow-and-framework-alignment.md) — the supported Wolverine topology is now native Wolverine→Wolverine, and the MT→W interop bridge is demoted to reference. The broker-seam, two-plane emulator wiring, and broker-alignment decisions in this ADR still stand.
+
 The system supports two message brokers (RabbitMQ, Azure Service Bus) underneath the two messaging frameworks (MassTransit, Wolverine). The broker is selected by a per-service `MessageBroker` config value (default `RabbitMq`) read inside the framework extensions — **not** enforced centrally by the Aspire AppHost — and the Wolverine↔MassTransit interop bridge (`ListenToMassTransitQueue` / `PublishToMassTransitExchange`) is RabbitMQ-only and fails fast at startup when the broker is Azure Service Bus.
 
 ## Why per-service config instead of AppHost-enforced
