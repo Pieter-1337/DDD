@@ -35,14 +35,22 @@
          PackageVersion entry alone does NOT pin a transitive dependency). -->
     <PackageVersion Include="Azure.Messaging.ServiceBus" Version="7.20.1" />
     <PackageVersion Include="MassTransit.EntityFrameworkCore" Version="8.3.6" />
-    <PackageVersion Include="WolverineFx" Version="4.12.2" />
-    <PackageVersion Include="WolverineFx.RabbitMQ" Version="4.12.2" />
+    <PackageVersion Include="WolverineFx" Version="6.4.3" />
+    <PackageVersion Include="WolverineFx.RabbitMQ" Version="6.4.3" />
     <!-- Wolverine Azure Service Bus transport: pinned to the same WolverineFx
-         version (4.12.2) as the core/RabbitMQ packages so the transport resolves
-         cleanly against the shared Wolverine core. -->
-    <PackageVersion Include="WolverineFx.AzureServiceBus" Version="4.12.2" />
-    <PackageVersion Include="WolverineFx.SqlServer" Version="4.12.2" />
-    <PackageVersion Include="WolverineFx.EntityFrameworkCore" Version="4.12.2" />
+         version (6.4.3) as the core/RabbitMQ packages so the transport resolves
+         cleanly against the shared Wolverine core. The 6.x line exposes
+         AzureServiceBusTransport.ManagementConnectionString, which lets the
+         emulator's port-5300 management plane be wired explicitly (see ADR-0003). -->
+    <PackageVersion Include="WolverineFx.AzureServiceBus" Version="6.4.3" />
+    <PackageVersion Include="WolverineFx.SqlServer" Version="6.4.3" />
+    <PackageVersion Include="WolverineFx.EntityFrameworkCore" Version="6.4.3" />
+    <!-- WolverineFx 6 split the Roslyn runtime compiler out of the core package
+         (GH-2876). Without it, the default TypeLoadMode.Dynamic throws at host start
+         ("no IAssemblyGenerator registered"). Referencing this package auto-registers
+         the generator, restoring the 4.x runtime-compilation behaviour with no code
+         change — and it is broker-agnostic (the crash hit RabbitMQ and ASB alike). -->
+    <PackageVersion Include="WolverineFx.RuntimeCompilation" Version="6.4.3" />
     <!-- Configuration -->
     <PackageVersion Include="Microsoft.Extensions.Configuration.Abstractions" Version="9.0.0" />
     <PackageVersion Include="Microsoft.Extensions.Configuration" Version="9.0.0" />

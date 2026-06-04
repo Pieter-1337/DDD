@@ -47,7 +47,7 @@ var billingApi = builder.AddProject<Projects.Billing_WebApi>("billing-webapi")
     .WaitFor(messaging);
 
 // ASB emulator only: hand both services the management-plane connection string so
-// MassTransit can create topology (null on RabbitMQ / real Azure namespaces).
+// MassTransit or Wolverine can create topology (null on RabbitMQ / real Azure namespaces).
 if (messagingAdmin is not null)
 {
     schedulingApi.WithEnvironment("ConnectionStrings__messaging-admin", messagingAdmin);
