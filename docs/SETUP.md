@@ -88,31 +88,44 @@ New-Item -ItemType Directory -Force C:\SharedKeys\DDD
 
 The `docker-compose.yml` at the repo root is kept as a fallback for CI/CD or running without Aspire.
 
-### Switching to Azure Service Bus (emulator) locally
+### Selecting broker & framework locally — two AppHost knobs
 
-The broker is switchable per service (`MessageBroker` config) with the Aspire AppHost provisioning either RabbitMQ or the Azure Service Bus emulator. **Which combinations work, which fail, and which are not wired** is recorded in the **[supported framework × broker matrix](phase-5-event-driven/09-broker-framework-matrix.md)** — read it before switching. The authoritative decisions live in [ADR-0001](adr/0001-message-broker-selection.md).
+Under the AppHost, **two parameters are the single source of truth** for local dev, and each
+is **fanned out to both services** so they cannot drift:
 
-For the local ASB demo, **all three settings are needed together** (set any one alone and a startup guard trips fail-fast):
+| Knob (AppHost config) | Default | Controls | Fanned to services as |
+| --- | --- | --- | --- |
+| `Parameters:messaging-broker` (or env `ASPIRE_MESSAGING_BROKER`) | `RabbitMq` | which container the AppHost provisions **and** each service's transport | `MessageBroker` |
+| `Parameters:messaging-framework` (or env `ASPIRE_MESSAGING_FRAMEWORK`) | `MassTransit` | which messaging library each service runs | `MessagingFramework` |
+
+Set a knob on the **AppHost only** — the AppHost injects the resolved value into both
+`Scheduling.WebApi` and `Billing.WebApi` via `WithEnvironment(...)`, so flipping one value moves
+the provisioned broker container *and* both services together. You no longer set `MessageBroker`
+or `MessagingFramework` per service for a local AppHost run.
+
+> **Other deployments are unchanged.** The env injection happens **only when the AppHost launches
+> the services**. Production (and any non-AppHost run) starts each service from its own config
+> files / user-secrets, so `MessageBroker` and `MessagingFramework` remain **per-service config**
+> there — the AppHost is just a local-dev config *source* supplying an aligned value, not a second
+> production mechanism (consistent with [ADR-0001](adr/0001-message-broker-selection.md) and
+> [ADR-0003](adr/0003-native-wolverine-flow-and-framework-alignment.md)).
+
+**Which combinations work, fail, or are not wired** is recorded in the **[supported framework ×
+broker matrix](phase-5-event-driven/09-broker-framework-matrix.md)** — read it before switching.
 
 ```powershell
-# 1. AppHost: provision the ASB emulator instead of RabbitMQ (+ inject the Endpoint=sb:// connection strings)
+# Native Wolverine→Wolverine on RabbitMQ (broker stays at the RabbitMq default):
+dotnet user-secrets set "Parameters:messaging-framework" Wolverine --project Aspire.AppHost
+#   (or: $env:ASPIRE_MESSAGING_FRAMEWORK = "Wolverine" before `dotnet run`)
+
+# Azure Service Bus emulator (MT→MT — keep the MassTransit default; the MT→W interop bridge is
+# RabbitMQ-only). ONE knob now — the AppHost fans MessageBroker out to both services:
 dotnet user-secrets set "Parameters:messaging-broker" AzureServiceBus --project Aspire.AppHost
-#    (or env var ASPIRE_MESSAGING_BROKER=AzureServiceBus)
-
-# 2. Each service: select the ASB transport. The AppHost does NOT propagate this
-#    (per-service config by design), so set it on BOTH APIs — otherwise BrokerSelector's
-#    format guard throws (it expects amqp:// but the injected string is Endpoint=sb://).
-dotnet user-secrets set "MessageBroker" AzureServiceBus --project WebApplications\Scheduling.WebApi
-dotnet user-secrets set "MessageBroker" AzureServiceBus --project WebApplications\Billing.WebApi
-
-# 3. Billing: the Wolverine<->MassTransit interop bridge is RabbitMQ-only, so run Billing on
-#    MassTransit for the ASB demo — otherwise the interop guard throws at startup.
-dotnet user-secrets set "MessagingFramework" MassTransit --project WebApplications\Billing.WebApi
 ```
 
-The ASB emulator has **no management UI** (and is incompatible with the community Service Bus Explorer tools). Message-flow observability is the **Aspire dashboard's OpenTelemetry traces** — a connected publish->consume span tree confirms the cross-context flow.
+The ASB emulator has **no management UI** (and is incompatible with the community Service Bus Explorer tools). Message-flow observability is the **Aspire dashboard's OpenTelemetry traces**.
 
-To switch back to RabbitMQ, remove the three secrets above (or set `Parameters:messaging-broker` back to `RabbitMq`).
+To switch back to defaults, remove the AppHost secret(s) (or set `Parameters:messaging-broker` back to `RabbitMq` / `Parameters:messaging-framework` back to `MassTransit`).
 
 ---
 

@@ -11,16 +11,20 @@ AppHostHelper.OffsetDashboardPorts(slot);
 var builder = DistributedApplication.CreateBuilder(args);
 
 // Messaging framework — MassTransit by default, Wolverine opt-in (PRD #24).
-// One knob fans out to both services so they cannot drift locally. Read from
-// configuration (so `--parameter`/`Parameters:messaging-framework`/env can override
-// it) with a MassTransit fallback — mirrors how the broker is selected above.
+// Read from configuration (so `--parameter`/`Parameters:messaging-framework`/env can
+// override it) with a MassTransit fallback. Fanned out to both services below so the
+// AppHost is one local-dev knob; production runs each service from its own config files.
 var messagingFramework =
     builder.Configuration["Parameters:messaging-framework"]
     ?? builder.Configuration["ASPIRE_MESSAGING_FRAMEWORK"]
     ?? MessagingFrameworkNames.MassTransit;
 
 // Messaging broker — RabbitMQ by default, Azure Service Bus emulator opt-in (ADR-0001).
-var messaging = builder.AddConfiguredMessaging(slot, out var messagingAdmin);
+// `messagingBroker` is the resolved name; like the framework it is fanned out to both
+// services (below) so flipping the one AppHost knob moves the provisioned container AND
+// each service's MessageBroker together — they can't drift locally. Outside the AppHost
+// no env is injected, so other deployments keep their per-service config files.
+var messaging = builder.AddConfiguredMessaging(slot, out var messagingAdmin, out var messagingBroker);
 
 // APIs — endpoint ports derived from the slot.
 var identityApi = builder.AddProject<Projects.Identity_WebApi>("identity-webapi")
@@ -31,6 +35,7 @@ var schedulingApi = builder.AddProject<Projects.Scheduling_WebApi>("scheduling-w
     .WithReference(messaging)
     .WithReference(identityApi)
     .WithEnvironment("MessagingFramework", messagingFramework)
+    .WithEnvironment("MessageBroker", messagingBroker)
     .WaitFor(messaging);
 
 var billingApi = builder.AddProject<Projects.Billing_WebApi>("billing-webapi")
@@ -38,6 +43,7 @@ var billingApi = builder.AddProject<Projects.Billing_WebApi>("billing-webapi")
     .WithReference(messaging)
     .WithReference(identityApi)
     .WithEnvironment("MessagingFramework", messagingFramework)
+    .WithEnvironment("MessageBroker", messagingBroker)
     .WaitFor(messaging);
 
 // ASB emulator only: hand both services the management-plane connection string so

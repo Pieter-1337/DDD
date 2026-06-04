@@ -175,9 +175,13 @@ the distinction matters for the ✅ cells above.
 
 ## System-wide constraints: broker and framework alignment
 
-There is **no central enforcement** of broker or framework choice — both are **per-service
-config by design** (ADR-0001: production configures each service individually, so an
-AppHost-propagated value would be a second, local-only mechanism).
+In **production** there is no central enforcement — broker and framework are **per-service
+config by design** (ADR-0001: each service is configured individually from its own config
+files / secrets). **Under the AppHost (local dev only)** both axes are centralized: it reads
+one value for each (`Parameters:messaging-broker`, `Parameters:messaging-framework`) and
+**fans it out to every service** via `WithEnvironment(...)`, so they cannot drift locally.
+This is not a competing production mechanism — the env injection happens **only when the
+AppHost launches the services**; a non-AppHost deployment still reads per-service config.
 
 The consequence is a **system-wide alignment requirement** for every cross-context flow:
 
@@ -186,7 +190,10 @@ The consequence is a **system-wide alignment requirement** for every cross-conte
    events stop flowing. This fails **fast**: `BrokerSelector`'s connection-string **format guard** 
    throws at startup when a service's `MessageBroker` value does not match the connection string 
    it received (expects `amqp://` for RabbitMq, `Endpoint=sb://` for AzureServiceBus), with an 
-   error message naming the misalignment and the fix.
+   error message naming the misalignment and the fix. **Under the AppHost**, the single
+   `messaging-broker` knob (default `RabbitMq`) provisions the container **and** is fanned out to
+   both services' `MessageBroker`, so one local value aligns container + services and the guard
+   is a backstop rather than the primary mechanism.
 
 2. **Same framework across all services on the flow** (framework-alignment rule, ADR-0003).
    All services on a **single cross-context flow** must run the same messaging framework — either 
@@ -221,24 +228,25 @@ Alignment is **trusted to developers now** and is **checkable by a CI/release pi
 
 ## How to switch locally
 
-See **[../SETUP.md](../SETUP.md)** for the full fresh-machine guide. The short version of
-switching the broker for the local Azure Service Bus demo — **all three settings are needed
-together**, or a startup guard trips:
+See **[../SETUP.md](../SETUP.md)** for the full fresh-machine guide. Under the AppHost, switching
+is done with **two knobs**, each set on the AppHost only and **fanned out to both services**:
 
-1. **AppHost** — `Parameters:messaging-broker=AzureServiceBus` (or `ASPIRE_MESSAGING_BROKER`):
-   provisions the emulator and injects the `Endpoint=sb://` `messaging` (and emulator-only
-   `messaging-admin`) connection strings.
-2. **Each service** — `MessageBroker=AzureServiceBus`. The AppHost does **not** propagate this
-   (per-service config by design — it swaps the resource and injects `messaging-admin`, but
-   never sets `MessageBroker`). Set it on **both** Scheduling and Billing, or `BrokerSelector`'s
-   format guard throws (it expected `amqp://` but got `Endpoint=sb://`). This partial-config
-   trip is itself the fail-fast design at work.
-3. **Billing** — `MessagingFramework=MassTransit` (for the ASB demo), or the interop guard
-   throws.
+| Knob (AppHost) | Default | Effect |
+| --- | --- | --- |
+| `Parameters:messaging-broker` / `ASPIRE_MESSAGING_BROKER` | `RabbitMq` | provisions the chosen broker container **and** sets every service's `MessageBroker` (+ injects `messaging`, and emulator-only `messaging-admin`, connection strings) |
+| `Parameters:messaging-framework` / `ASPIRE_MESSAGING_FRAMEWORK` | `MassTransit` | sets every service's `MessagingFramework` |
+
+Examples: native **W→W on RabbitMQ** → set `messaging-framework=Wolverine` (broker stays
+`RabbitMq`). **ASB emulator** (MT→MT) → set `messaging-broker=AzureServiceBus` (framework stays
+`MassTransit`; the MT→W interop bridge is RabbitMQ-only). Because the AppHost fans both values
+out, a single value moves the container and both services together — the per-service
+`MessageBroker`/`MessagingFramework` settings are **not** needed for a local AppHost run (they
+remain the mechanism for non-AppHost / production deployments). The startup guards stay as a
+backstop if a non-AppHost run is configured inconsistently.
 
 The emulator has **no management UI** (and is incompatible with the community Service Bus
 Explorer tools). Message-flow observability comes from the **OpenTelemetry traces in the Aspire
-dashboard** — a connected publish→consume span tree confirms the flow.
+dashboard**.
 
 ---
 
