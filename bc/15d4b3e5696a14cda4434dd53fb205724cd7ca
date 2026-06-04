@@ -1,0 +1,46 @@
+Aspire.AppHost/AppHost.cs
+  s_4e9c4254b7e829::t_28082d86c748b7 68
+WebApplications/Identity.WebApi/Config/IdentityServerConfig.cs
+  s_4e9c4254b7e829::t_1baf5f8eb8a16b 110
+.worktreeinclude
+  h_9ef4f126c6bd1c 5,9-10
+Frontend/Vue/Scheduling.VueApp/package.json
+  h_9ef4f126c6bd1c 8-9
+Frontend/Vue/Scheduling.VueApp/src/main.ts
+  h_9ef4f126c6bd1c 1-36
+Frontend/Vue/Scheduling.VueApp/vite.config.ts
+  h_9ef4f126c6bd1c 1-31
+Frontend/Vue/Scheduling.VueApp/.gitignore
+  h_9ef4f126c6bd1c 1-43
+Aspire.AppHost/AppHostHelper.cs
+  s_4e9c4254b7e829::t_fa50a5af08d365 162
+Frontend/Vue/Scheduling.VueApp/.env.development
+  h_9ef4f126c6bd1c 1-2
+Frontend/Vue/Scheduling.VueApp/env.d.ts
+  h_9ef4f126c6bd1c 2-10
+Frontend/Vue/Scheduling.VueApp/src/style.css
+  h_9ef4f126c6bd1c 1-2
+Frontend/Vue/Scheduling.VueApp/tsconfig.json
+  h_9ef4f126c6bd1c 2-10
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.3",
+  "base_commit_sha": "bc15d4b3e5696a14cda4434dd53fb205724cd7ca",
+  "prompts": {},
+  "humans": {
+    "h_9ef4f126c6bd1c": {
+      "author": "Pieter Bracke <pieter.bracke@euri.com>"
+    }
+  },
+  "sessions": {
+    "s_4e9c4254b7e829": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "4619a0ef-c2ef-404d-911c-d486713235d0",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Pieter Bracke <pieter.bracke@euri.com>"
+    }
+  }
+}
