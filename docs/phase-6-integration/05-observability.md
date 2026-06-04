@@ -81,7 +81,7 @@ ServiceDefaults/
 
 ### ServiceDefaults Configuration
 
-This is the standard Aspire template with three additions for our event-driven architecture (marked with `// ADDED` comments): MassTransit metrics, MassTransit tracing, and EF Core tracing.
+This is the standard Aspire template with additions for our event-driven architecture (marked with `// ADDED` comments): messaging metrics and tracing for **both** frameworks (MassTransit and Wolverine), plus EF Core tracing.
 
 **Required NuGet package** (EF Core instrumentation is not included in the Aspire template):
 
@@ -141,7 +141,8 @@ namespace Microsoft.Extensions.Hosting
                     metrics.AddAspNetCoreInstrumentation()
                         .AddHttpClientInstrumentation()
                         .AddRuntimeInstrumentation()
-                        .AddMeter("MassTransit");                    // ADDED: MassTransit message metrics
+                        .AddMeter("MassTransit")                     // ADDED: MassTransit message metrics
+                        .AddMeter("Wolverine");                      // ADDED: Wolverine message metrics (inactive framework is silent)
                 })
                 .WithTracing(tracing =>
                 {
@@ -153,7 +154,8 @@ namespace Microsoft.Extensions.Hosting
                         )
                         .AddHttpClientInstrumentation()
                         .AddEntityFrameworkCoreInstrumentation()      // ADDED: EF Core query spans in traces
-                        .AddSource("MassTransit");                   // ADDED: MassTransit publish/consume spans
+                        .AddSource("MassTransit")                    // ADDED: MassTransit publish/consume spans
+                        .AddSource("Wolverine");                     // ADDED: Wolverine publish/consume spans
                 });
 
             builder.AddOpenTelemetryExporters();
@@ -199,10 +201,12 @@ namespace Microsoft.Extensions.Hosting
 }
 ```
 
-**The three additions explained:**
-- **`.AddMeter("MassTransit")`** — Exposes message consumption rates, fault counts, and duration in the Aspire Metrics tab
-- **`.AddSource("MassTransit")`** — Shows publish and consume spans in traces, so you can follow events from Scheduling through RabbitMQ to Billing
+**The additions explained:**
+- **`.AddMeter("MassTransit")` / `.AddMeter("Wolverine")`** — Exposes message consumption rates, fault counts, and duration in the Aspire Metrics tab
+- **`.AddSource("MassTransit")` / `.AddSource("Wolverine")`** — Shows publish and consume spans in traces, so you can follow events from Scheduling through the broker to Billing
 - **`.AddEntityFrameworkCoreInstrumentation()`** — Shows database query spans nested inside request/message handling traces
+
+> **Why both messaging frameworks are registered.** The active framework is chosen at runtime via the `MessagingFramework` switch (MassTransit or Wolverine — see the [broker×framework matrix](../phase-5-event-driven/09-broker-framework-matrix.md)). OpenTelemetry only exports spans/metrics from sources you subscribe to, and the two frameworks publish under **different `ActivitySource`/meter names** (`"MassTransit"` vs `"Wolverine"`). Registering both means the bus spans reach the dashboard whichever framework is active; the inactive one produces nothing. If only `"MassTransit"` were registered, a Wolverine run would still show the HTTP/EF spans but **drop the publish/consume hop** — making an otherwise-complete trace look broken across the queue.
 
 ### Using ServiceDefaults in Your Projects
 
@@ -355,17 +359,19 @@ OpenTelemetry propagates trace context automatically:
 
 1. **HTTP Request** - TraceId created when request arrives
 2. **Database Calls** - EF Core instrumentation adds spans
-3. **Message Publishing** - MassTransit adds TraceId to message headers
-4. **Message Consuming** - MassTransit extracts TraceId and continues trace
+3. **Message Publishing** - the messaging framework (MassTransit or Wolverine) adds the TraceId to the message headers
+4. **Message Consuming** - the framework extracts the TraceId and continues the trace
+
+> **Outbox note.** With the transactional outbox the TraceId travels in the persisted message headers (the `Headers` column of the outbox table) and is replayed when the background delivery service publishes the message. So the consumer still links back to the originating request — though the physical publish happens *later*, so that hop can render as a **linked** span rather than a continuous parent→child chain. The producer↔consumer linkage (same TraceId) is preserved either way.
 
 ```csharp
-// This happens automatically with MassTransit + OpenTelemetry
-// No code required - just configure instrumentation
-
+// This happens automatically with MassTransit/Wolverine + OpenTelemetry
+// No code required - just register the framework's ActivitySource
 builder.Services.AddOpenTelemetry()
     .WithTracing(tracing =>
     {
-        tracing.AddSource("MassTransit");  // Enables MassTransit tracing
+        tracing.AddSource("MassTransit")   // MassTransit publish/consume spans
+               .AddSource("Wolverine");    // Wolverine publish/consume spans
     });
 ```
 
@@ -446,7 +452,7 @@ ServiceDefaults configures these automatically:
 | **ASP.NET Core** | Request duration, active requests, errors |
 | **HttpClient** | Outbound request duration, connection pool |
 | **Runtime** | GC collections, memory, thread pool |
-| **MassTransit** | Messages consumed, faults, duration |
+| **MassTransit** / **Wolverine** | Messages consumed, faults, duration (whichever framework is active) |
 
 ### Viewing Metrics in the Dashboard
 
@@ -784,7 +790,7 @@ _patientsCreated.Add(1, new KeyValuePair<string, object?>("status", "active"));
 - [ ] `builder.AddServiceDefaults()` called in each project
 - [ ] `app.MapDefaultEndpoints()` called for health checks
 - [ ] OpenTelemetry exporters configured for OTLP
-- [ ] MassTransit instrumentation enabled (`AddSource("MassTransit")`)
+- [ ] Messaging instrumentation enabled for both frameworks (`AddSource("MassTransit")` and `AddSource("Wolverine")`)
 - [ ] EF Core instrumentation enabled
 - [ ] Custom activity sources registered (if using)
 - [ ] Custom meters registered (if using)

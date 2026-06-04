@@ -74,6 +74,10 @@ The `Development` guard keeps dev/staging/prod migrating via the deployment pipe
 
 ## Broker isolation
 
-RabbitMQ keeps its durable `.WithDataVolume()` only on slot 1; slots 2–5 run ephemeral (scratch worktrees need no broker durability). Container *names* already get a random run-suffix from Aspire/DCP, so the only deterministic collision risk was the volume — and that's removed for slots ≥ 2.
+RabbitMQ keeps its durable `.WithDataVolume()` only on slot 1; slots 2–5 run ephemeral (scratch worktrees need no broker durability).
+
+The container also gets a slot-suffixed name via `.WithContainerName($"messaging-s{slot}")`, so each worktree's broker shows up as `messaging-s1`, `messaging-s2`, … in Docker Desktop instead of an opaque DCP-random name — you can tell at a glance which container belongs to which slot. The trade-off is that the name is now deterministic, so the *same* slot can't run twice concurrently; that's fine, since slots are 1:1 with worktrees. The ASB emulator path applies the same `messaging-s{slot}` name to its emulator container (its companion SQL container is managed internally and keeps a DCP name).
+
+With names pinned per slot, the data volume is the only thing left that's slot-1-only.
 
 → Continue to [05 — Auth Isolation](05-auth-isolation.md).

@@ -115,7 +115,9 @@ internal static class AppHostHelper
             // Emulator (no Azure subscription/cost for clone-and-run). Pinned to 2.0.0:
             // earlier images lack the management plane MassTransit needs (ADR-0001).
             var serviceBus = builder.AddAzureServiceBus("messaging")
-                .RunAsEmulator(emulator => emulator.WithImageTag("2.0.0"));
+                .RunAsEmulator(emulator => emulator
+                    .WithImageTag("2.0.0")
+                    .WithContainerName($"messaging-s{slot}"));
 
             // Management plane via the 'emulatorhealth' (port-5300) endpoint, using the
             // host-mapped proxy port and the emulator's fixed SAS key (ADR-0001).
@@ -127,11 +129,15 @@ internal static class AppHostHelper
         }
 
         // RabbitMQ (default). Durable volume on slot 1 only; slots 2–5 run ephemeral so
-        // concurrent boots don't fight over the deterministic volume name (container
-        // names already get a per-run suffix from DCP, so only the volume collides).
+        // concurrent boots don't fight over the deterministic volume name.
+        // WithContainerName pins a slot-suffixed name (messaging-s1, messaging-s2, …) so
+        // each worktree's container is identifiable in Docker Desktop. The name is now
+        // deterministic rather than DCP-random, so the same slot can't run twice at once —
+        // fine, since slots are 1:1 with worktrees.
         var rabbitMq = builder
             .AddRabbitMQ("messaging", password: builder.AddParameter("messaging-password"))
-            .WithManagementPlugin();
+            .WithManagementPlugin()
+            .WithContainerName($"messaging-s{slot}");
 
         if (slot == 1)
             rabbitMq.WithDataVolume();

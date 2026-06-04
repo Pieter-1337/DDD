@@ -58,7 +58,7 @@ if (messagingAdmin is not null)
 builder.ApplySlotOverrides(slot, identityApi, schedulingApi, billingApi);
 
 // Angular SPA.
-builder.AddJavaScriptApp("scheduling-angularapp", "../Frontend/Angular/Scheduling.AngularApp", "start-aspire")
+builder.AddJavaScriptApp("angularapp", "../Frontend/Angular/Scheduling.AngularApp", "start-aspire")
     .WithReference(schedulingApi)
     .WithReference(billingApi)
     .WithReference(identityApi)
@@ -66,7 +66,7 @@ builder.AddJavaScriptApp("scheduling-angularapp", "../Frontend/Angular/Schedulin
     .WithExternalHttpEndpoints();
 
 // Vue SPA.
-builder.AddJavaScriptApp("scheduling-vueapp", "../Frontend/Vue/Scheduling.VueApp", "start-aspire")
+builder.AddJavaScriptApp("vueapp", "../Frontend/Vue/Scheduling.VueApp", "start-aspire")
     .WithReference(schedulingApi)
     .WithReference(billingApi)
     .WithReference(identityApi)

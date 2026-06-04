@@ -56,7 +56,9 @@ namespace Microsoft.Extensions.Hosting
                     metrics.AddAspNetCoreInstrumentation()
                         .AddHttpClientInstrumentation()
                         .AddRuntimeInstrumentation()
-                        .AddMeter("MassTransit");
+                        // Both messaging frameworks registered; the inactive one emits nothing.
+                        .AddMeter("MassTransit")
+                        .AddMeter("Wolverine");
                 })
                 .WithTracing(tracing =>
                 {
@@ -71,7 +73,10 @@ namespace Microsoft.Extensions.Hosting
                         //.AddGrpcClientInstrumentation()
                         .AddHttpClientInstrumentation()
                         .AddEntityFrameworkCoreInstrumentation()
-                        .AddSource("MassTransit");
+                        // Both messaging frameworks registered so bus spans reach the dashboard
+                        // regardless of the MessagingFramework switch; the inactive one is silent.
+                        .AddSource("MassTransit")
+                        .AddSource("Wolverine");
                 });
 
             builder.AddOpenTelemetryExporters();

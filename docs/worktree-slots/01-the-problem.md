@@ -26,7 +26,7 @@ auth    DDD.Auth cookie             <-->   DDD.Auth cookie  ❌ host-scoped, one
 
 1. **Ports.** Both worktrees host their APIs and the Aspire dashboard on the same well-known localhost ports. The second one to start fails to bind.
 2. **Databases.** All projects share a single `UserSecretsId`, so both worktrees point EF Core at the same `DDD` and `IdentityDb` on `(localdb)\MSSQLLocalDB`. Data from one leaks into the other.
-3. **Broker.** RabbitMQ's Docker *container* name gets a random run-suffix from Aspire/DCP, but its **data volume** name is deterministic — two instances fight over the same volume.
+3. **Broker.** Aspire/DCP gives RabbitMQ's Docker *container* a random run-suffix, so the containers don't clash — but its **data volume** name is deterministic, so two instances fight over the same volume.
 4. **Auth cookies.** Browser cookies are scoped by **host** (`localhost`), not by port. Even on different ports, two instances in one browser profile read and overwrite each other's `DDD.Auth` cookie — logging into one logs you out of the other.
 
 ## Why "just change the config" isn't the answer
