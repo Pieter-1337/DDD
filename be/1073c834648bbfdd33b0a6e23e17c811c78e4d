@@ -1,0 +1,20 @@
+Aspire.AppHost/AppHost.cs
+  s_f232d47a8ad27f::t_9945cd44cfb031 2
+  s_f232d47a8ad27f::t_ced7dce2b08ff6 14-20
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.3",
+  "base_commit_sha": "be1073c834648bbfdd33b0a6e23e17c811c78e4d",
+  "prompts": {},
+  "sessions": {
+    "s_f232d47a8ad27f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "a2e91e10-4d4a-42e2-be68-e2006c7e4b1a",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Pieter Bracke <pieter.bracke@euri.com>"
+    }
+  }
+}
