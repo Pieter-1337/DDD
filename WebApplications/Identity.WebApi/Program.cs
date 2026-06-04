@@ -8,13 +8,9 @@ var builder = WebApplication.CreateBuilder(args);
 
 builder.AddServiceDefaults();
 
-// Worktree slot isolation (slots 2–5): two IdentityServer instances run on the same host
-// (localhost), and cookies are scoped by host, not port — so without distinct names their
-// login / check-session / antiforgery cookies overwrite each other in a single browser
-// profile, and logging out / re-challenging one slot disturbs the other. Suffix those
-// host-scoped cookie names per slot so the slots stay independent. Slot 1 (main checkout)
-// keeps the bare default names — behaviour is byte-for-byte unchanged. Mirrors the slot
-// read in IdentitySeedData; the AppHost injects 'worktree-slot' for slots 2–5 only.
+// Worktree slot isolation: cookies are host-scoped (not port), so two IdentityServer
+// instances on localhost share cookies in one browser profile unless named per slot.
+// Slots 2–5 suffix their host-scoped cookies; slot 1 keeps defaults unchanged.
 var slot = int.TryParse(builder.Configuration["worktree-slot"], out var slotValue) ? slotValue : 1;
 
 // Add services to the container.
@@ -58,10 +54,7 @@ builder.Services.AddIdentity<ApplicationUser, IdentityRole>(options =>
 .AddEntityFrameworkStores<IdentityDbContext>()
 .AddDefaultTokenProviders();
 
-// Slot-suffix the host-scoped ASP.NET Core Identity + antiforgery cookies for slots 2–5
-// (see the slot note above). The Identity.Application cookie is also Duende's SSO login
-// cookie (via AddAspNetIdentity), so this is what keeps two logged-in slots independent.
-// Gated to slot > 1 so slot 1 keeps the framework defaults untouched.
+// Suffix the Identity (also Duende's SSO cookie) + antiforgery cookie names per slot.
 if (slot > 1)
 {
     var cookieSuffix = $".S{slot}";
@@ -85,8 +78,7 @@ builder.Services.AddIdentityServer(options =>
     options.Events.RaiseFailureEvents = true;
     options.Events.RaiseSuccessEvents = true;
 
-    // Slot-suffix Duende's check-session cookie so concurrent slots don't share it on
-    // localhost (see the slot note above). Slot 1 keeps the default 'idsrv.session'.
+    // Suffix the check-session cookie per slot (see slot note above).
     if (slot > 1)
     {
         options.Authentication.CheckSessionCookieName = $"idsrv.session.S{slot}";
