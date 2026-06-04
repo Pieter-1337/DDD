@@ -54,7 +54,9 @@ if (messagingFramework == MessagingFrameworkNames.Wolverine)
     builder.AddWolverineEventBus<BillingDbContext>(connectionString, "wolverine_billing", opts =>
     {
         opts.Discovery.IncludeAssembly(typeof(Billing.Infrastructure.ServiceCollectionExtensions).Assembly);
-        opts.ListenToMassTransitQueue<PatientCreatedIntegrationEvent>("billing-patient-created");
+        // Reference only for re-testing MT→W interop. Native conventional consume takes over via the existing
+        // Wolverine handler (PatientCreatedIntegrationEventHandler in Billing.Infrastructure.Consumers.Wolverine).
+        // opts.ListenToMassTransitQueue<PatientCreatedIntegrationEvent>("billing-patient-created");
     });
 }
 else

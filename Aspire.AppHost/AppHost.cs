@@ -1,4 +1,5 @@
 using Aspire.AppHost;
+using BuildingBlocks.Application.Messaging;
 using BuildingBlocks.WorktreeSlots;
 
 // Worktree slot (ADR-0002): slot 1 = main checkout, unchanged; slots 2–5 shift every
@@ -8,6 +9,15 @@ var slot = AppHostHelper.ResolveSlot();
 AppHostHelper.OffsetDashboardPorts(slot);
 
 var builder = DistributedApplication.CreateBuilder(args);
+
+// Messaging framework — MassTransit by default, Wolverine opt-in (PRD #24).
+// One knob fans out to both services so they cannot drift locally. Read from
+// configuration (so `--parameter`/`Parameters:messaging-framework`/env can override
+// it) with a MassTransit fallback — mirrors how the broker is selected above.
+var messagingFramework =
+    builder.Configuration["Parameters:messaging-framework"]
+    ?? builder.Configuration["ASPIRE_MESSAGING_FRAMEWORK"]
+    ?? MessagingFrameworkNames.MassTransit;
 
 // Messaging broker — RabbitMQ by default, Azure Service Bus emulator opt-in (ADR-0001).
 var messaging = builder.AddConfiguredMessaging(slot, out var messagingAdmin);
@@ -20,12 +30,14 @@ var schedulingApi = builder.AddProject<Projects.Scheduling_WebApi>("scheduling-w
     .WithHttpsEndpoint(port: WorktreeSlot.Port(WorktreeSlot.SchedulingBasePort, slot), name: "scheduling-https")
     .WithReference(messaging)
     .WithReference(identityApi)
+    .WithEnvironment("MessagingFramework", messagingFramework)
     .WaitFor(messaging);
 
 var billingApi = builder.AddProject<Projects.Billing_WebApi>("billing-webapi")
     .WithHttpsEndpoint(port: WorktreeSlot.Port(WorktreeSlot.BillingBasePort, slot), name: "billing-https")
     .WithReference(messaging)
     .WithReference(identityApi)
+    .WithEnvironment("MessagingFramework", messagingFramework)
     .WaitFor(messaging);
 
 // ASB emulator only: hand both services the management-plane connection string so
