@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Dependency-free on purpose: shared by both the Aspire AppHost and the
+       Identity host, so it must not drag web/Duende/config packages into either.
+       WithSlotDatabase uses System.Data.Common, which ships in the framework. -->
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+</Project>

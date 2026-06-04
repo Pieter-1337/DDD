@@ -27,6 +27,7 @@
   <ItemGroup>
     <ProjectReference Include="..\..\ServiceDefaults\Aspire.ServiceDefaults.csproj" />
     <ProjectReference Include="..\..\Shared\Auth\Auth.csproj" />
+    <ProjectReference Include="..\..\BuildingBlocks\BuildingBlocks.WorktreeSlots\BuildingBlocks.WorktreeSlots.csproj" />
   </ItemGroup>
 
 </Project>

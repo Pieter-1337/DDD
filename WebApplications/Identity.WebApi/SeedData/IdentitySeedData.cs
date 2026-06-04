@@ -1,4 +1,5 @@
 ﻿using Auth;
+using BuildingBlocks.WorktreeSlots;
 using Duende.IdentityServer.EntityFramework.DbContexts;
 using Duende.IdentityServer.EntityFramework.Mappers;
 using Identity.WebApi.Config;
@@ -53,10 +54,10 @@ public class IdentitySeedData : IHostedService
         await SeedRolesAsync(scope.ServiceProvider);
         await SeedUsersAsync(scope.ServiceProvider);
 
-        // Read the worktree slot so this Identity instance seeds only its own slot's URLs.
-        // Default 1 (main checkout). The AppHost injects 'worktree-slot' via WithEnvironment
-        // for slots 2–5; slot 1 gets no injection and uses the default.
-        var slot = int.TryParse(_configuration["worktree-slot"], out var s) ? s : 1;
+        // Slot-aware seeding: each Identity instance seeds only its own slot's URLs.
+        // Slot 1 (default) seeds the canonical localhost URLs; the AppHost injects
+        // 'worktree-slot' for slots 2–5. This whole path is already Development-gated above.
+        var slot = WorktreeSlot.FromValue(_configuration["worktree-slot"]);
         await SeedIdentityServerConfigurationAsync(scope.ServiceProvider, slot);
     }
 

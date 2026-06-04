@@ -21,6 +21,7 @@ docs/
 +-- phase-7-frontend/            # Frontend (Blazor + Angular)
 +-- phase-8-auth/                # Authentication & Authorization (planned)
 +-- phase-9-api-gateway-bff/     # API Gateway (YARP) & BFF pattern (optional)
++-- worktree-slots/              # Dev tooling: run multiple live stacks side by side (see adr/0002)
 ```
 
 ## How to Use

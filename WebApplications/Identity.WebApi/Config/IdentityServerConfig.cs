@@ -1,4 +1,5 @@
-﻿using Duende.IdentityServer;
+﻿using BuildingBlocks.WorktreeSlots;
+using Duende.IdentityServer;
 using Duende.IdentityServer.Models;
 
 namespace Identity.WebApi.Config
@@ -8,12 +9,6 @@ namespace Identity.WebApi.Config
     /// </summary>
     public class IdentityServerConfig
     {
-        // Base ports for each service — must stay in sync with WorktreeSlot.Port bases in AppHost.cs.
-        // Port derivation: value(base) = base + 100 * (slot - 1)  (same formula as WorktreeSlot.Port)
-        private const int SchedulingApiBase = 7001;
-        private const int BillingApiBase = 7002;
-        private const int AngularSpaBase = 7003;
-
         /// <summary>
         /// Identity resources define user identity data that can be requested via scopes.
         /// </summary>
@@ -42,9 +37,9 @@ namespace Identity.WebApi.Config
         /// </summary>
         public static IEnumerable<Client> Clients(int slot = 1)
         {
-            var schedulingPort = SlotPort(SchedulingApiBase, slot);
-            var billingPort = SlotPort(BillingApiBase, slot);
-            var spaPort = SlotPort(AngularSpaBase, slot);
+            var schedulingPort = WorktreeSlot.Port(WorktreeSlot.SchedulingBasePort, slot);
+            var billingPort = WorktreeSlot.Port(WorktreeSlot.BillingBasePort, slot);
+            var spaPort = WorktreeSlot.Port(WorktreeSlot.SpaBasePort, slot);
 
             return
             [
@@ -126,11 +121,5 @@ namespace Identity.WebApi.Config
                 }
             ];
         }
-
-        /// <summary>
-        /// Derives a port from a base port and slot number.
-        /// Mirrors WorktreeSlot.Port: value(base) = base + 100 * (slot - 1).
-        /// </summary>
-        internal static int SlotPort(int basePort, int slot) => basePort + 100 * (slot - 1);
     }
 }

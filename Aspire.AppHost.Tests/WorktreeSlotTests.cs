@@ -1,4 +1,4 @@
-using Aspire.AppHost;
+using BuildingBlocks.WorktreeSlots;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Shouldly;
 
@@ -111,6 +111,29 @@ public sealed class WorktreeSlotTests
             ClearSlotEnvVar();
         }
     }
+
+    // -----------------------------------------------------------------------
+    // Slot resolution from a single config value (web-host path)
+    // -----------------------------------------------------------------------
+
+    [TestMethod]
+    public void FromValue_Null_ReturnsDefault1() => WorktreeSlot.FromValue(null).ShouldBe(1);
+
+    [TestMethod]
+    public void FromValue_Blank_ReturnsDefault1() => WorktreeSlot.FromValue("  ").ShouldBe(1);
+
+    [TestMethod]
+    public void FromValue_ValidSlot_ReturnsSlot() => WorktreeSlot.FromValue("3").ShouldBe(3);
+
+    [TestMethod]
+    public void FromValue_OutOfRange_Throws() =>
+        Should.Throw<InvalidOperationException>(() => WorktreeSlot.FromValue("99"))
+            .Message.ShouldContain("out of range");
+
+    [TestMethod]
+    public void FromValue_NonInteger_Throws() =>
+        Should.Throw<InvalidOperationException>(() => WorktreeSlot.FromValue("abc"))
+            .Message.ShouldContain("not a valid integer");
 
     // -----------------------------------------------------------------------
     // Fail-fast guard: invalid values throw immediately

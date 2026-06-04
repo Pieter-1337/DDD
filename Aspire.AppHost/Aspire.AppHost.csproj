@@ -16,6 +16,10 @@
          references as resources only and does not flow them to the compiler). -->
     <ProjectReference Include="..\BuildingBlocks\BuildingBlocks.Application\BuildingBlocks.Application.csproj"
                       IsAspireProjectResource="false" />
+    <!-- Shared worktree-slot mechanics (formula, ports, connection-string rewrite).
+         IsAspireProjectResource=false for the same reason as above. -->
+    <ProjectReference Include="..\BuildingBlocks\BuildingBlocks.WorktreeSlots\BuildingBlocks.WorktreeSlots.csproj"
+                      IsAspireProjectResource="false" />
     <ProjectReference Include="..\WebApplications\Identity.WebApi\Identity.WebApi.csproj" />
     <ProjectReference Include="..\WebApplications\Scheduling.WebApi\Scheduling.WebApi.csproj" />
     <ProjectReference Include="..\WebApplications\Billing.WebApi\Billing.WebApi.csproj" />

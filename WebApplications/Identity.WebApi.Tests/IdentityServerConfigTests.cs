@@ -97,32 +97,4 @@ public sealed class IdentityServerConfigTests
             IdentityServerConfig.Clients(slot).Count().ShouldBe(3, $"slot {slot}");
         }
     }
-
-    // -----------------------------------------------------------------------
-    // SlotPort helper: same formula as WorktreeSlot.Port
-    // -----------------------------------------------------------------------
-
-    [TestMethod]
-    public void SlotPort_Slot1_ReturnsBase()
-    {
-        IdentityServerConfig.SlotPort(7001, 1).ShouldBe(7001);
-        IdentityServerConfig.SlotPort(7002, 1).ShouldBe(7002);
-        IdentityServerConfig.SlotPort(7003, 1).ShouldBe(7003);
-    }
-
-    [TestMethod]
-    public void SlotPort_Slot2_ReturnsBasePlusOneHundred()
-    {
-        IdentityServerConfig.SlotPort(7001, 2).ShouldBe(7101);
-        IdentityServerConfig.SlotPort(7002, 2).ShouldBe(7102);
-        IdentityServerConfig.SlotPort(7003, 2).ShouldBe(7103);
-    }
-
-    [TestMethod]
-    public void SlotPort_Slot5_ReturnsBasePlusFourHundred()
-    {
-        IdentityServerConfig.SlotPort(7001, 5).ShouldBe(7401);
-        IdentityServerConfig.SlotPort(7002, 5).ShouldBe(7402);
-        IdentityServerConfig.SlotPort(7003, 5).ShouldBe(7403);
-    }
 }

@@ -16,9 +16,9 @@
   </ItemGroup>
 
   <ItemGroup>
-    <!-- Compile WorktreeSlot.cs directly from the AppHost project so tests cover
-         the exact same class without pulling in the Aspire.AppHost.Sdk. -->
-    <Compile Include="..\Aspire.AppHost\WorktreeSlot.cs" Link="WorktreeSlot.cs" />
+    <!-- WorktreeSlot now lives in a dependency-free BuildingBlock, so a normal
+         project reference works without dragging in the Aspire.AppHost.Sdk. -->
+    <ProjectReference Include="..\BuildingBlocks\BuildingBlocks.WorktreeSlots\BuildingBlocks.WorktreeSlots.csproj" />
   </ItemGroup>
 
 </Project>

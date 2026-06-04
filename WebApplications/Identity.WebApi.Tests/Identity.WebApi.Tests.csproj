@@ -19,6 +19,8 @@
     <!-- Compile IdentityServerConfig.cs directly so tests cover the exact class
          without pulling in the full ASP.NET Core web SDK pipeline. -->
     <Compile Include="..\Identity.WebApi\Config\IdentityServerConfig.cs" Link="Config\IdentityServerConfig.cs" />
+    <!-- IdentityServerConfig now derives ports from the shared slot mechanics. -->
+    <ProjectReference Include="..\..\BuildingBlocks\BuildingBlocks.WorktreeSlots\BuildingBlocks.WorktreeSlots.csproj" />
   </ItemGroup>
 
   <ItemGroup>
