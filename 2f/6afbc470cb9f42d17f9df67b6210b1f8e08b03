@@ -1,0 +1,21 @@
+docs/phase-5-event-driven/09-broker-framework-matrix.md
+  s_f232d47a8ad27f::t_07493aa1357700 88-96
+  s_f232d47a8ad27f::t_e3928fe1b2cda6 119-121
+  s_f232d47a8ad27f::t_e4811eb4481724 131-136
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.3",
+  "base_commit_sha": "2f6afbc470cb9f42d17f9df67b6210b1f8e08b03",
+  "prompts": {},
+  "sessions": {
+    "s_f232d47a8ad27f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "a2e91e10-4d4a-42e2-be68-e2006c7e4b1a",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Pieter Bracke <pieter.bracke@euri.com>"
+    }
+  }
+}
