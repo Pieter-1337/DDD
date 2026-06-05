@@ -427,7 +427,7 @@ This allows using `nameof(GetPatientAsync)` in `CreatedAtAction` calls.
 - [x] OAuth 2.0 and OpenID Connect fundamentals
 - [x] Duende IdentityServer 7.4 as self-hosted OIDC/OAuth2 authority (EF Core config + operational stores)
 - [x] ASP.NET Core Identity for user/role storage (seeded Admin/Doctor/Nurse users)
-- [x] Cookie auth + OIDC client per WebApi (BFF pattern — SPA never sees tokens)
+- [x] Cookie auth + per-WebApi OIDC client (Authorization Code flow) — SPA authenticates by cookie, never sees tokens; server-side token handling. (A *dedicated* BFF/gateway host is Phase 9, not started.)
 - [x] Shared Data Protection keys so cookies decrypt across both WebApis
 - [x] `id_token`-only cookie storage via `OnTokenValidated` (needed as `id_token_hint` for Duende logout)
 - [x] Claim hydration via `GetClaimsFromUserInfoEndpoint` + explicit `MapJsonKey` entries
@@ -451,7 +451,7 @@ This allows using `nameof(GetPatientAsync)` in `CreatedAtAction` calls.
 ### Key Architecture Decisions (Implemented)
 
 1. **Duende IdentityServer** — Self-hosted OIDC server for learning value (vs Keycloak, cloud)
-2. **Cookie-based auth (BFF)** — HttpOnly cookies per WebApi; the SPA never sees tokens
+2. **Cookie-based auth** — HttpOnly cookies per WebApi; each API is its own confidential OIDC client and the SPA never sees tokens. This is BFF-*like* (server-side token handling), not the dedicated BFF/gateway of Phase 9.
 3. **Shared auth BuildingBlocks** — `BuildingBlocks.Application.Auth` (abstraction) + `BuildingBlocks.Infrastructure.Auth` (`HttpContextCurrentUser`)
 4. **`id_token`-only cookie** — stored via `OnTokenValidated` to supply `id_token_hint` for Duende logout / `PostLogoutRedirectUri`
 5. **`ICurrentUser`** — replaces the previously commented-out `IUserContext` in `UserValidator<T>`
