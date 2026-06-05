@@ -114,7 +114,7 @@ This is a comprehensive learning project to master Domain-Driven Design (DDD) an
 **Concepts implemented**:
 - Duende IdentityServer 7.4 as the OIDC/OAuth2 authority with EF Core config + operational stores
 - ASP.NET Core Identity for user/role storage, seeded with Admin/Doctor/Nurse users
-- Cookie auth + OIDC client per WebApi (BFF pattern — SPA never sees tokens)
+- Cookie auth + per-WebApi OIDC client — each API is its own confidential client, SPA never sees tokens (BFF-*like* server-side token handling; a dedicated BFF/gateway is Phase 9, not started)
 - Shared Data Protection keys so cookies decrypt across both WebApis
 - `id_token`-only cookie storage via `OnTokenValidated` — needed as `id_token_hint` for Duende logout to populate `PostLogoutRedirectUri`
 - Claim hydration via `GetClaimsFromUserInfoEndpoint = true` + explicit `MapJsonKey` entries (Duende's lean `id_token` default + .NET 9 `JsonWebTokenHandler` no-remapping behavior)
