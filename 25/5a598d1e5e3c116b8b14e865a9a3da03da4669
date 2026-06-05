@@ -1,0 +1,20 @@
+docs/PROGRESS.md
+  s_fd160a8e1690db::t_6256f421ff10fe 14
+  s_fd160a8e1690db::t_9b9b37e5fe5e36 423,425,427-438,442-449,451,454-459
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.3",
+  "base_commit_sha": "255a598d1e5e3c116b8b14e865a9a3da03da4669",
+  "prompts": {},
+  "sessions": {
+    "s_fd160a8e1690db": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "efa891bc-469d-445b-a075-20c2a885ccb8",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Pieter Bracke <pieter.bracke@euri.com>"
+    }
+  }
+}
