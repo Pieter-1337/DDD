@@ -350,7 +350,7 @@ This allows using `nameof(GetPatientAsync)` in `CreatedAtAction` calls.
 
 ## Phase 7: Frontend
 
-*In progress - documentation created*
+*In progress — Angular track complete; Vue track implementation underway; Blazor track deferred*
 
 ### Concepts Learned
 
@@ -366,11 +366,27 @@ This allows using `nameof(GetPatientAsync)` in `CreatedAtAction` calls.
 ### Implementation Progress
 
 - [x] Documentation created (14 documents: 1 overview + 5 Blazor + 4 Angular + 4 Vue)
-- [ ] Blazor Server project setup with FluentUI and Aspire
-- [ ] Angular project setup with Angular Material
-- [ ] Vue project setup with PrimeVue + Tailwind + TanStack Query
-- [ ] Patient management UI (list, create, detail, suspend, activate)
-- [ ] API integration end-to-end
+- [ ] Blazor Server project setup with FluentUI and Aspire (deferred)
+- [x] Angular project setup with Angular Material
+- [x] Vue project setup with PrimeVue + Tailwind + TanStack Query
+- [x] Patient management UI — Angular (list, detail, suspend, activate, delete)
+- [~] Patient management UI — Vue (list with status filter, detail, create form)
+- [x] API integration end-to-end — Angular HttpClient; Vue fetch layer + TanStack Query
+
+### Vue Track Implementation Notes
+
+- `PatientStatus` modelled as a `const` object + derived type (single source of
+  truth, used as both value and type); `z.enum(PatientStatus)` reuses it for the
+  create-form schema
+- Typed PrimeVue `DataTable` body slots (`#body="{ data }: { data: Patient }"`)
+  and a `keyof Patient`-checked column helper
+- TanStack Query composables (`usePatients`/`usePatient` + suspend/activate/delete/
+  create mutations) with cache invalidation; `SuccessOrFailureResponse` drives
+  success/error toasts
+- `.value` required when binding mutation `isPending` refs in templates (they come
+  through a `ToRefs` object, so they are not auto-unwrapped)
+- `/patients/create` route registered before `/patients/:id` so the literal path
+  is not captured by the `:id` param
 
 ### Key Decisions Made
 
