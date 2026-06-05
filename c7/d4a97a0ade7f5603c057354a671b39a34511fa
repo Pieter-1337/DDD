@@ -1,0 +1,21 @@
+Directory.Packages.props
+  s_21d5eec6a41346::t_bd8a466fddf9c2 4
+  s_21d5eec6a41346::t_542d3eb0590ef9 72-73
+  s_21d5eec6a41346::t_b32c221fedd45e 36-37,39
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.3",
+  "base_commit_sha": "c7d4a97a0ade7f5603c057354a671b39a34511fa",
+  "prompts": {},
+  "sessions": {
+    "s_21d5eec6a41346": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ce9e5802-af29-47c2-aef1-6b0b1348826b",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Pieter Bracke <pieter.bracke@euri.com>"
+    }
+  }
+}
