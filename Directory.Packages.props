@@ -1,6 +1,7 @@
 <Project>
   <PropertyGroup>
     <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
+    <CentralPackageTransitivePinningEnabled>true</CentralPackageTransitivePinningEnabled>
   </PropertyGroup>
   <ItemGroup>
     <!-- EF Core -->
@@ -21,41 +22,21 @@
     <!-- Messaging -->
     <PackageVersion Include="MassTransit" Version="8.3.6" />
     <PackageVersion Include="MassTransit.RabbitMQ" Version="8.3.6" />
-    <!-- Azure Service Bus transport: latest published 8.3.x; floors at MassTransit >= 8.3.5 so it resolves cleanly against the 8.3.6 core above. -->
+    <!-- Azure Service Bus transport -->
     <PackageVersion Include="MassTransit.Azure.ServiceBus.Core" Version="8.3.5" />
-    <!-- Azure SDK for the Service Bus emulator's two-plane wiring (see ADR-0001).
-         MassTransit.Azure.ServiceBus.Core 8.3.5 pulls this transitively at 7.18.2,
-         but 7.18.2 has a bug where ServiceBusAdministrationClient RESETS the custom
-         emulator port (e.g. :5300) — fixed in 7.20.1 (2025-06-12). The emulator's
-         management plane lives on a separate HTTP port (5300) from the AMQP data
-         plane (5672); MassTransit's startup topology creation goes through the
-         administration client, so without this floor it lands on https://localhost:443
-         and faults forever. We add an explicit PackageReference in the MassTransit
-         project so this Central-Package-Management version actually applies (a
-         PackageVersion entry alone does NOT pin a transitive dependency). -->
     <PackageVersion Include="Azure.Messaging.ServiceBus" Version="7.20.1" />
     <PackageVersion Include="MassTransit.EntityFrameworkCore" Version="8.3.6" />
     <PackageVersion Include="WolverineFx" Version="6.4.3" />
     <PackageVersion Include="WolverineFx.RabbitMQ" Version="6.4.3" />
-    <!-- Wolverine Azure Service Bus transport: pinned to the same WolverineFx
-         version (6.4.3) as the core/RabbitMQ packages so the transport resolves
-         cleanly against the shared Wolverine core. The 6.x line exposes
-         AzureServiceBusTransport.ManagementConnectionString, which lets the
-         emulator's port-5300 management plane be wired explicitly (see ADR-0003). -->
     <PackageVersion Include="WolverineFx.AzureServiceBus" Version="6.4.3" />
     <PackageVersion Include="WolverineFx.SqlServer" Version="6.4.3" />
     <PackageVersion Include="WolverineFx.EntityFrameworkCore" Version="6.4.3" />
-    <!-- WolverineFx 6 split the Roslyn runtime compiler out of the core package
-         (GH-2876). Without it, the default TypeLoadMode.Dynamic throws at host start
-         ("no IAssemblyGenerator registered"). Referencing this package auto-registers
-         the generator, restoring the 4.x runtime-compilation behaviour with no code
-         change — and it is broker-agnostic (the crash hit RabbitMQ and ASB alike). -->
     <PackageVersion Include="WolverineFx.RuntimeCompilation" Version="6.4.3" />
     <!-- Configuration -->
-    <PackageVersion Include="Microsoft.Extensions.Configuration.Abstractions" Version="9.0.0" />
-    <PackageVersion Include="Microsoft.Extensions.Configuration" Version="9.0.0" />
+    <PackageVersion Include="Microsoft.Extensions.Configuration.Abstractions" Version="9.0.11" />
+    <PackageVersion Include="Microsoft.Extensions.Configuration" Version="9.0.11" />
     <!-- Logging -->
-    <PackageVersion Include="Microsoft.Extensions.Logging.Abstractions" Version="9.0.0" />
+    <PackageVersion Include="Microsoft.Extensions.Logging.Abstractions" Version="9.0.11" />
     <!-- Validation -->
     <PackageVersion Include="FluentValidation" Version="11.11.0" />
     <PackageVersion Include="FluentValidation.DependencyInjectionExtensions" Version="11.11.0" />
@@ -71,7 +52,7 @@
     <!-- Aspire ServiceDefaults -->
     <PackageVersion Include="Microsoft.Extensions.Http.Resilience" Version="10.1.0" />
     <PackageVersion Include="Microsoft.Extensions.ServiceDiscovery" Version="10.1.0" />
-    <PackageVersion Include="OpenTelemetry.Exporter.OpenTelemetryProtocol" Version="1.14.0" />
+    <PackageVersion Include="OpenTelemetry.Exporter.OpenTelemetryProtocol" Version="1.15.3" />
     <PackageVersion Include="OpenTelemetry.Extensions.Hosting" Version="1.14.0" />
     <PackageVersion Include="OpenTelemetry.Instrumentation.AspNetCore" Version="1.14.0" />
     <PackageVersion Include="OpenTelemetry.Instrumentation.Http" Version="1.14.0" />
@@ -88,5 +69,7 @@
 	<PackageVersion Include="Microsoft.AspNetCore.DataProtection.EntityFrameworkCore" Version="9.0.3" />
 	<PackageVersion Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="9.0.3" />
 	<PackageVersion Include="Microsoft.AspNetCore.Authentication.OpenIdConnect" Version="9.0.3" />
+	<!-- Transitive pin: patches CVE-2026-26171 (DoS in EncryptedXml); pulled in by EF Core Design, Roslyn & DataProtection -->
+	<PackageVersion Include="System.Security.Cryptography.Xml" Version="9.0.15" />
 </ItemGroup>
 </Project>
