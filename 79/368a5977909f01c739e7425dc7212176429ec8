@@ -1,0 +1,26 @@
+WebApplications/Billing.WebApi/DatabaseMigrator.cs
+  s_44786d51a9d234::t_a22b5b37ebe1a9 12-17,20,22,26,36-65
+WebApplications/Scheduling.WebApi/DatabaseMigrator.cs
+  s_44786d51a9d234::t_b75389b0d70550 12-17,20,22,26,36-65
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.3",
+  "base_commit_sha": "79368a5977909f01c739e7425dc7212176429ec8",
+  "prompts": {},
+  "humans": {
+    "h_9ef4f126c6bd1c": {
+      "author": "Pieter Bracke <pieter.bracke@euri.com>"
+    }
+  },
+  "sessions": {
+    "s_44786d51a9d234": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "a86e029c-471a-46c9-8c0c-74fc2a356d51",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Pieter Bracke <pieter.bracke@euri.com>"
+    }
+  }
+}
