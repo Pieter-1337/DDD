@@ -1,16 +1,15 @@
+using Billing.Application;
+using Billing.Infrastructure;
+using Billing.Infrastructure.Persistence;
 using BuildingBlocks.Application;
 using BuildingBlocks.Application.Messaging;
+using BuildingBlocks.Infrastructure.Auth;
 using BuildingBlocks.Infrastructure.MassTransit.Configuration;
 using BuildingBlocks.Infrastructure.Wolverine;
 using BuildingBlocks.WebApplications.Filters;
 using BuildingBlocks.WebApplications.Json;
 using BuildingBlocks.WebApplications.OpenApi;
-using Billing.Application;
-using Billing.Infrastructure;
-using Billing.Infrastructure.Persistence;
-using IntegrationEvents.Scheduling;
 using MassTransit;
-using BuildingBlocks.Infrastructure.Auth;
 
 var builder = WebApplication.CreateBuilder(args);
 
