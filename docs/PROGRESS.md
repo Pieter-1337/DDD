@@ -11,7 +11,7 @@
 | Phase 5: Event-Driven Architecture | Complete | 2026-01-23 | 2026-02-13 |
 | Phase 6: Integration | Complete | 2026-03-09 | 2026-03-16 |
 | Phase 7: Frontend (Blazor + Angular + Vue) | In Progress | 2026-03-12 | - |
-| Phase 8: Authentication & Authorization | Docs Written | 2026-03-25 | - |
+| Phase 8: Authentication & Authorization | Complete | 2026-03-25 | 2026-04-24 |
 | Phase 9: API Gateway & BFF (optional) | Not Started | - | - |
 
 ---
@@ -420,41 +420,43 @@ This allows using `nameof(GetPatientAsync)` in `CreatedAtAction` calls.
 
 ## Phase 8: Authentication & Authorization
 
-*Documentation written — implementation pending*
+*Complete*
 
-### Concepts to Learn
+### Concepts Learned
 
-- [x] OAuth 2.0 and OpenID Connect fundamentals (documented)
-- [x] Duende IdentityServer as self-hosted authorization server (documented)
-- [x] Cookie-based authentication (tokens never reach browser) (documented)
-- [x] BuildingBlocks.Infrastructure.Auth shared project (documented)
-- [x] Authorization policies and role-based access (documented)
-- [x] Angular authentication with signals (documented)
-- [x] Vue authentication with module-scoped composable + apiFetch wrapper (documented)
-- [x] ICurrentUser and UserValidator activation (documented)
-- [ ] ASP.NET Core Identity setup (implementation pending)
-- [ ] Shared Data Protection keys (implementation pending)
-- [ ] End-to-end auth flow testing (implementation pending)
+- [x] OAuth 2.0 and OpenID Connect fundamentals
+- [x] Duende IdentityServer 7.4 as self-hosted OIDC/OAuth2 authority (EF Core config + operational stores)
+- [x] ASP.NET Core Identity for user/role storage (seeded Admin/Doctor/Nurse users)
+- [x] Cookie auth + OIDC client per WebApi (BFF pattern — SPA never sees tokens)
+- [x] Shared Data Protection keys so cookies decrypt across both WebApis
+- [x] `id_token`-only cookie storage via `OnTokenValidated` (needed as `id_token_hint` for Duende logout)
+- [x] Claim hydration via `GetClaimsFromUserInfoEndpoint` + explicit `MapJsonKey` entries
+- [x] `ICurrentUser` abstraction (`HttpContextCurrentUser`) wired into `UserValidator<T>`
+- [x] Role-based authorization via `UserValidator<T>` role groups (AND/OR), `ERR_FORBIDDEN` → HTTP 403
+- [x] Angular role-gated UI (`AuthService.hasRole` + `canDelete`/`canSuspend` computed signals)
+- [x] Vue authentication — documented only (`07-vue-auth.md`); implementation not pursued
+- [ ] End-to-end auth integration tests against the real IdentityServer (optional, pending)
 
 ### Implementation Progress
 
-- [x] Documentation created (all 6 documents)
-- [ ] Identity.WebApi project (Authorization Server on :7010)
-- [ ] BuildingBlocks.Infrastructure.Auth project
-- [ ] API auth middleware (Scheduling + Billing)
-- [ ] Angular auth service and interceptor
-- [ ] ICurrentUser / UserValidator activation
-- [ ] Aspire orchestration update
-- [ ] End-to-end testing
+- [x] Documentation created (7 documents)
+- [x] Identity.WebApi project (Authorization Server on :7010) — Duende + ASP.NET Identity, EF stores, seeded users
+- [x] BuildingBlocks.Application.Auth (`ICurrentUser`) + BuildingBlocks.Infrastructure.Auth (`HttpContextCurrentUser`)
+- [x] API auth wiring (Scheduling + Billing) — cookie auth + OIDC client, shared Data Protection keys
+- [x] Angular auth service, interceptor, login/logout, and role-gated navbar/UI
+- [x] `ICurrentUser` / `UserValidator<T>` role authorization activated
+- [x] Aspire orchestration updated (Identity host wired in)
+- [ ] End-to-end auth integration tests (optional, pending)
 
-### Key Architecture Decisions (Documented)
+### Key Architecture Decisions (Implemented)
 
 1. **Duende IdentityServer** — Self-hosted OIDC server for learning value (vs Keycloak, cloud)
-2. **Cookie-based auth** — HttpOnly cookies, tokens never reach the browser
-3. **BuildingBlocks.Infrastructure.Auth** — Shared project following MassTransit BuildingBlock pattern
-4. **AuthController** — `/auth/login`, `/auth/logout`, `/auth/me` endpoints in each API
-5. **ICurrentUser** — Replaces commented-out `IUserContext` in `UserValidator<T>`
-6. **No Angular OIDC library** — Server handles the flow, Angular just uses `withCredentials: true`
+2. **Cookie-based auth (BFF)** — HttpOnly cookies per WebApi; the SPA never sees tokens
+3. **Shared auth BuildingBlocks** — `BuildingBlocks.Application.Auth` (abstraction) + `BuildingBlocks.Infrastructure.Auth` (`HttpContextCurrentUser`)
+4. **`id_token`-only cookie** — stored via `OnTokenValidated` to supply `id_token_hint` for Duende logout / `PostLogoutRedirectUri`
+5. **`ICurrentUser`** — replaces the previously commented-out `IUserContext` in `UserValidator<T>`
+6. **Role rules in `UserValidator<T>`** — auto-registered from constructor role groups (AND/OR via nested arrays); `ERR_FORBIDDEN` maps to 403
+7. **No SPA OIDC library** — the server handles the flow; the SPA just sends credentials (`withCredentials: true`)
 
 ### Docs Available
 
