@@ -484,21 +484,23 @@ Frontend/Vue/Scheduling.VueApp/
 | `features/` | Feature components and routes | `patients/PatientList.vue` |
 | `shared/` | Reusable models and UI utilities | `success-or-failure-response.ts` |
 
-Path aliases (`@core`, `@features`, `@shared`) were added in `vite.config.ts` (Step 6). Mirror them in `tsconfig.json` so the TypeScript language server resolves them too:
+Path aliases (`@core`, `@features`, `@shared`) were added in `vite.config.ts` (Step 6) — that covers the dev server and the build. The TypeScript language server resolves modules separately, so mirror them for the type checker too. **Put them in `tsconfig.app.json`, not the root `tsconfig.json`.** The `create-vue` scaffold uses TS project references: the root `tsconfig.json` has `"files": []` and only `references`, so it owns no source files and its `paths` are never applied — `tsconfig.app.json` is the config that `include`s `src/**/*`. It already ships a `@/*` entry; since `paths` *replaces* (does not merge with) any inherited value, keep `@/*` and add the rest alongside it:
 
 ```json
+// tsconfig.app.json
 {
   "compilerOptions": {
-    "baseUrl": ".",
     "paths": {
-      "@/*": ["src/*"],
-      "@core/*": ["src/core/*"],
-      "@features/*": ["src/features/*"],
-      "@shared/*": ["src/shared/*"]
+      "@/*": ["./src/*"],
+      "@core/*": ["./src/core/*"],
+      "@features/*": ["./src/features/*"],
+      "@shared/*": ["./src/shared/*"]
     }
   }
 }
 ```
+
+> `tsconfig.app.json` extends `@vue/tsconfig`, which sets no `baseUrl`; from TS 5.0 on, alias targets resolve relative to the config file, so the `./src/*` form works without `baseUrl`. `tsconfig.vitest.json` extends `tsconfig.app.json`, so it inherits these aliases automatically. After editing, run **TypeScript: Restart TS Server** in VS Code to clear stale squiggles.
 
 ---
 

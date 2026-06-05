@@ -414,6 +414,7 @@ This allows using `nameof(GetPatientAsync)` in `CreatedAtAction` calls.
 - [x] BuildingBlocks.Infrastructure.Auth shared project (documented)
 - [x] Authorization policies and role-based access (documented)
 - [x] Angular authentication with signals (documented)
+- [x] Vue authentication with module-scoped composable + apiFetch wrapper (documented)
 - [x] ICurrentUser and UserValidator activation (documented)
 - [ ] ASP.NET Core Identity setup (implementation pending)
 - [ ] Shared Data Protection keys (implementation pending)
@@ -447,6 +448,7 @@ This allows using `nameof(GetPatientAsync)` in `CreatedAtAction` calls.
 - `phase-8-auth/04-api-resource-protection.md` - Securing the APIs
 - `phase-8-auth/05-angular-auth.md` - Angular Authentication
 - `phase-8-auth/06-user-context-and-authorization.md` - User Context in Domain Layer
+- `phase-8-auth/07-vue-auth.md` - Vue Authentication (cookie-based, parallel to the Angular track)
 
 ---
 

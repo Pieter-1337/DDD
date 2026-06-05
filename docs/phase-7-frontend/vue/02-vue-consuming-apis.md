@@ -56,6 +56,20 @@ Define interfaces that match the backend DTOs. This is the **same contract** the
 ```typescript
 import type { SuccessOrFailureResponse } from '@shared/models/success-or-failure-response';
 
+/**
+ * Lifecycle status of a patient. A `const` object plus a derived type, so the
+ * names work as values (`PatientStatus.Suspended`) and as a type
+ * (`status: PatientStatus`). The values are the wire strings, so API responses
+ * assign without a cast.
+ */
+export const PatientStatus = {
+  Active: 'Active',
+  Suspended: 'Suspended',
+  Deleted: 'Deleted',
+} as const;
+
+export type PatientStatus = (typeof PatientStatus)[keyof typeof PatientStatus];
+
 /** Patient entity returned from the API */
 export interface Patient {
   id: string;
@@ -63,7 +77,7 @@ export interface Patient {
   lastName: string;
   email: string;
   dateOfBirth: string;  // ISO 8601 date string
-  status: string;       // "Active" | "Suspended" | "Deleted"
+  status: PatientStatus;
 }
 
 /** Request model for creating a new patient */
@@ -72,7 +86,7 @@ export interface CreatePatientRequest {
   lastName: string;
   email: string;
   dateOfBirth: string;  // yyyy-MM-dd format
-  status: string;
+  status: PatientStatus;
 }
 
 /** Response from the CreatePatient command */
@@ -90,6 +104,7 @@ export interface PatientFilterParams {
 - Match property names exactly to the backend DTOs (case-sensitive)
 - Use `string` for dates — convert to/from `Date` in components as needed
 - Use `import type` for type-only imports (Vite/TypeScript best practice)
+- `PatientStatus` mirrors the backend SmartEnum and is a single source of truth for the entity and create request, letting consumers (e.g. `severityFor`) reason exhaustively. It's a `const` object + derived type (declaration merging) rather than a bare union, so the members double as values — `PatientStatus.Suspended` instead of the magic string `'Suspended'`. Prefer this over a TS `enum`: the values *are* the wire strings (so API responses assign without a cast) and nothing extra is emitted at runtime. Because it's now also a value, files that reference it must use a value import (`import { type Patient, PatientStatus }`), not `import type`, under `verbatimModuleSyntax`. It remains a compile-time assertion about the response shape, not runtime validation. Note `PatientFilterParams.status` stays a loose `string` on purpose — the filter dropdown adds an `''` ("All") option that isn't a real status.
 
 ---
 

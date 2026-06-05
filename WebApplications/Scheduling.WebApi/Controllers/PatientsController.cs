@@ -9,7 +9,8 @@ using Microsoft.AspNetCore.Authorization;
 namespace Scheduling.WebApi.Controllers
 {
     [Route("api/[controller]")]
-    [Authorize]
+    [AllowAnonymous]
+    //[Authorize]
     [ApiController]
     public class PatientsController : ControllerBase
     {

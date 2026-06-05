@@ -48,16 +48,20 @@ Define a Zod schema that mirrors the backend's create-patient rules (see the ove
 
 ```typescript
 import { z } from 'zod';
+import { PatientStatus } from '@core/models/patient';
 
 export const createPatientSchema = z.object({
   firstName: z.string().min(1, 'First name is required'),
   lastName: z.string().min(1, 'Last name is required'),
   email: z.string().min(1, 'Email is required').email('Enter a valid email'),
   dateOfBirth: z.date({ required_error: 'Date of birth is required' }),
-  status: z.string().default('Active'),
+  // Pass the PatientStatus const object straight to Zod — no manual value list,
+  // no cast. (Zod 4. On Zod 3 use `z.nativeEnum(PatientStatus)`.)
+  status: z.enum(PatientStatus).default(PatientStatus.Active),
 });
 
 // Inferred form-value type — no separate interface needed.
+// `status` infers as PatientStatus, so it maps to CreatePatientRequest without a cast.
 export type CreatePatientForm = z.infer<typeof createPatientSchema>;
 ```
 
@@ -162,7 +166,7 @@ const submit = handleSubmit((values) => {
     </div>
 
     <div class="flex gap-2">
-      <Button label="Create" type="submit" :loading="create.isPending" />
+      <Button label="Create" type="submit" :loading="create.isPending.value" />
       <Button label="Cancel" text type="button" @click="router.push('/patients')" />
     </div>
   </form>
@@ -176,8 +180,29 @@ const submit = handleSubmit((values) => {
 - **`handleSubmit`** — runs its callback only when the schema passes; otherwise it populates `errors` and skips submission (the counterpart to Angular's `if (form.invalid) markAllAsTouched()`)
 - **`errors.<field>`** — reactive per-field message string, shown via PrimeVue `Message`
 - **`:invalid`** — PrimeVue's invalid-state styling, driven by the presence of an error
-- **`create.isPending`** — TanStack Query's reactive mutation-pending flag, bound to the button's `:loading` (no `.value` in templates — Vue auto-unwraps it) to prevent double submission
+- **`create.isPending.value`** — TanStack Query's reactive mutation-pending flag, bound to the button's `:loading` to prevent double submission. Needs `.value`: `useMutation` returns a `ToRefs` object, so `create.isPending` is a ref reached through a property, and Vue auto-unwraps only *top-level* refs (not ones accessed via `create.`) in a `v-bind`. See doc 03's PatientDetail notes for the full rule.
 - **Typed request** — map the form values to `CreatePatientRequest`, formatting the date to `yyyy-MM-dd`
+
+---
+
+## Register the Route
+
+The form is only reachable once `CreatePatient.vue` is wired into the router. The "Create patient" button on the list (`router.push('/patients/create')`) and the post-submit/cancel navigation all assume this route exists. Add it to `src/router/index.ts` (introduced in [doc 03](./03-vue-components-and-routing.md)):
+
+```typescript
+const routes: RouteRecordRaw[] = [
+  { path: '/', redirect: '/patients' },
+  { path: '/patients', name: 'patient-list', component: () => import('@features/patients/PatientList.vue') },
+  {
+    path: '/patients/create',
+    name: 'create-patient',
+    component: () => import('@features/patients/CreatePatient.vue'),
+  },
+  { path: '/patients/:id', name: 'patient-detail', component: () => import('@features/patients/PatientDetail.vue'), props: true },
+];
+```
+
+> **Route ordering matters.** Declare `/patients/create` **before** `/patients/:id`. Otherwise the literal `create` segment is captured by the `:id` parameter — the router would load `PatientDetail` with `id = 'create'` and fire a doomed `GET /patients/create` request instead of showing the form.
 
 ---
 
@@ -189,6 +214,7 @@ Zod expresses domain-specific rules with `.refine()` — the counterpart to Angu
 
 ```typescript
 import { z } from 'zod';
+import { PatientStatus } from '@core/models/patient';
 
 function ageOnOrBefore(date: Date): number {
   const today = new Date();
@@ -206,7 +232,7 @@ export const createPatientSchema = z.object({
     .date({ required_error: 'Date of birth is required' })
     .refine((d) => d < new Date(), 'Date of birth must be in the past')
     .refine((d) => ageOnOrBefore(d) >= 18, 'Patient must be at least 18 years old'),
-  status: z.string().default('Active'),
+  status: z.enum(PatientStatus).default(PatientStatus.Active),
 });
 ```
 
@@ -245,7 +271,7 @@ The create mutation already handles the server's verdict: a `SuccessOrFailureRes
 | **Error display** | `<mat-error>` + `hasError()` | `<Message>` + `errors.field` |
 | **Submit handler** | `(ngSubmit)="submit()"` | `handleSubmit(cb)` |
 | **Guard invalid submit** | `if (form.invalid) markAllAsTouched()` | `handleSubmit` skips the callback automatically |
-| **Disable on submit** | `[disabled]="isSubmitting()"` | `:loading="create.isPending"` |
+| **Disable on submit** | `[disabled]="isSubmitting()"` | `:loading="create.isPending.value"` |
 | **Date picker** | `<input matInput [matDatepicker]>` | `<DatePicker v-model>` |
 | **Custom rule** | custom `ValidatorFn` | Zod `.refine()` |
 | **Server errors** | `NotificationService` snackbar | `useToast()` error toast |
@@ -270,6 +296,7 @@ The create mutation already handles the server's verdict: a `SuccessOrFailureRes
 - [ ] Submit button shows `:loading` from the mutation's `isPending`
 - [ ] Success shows a toast and navigates to `/patients`; `success: false` shows an error toast
 - [ ] Cancel navigates back without submitting
+- [ ] `/patients/create` route registered (before `/patients/:id`) so the form is reachable
 
 ### Testing Your Form
 

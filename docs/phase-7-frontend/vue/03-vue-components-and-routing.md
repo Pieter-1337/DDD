@@ -184,23 +184,27 @@ import Select from 'primevue/select';
 import Tag from 'primevue/tag';
 import ProgressSpinner from 'primevue/progressspinner';
 import { usePatients } from '@core/composables/use-patients';
+import { type Patient, PatientStatus } from '@core/models/patient';
 
 const router = useRouter();
 
 const selectedStatus = ref<string>('');
 const statusOptions = [
   { label: 'All', value: '' },
-  { label: 'Active', value: 'Active' },
-  { label: 'Suspended', value: 'Suspended' },
-  { label: 'Deleted', value: 'Deleted' },
+  { label: 'Active', value: PatientStatus.Active },
+  { label: 'Suspended', value: PatientStatus.Suspended },
+  { label: 'Deleted', value: PatientStatus.Deleted },
 ];
 
 // Reactive query — refetches whenever selectedStatus changes.
 const { data: patients, isPending } = usePatients(selectedStatus);
 
-function severityFor(status: string) {
-  return status === 'Active' ? 'success' : status === 'Suspended' ? 'warn' : 'danger';
+function severityFor(status: PatientStatus) {
+  return status === PatientStatus.Active ? 'success' : status === PatientStatus.Suspended ? 'warn' : 'danger';
 }
+
+// Compile-checked column field name — typos against Patient become type errors.
+const col = <K extends keyof Patient>(key: K) => key;
 </script>
 
 <template>
@@ -223,16 +227,16 @@ function severityFor(status: string) {
   </div>
 
   <DataTable v-else :value="patients ?? []" striped-rows>
-    <Column field="firstName" header="First Name" />
-    <Column field="lastName" header="Last Name" />
-    <Column field="email" header="Email" />
+    <Column :field="col('firstName')" header="First Name" />
+    <Column :field="col('lastName')" header="Last Name" />
+    <Column :field="col('email')" header="Email" />
     <Column header="Status">
-      <template #body="{ data }">
+      <template #body="{ data }: { data: Patient }">
         <Tag :value="data.status" :severity="severityFor(data.status)" />
       </template>
     </Column>
     <Column header="Actions">
-      <template #body="{ data }">
+      <template #body="{ data }: { data: Patient }">
         <Button label="View" text @click="router.push(`/patients/${data.id}`)" />
       </template>
     </Column>
@@ -244,6 +248,9 @@ Key points:
 - `usePatients(selectedStatus)` — passing the `ref` makes the query reactive; the dropdown's `v-model` change triggers a refetch
 - `DataTable` + `Column` is the PrimeVue counterpart to Angular Material's `mat-table` + `matColumnDef`
 - A `Column` with a `#body` slot renders custom cell content (status `Tag`, action `Button`)
+- **Typing the row.** PrimeVue's `DataTable` is not generic over the row type, so `#body` slot props default to `any`. We annotate the destructured slot inline — `#body="{ data }: { data: Patient }"` (supported in Vue 3.3+) — so `data.status`/`data.id` are checked against `Patient`. The annotation is per-slot; repeat it on each custom column.
+- **Typing the `field` columns.** Static `field="..."` attributes aren't checked against `Patient` either. The `col` helper (`<K extends keyof Patient>(key: K) => key`) returns its argument unchanged at runtime but turns a typo like `col('frstName')` into a compile error. It requires the bound form `:field="col('firstName')"` so the value is evaluated as an expression.
+- **`PatientStatus`.** Defined in the model as a `const` object + derived type, so `Patient.status` is one of three known values *and* the members are usable as values — `PatientStatus.Suspended` instead of the magic string. `severityFor(status: PatientStatus)` reasons exhaustively, and the dropdown/comparisons reference the members. Because it's a value as well as a type, the import uses `import { type Patient, PatientStatus }` (not `import type`) under `verbatimModuleSyntax`. It's a compile-time assertion about the API response, not runtime validation — safe here because the backend maps from a C# SmartEnum.
 
 ### Patient Detail Component
 
@@ -265,6 +272,7 @@ import {
   useDeletePatient,
 } from '@core/composables/use-patients';
 import { useNotifications } from '@core/composables/use-notifications';
+import { PatientStatus } from '@core/models/patient';
 
 const props = defineProps<{ id: string }>();
 const router = useRouter();
@@ -272,8 +280,8 @@ const notify = useNotifications();
 
 const { data: patient, isPending } = usePatient(() => props.id);
 
-const isSuspended = computed(() => patient.value?.status === 'Suspended');
-const isDeleted = computed(() => patient.value?.status === 'Deleted');
+const isSuspended = computed(() => patient.value?.status === PatientStatus.Suspended);
+const isDeleted = computed(() => patient.value?.status === PatientStatus.Deleted);
 
 const suspend = useSuspendPatient();
 const activate = useActivatePatient();
@@ -321,7 +329,7 @@ function formatDate(iso: string) {
         text
         rounded
         aria-label="Delete patient"
-        :loading="remove.isPending"
+        :loading="remove.isPending.value"
         @click="deletePatient"
       />
     </div>
@@ -338,7 +346,7 @@ function formatDate(iso: string) {
             v-if="!isDeleted"
             :label="isSuspended ? 'Activate' : 'Suspend'"
             severity="warn"
-            :loading="suspend.isPending || activate.isPending"
+            :loading="suspend.isPending.value || activate.isPending.value"
             @click="toggleStatus"
           />
           <Button label="Back to list" text @click="router.push('/patients')" />
@@ -353,6 +361,7 @@ Key points:
 - `defineProps<{ id: string }>()` receives the route param (because the route set `props: true`)
 - `usePatient(() => props.id)` passes a getter so the query stays reactive if the id changes
 - Suspend/activate/delete use the mutation composables; their `isPending` refs drive PrimeVue's `:loading` button state
+- **`.value` on the mutation refs is required.** `useMutation` returns a `ToRefs` object, so `remove`/`suspend`/`activate` are plain objects whose properties are `Ref`s. Vue only auto-unwraps refs that are *top-level* template bindings (like the destructured `isPending` from `usePatient`, used bare in `v-if="isPending"`). A ref reached through a property (`remove.isPending`) in a `v-bind` is **not** unwrapped — bind `remove.isPending.value`. (Writing `!!remove.isPending` would type-check but is always `true`, since the ref object is truthy — wrong fix.) If the `.value` bothers you, destructure the ref to a top-level binding instead.
 - Cache invalidation (doc 02) means the view auto-refreshes after a successful suspend/activate
 
 ### Create Patient Component (Overview)
