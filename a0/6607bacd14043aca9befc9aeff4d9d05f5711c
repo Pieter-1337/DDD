@@ -1,0 +1,77 @@
+Frontend/Vue/Scheduling.VueApp/src/features/patients/PatientDetail.vue
+  h_9ef4f126c6bd1c 1-7,10-12,14,16-17,19-21,23-29,31-38,40-44,46-49,51-54,56-61,63-82,84
+docs/phase-8-auth/07-vue-auth.md
+  s_44786d51a9d234::t_a6bad5f220cc2b 1-840
+Frontend/Vue/Scheduling.VueApp/src/core/composables/use-notifications.ts
+  h_9ef4f126c6bd1c 1,3-13
+Frontend/Vue/Scheduling.VueApp/src/App.vue
+  h_9ef4f126c6bd1c 2-9,11,14-23
+Frontend/Vue/Scheduling.VueApp/src/features/patients/CreatePatient.vue
+  h_9ef4f126c6bd1c 1-5,7-11
+Frontend/Vue/Scheduling.VueApp/src/core/models/patient.ts
+  s_fd160a8e1690db::t_8a4b931fa467bf 4-7,9-15
+  s_fd160a8e1690db::t_8772bcef671ac6 8,17,26
+  h_9ef4f126c6bd1c 1,3,18-25,27,29-36,38,40-45,47-52
+  s_fd160a8e1690db::t_6bdfc507ffcbbe 37
+docs/phase-7-frontend/vue/02-vue-consuming-apis.md
+  s_fd160a8e1690db::t_577e3811951091 80,89,107
+  s_fd160a8e1690db::t_93977f89b0292b 59-65
+Frontend/Vue/Scheduling.VueApp/src/core/composables/use-patients.ts
+  h_9ef4f126c6bd1c 1-4,6-11,13-18,20-24,26-28,30-34,36-43,45-55,57-67,69-78
+Frontend/Vue/Scheduling.VueApp/src/router/index.ts
+  h_9ef4f126c6bd1c 1,3-8
+Frontend/Vue/Scheduling.VueApp/src/shared/models/success-or-failure-response.ts
+  s_44786d51a9d234::t_91b02b3d7601bc 1
+Frontend/Vue/Scheduling.VueApp/.env.development
+  s_44786d51a9d234::t_fea495f03957c2 1-2
+docs/phase-7-frontend/vue/04-vue-forms-and-validation.md
+  s_fd160a8e1690db::t_4a5106ed0c8abd 169
+  s_fd160a8e1690db::t_d46214e43df995 299
+  s_fd160a8e1690db::t_0256ecc17dfaba 58-60
+  s_fd160a8e1690db::t_426afed1cec802 64,192-193,196,200-203,217,235,274
+Frontend/Vue/Scheduling.VueApp/tsconfig.app.json
+  s_44786d51a9d234::t_cda50a3acbf17e 11-14
+Frontend/Vue/Scheduling.VueApp/src/core/api/patient-api.ts
+  h_9ef4f126c6bd1c 1-2,6-9,11-12,14-18,20-22,24-30,32-36,38-42,44-49
+  s_44786d51a9d234::t_60c3626b332dc4 4
+Frontend/Vue/Scheduling.VueApp/env.d.ts
+  s_44786d51a9d234::t_8cae69b68ef56d 4-5
+docs/phase-7-frontend/vue/03-vue-components-and-routing.md
+  s_fd160a8e1690db::t_1ac1bb94be1991 364
+Frontend/Vue/Scheduling.VueApp/src/features/patients/PatientList.vue
+  s_fd160a8e1690db::t_0db9b5315a2dea 45-47
+  s_fd160a8e1690db::t_0a433fb192d05d 11
+  s_fd160a8e1690db::t_c01b2b4f153ec7 17-19
+  h_9ef4f126c6bd1c 1-10,12,14-16,20,23,26-27,31,33-38,40-42,44,48,50-53,55-59
+  s_fd160a8e1690db::t_0dbb9131076281 49,54
+  s_fd160a8e1690db::t_89049afc707647 25,29-30
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.3",
+  "base_commit_sha": "a06607bacd14043aca9befc9aeff4d9d05f5711c",
+  "prompts": {},
+  "humans": {
+    "h_9ef4f126c6bd1c": {
+      "author": "Pieter Bracke <pieter.bracke@euri.com>"
+    }
+  },
+  "sessions": {
+    "s_44786d51a9d234": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "a86e029c-471a-46c9-8c0c-74fc2a356d51",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Pieter Bracke <pieter.bracke@euri.com>"
+    },
+    "s_fd160a8e1690db": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "efa891bc-469d-445b-a075-20c2a885ccb8",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Pieter Bracke <pieter.bracke@euri.com>"
+    }
+  }
+}
